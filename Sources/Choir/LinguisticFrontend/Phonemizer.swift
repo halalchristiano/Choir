@@ -1,0 +1,198 @@
+import Foundation
+
+/// Converts graphemes (letters) to phonemes (sounds) for English text.
+///
+/// Uses a dictionary-based approach with grapheme-to-phoneme (G2P) rules as fallback.
+public struct Phonemizer: Sendable {
+    /// A dictionary of known word pronunciations (simplified CMU-like format).
+    private let pronunciationDictionary: [String: [Phoneme]]
+
+    public init(dictionary: [String: [Phoneme]]? = nil) {
+        self.pronunciationDictionary = dictionary ?? Phonemizer.defaultDictionary
+    }
+
+    /// Converts a word to its phonetic transcription.
+    ///
+    /// - Parameter word: The word to phonemize (case-insensitive).
+    /// - Returns: An array of phonemes representing the word.
+    public func phonemize(_ word: String) -> [Phoneme] {
+        let normalized = word.lowercased()
+            .trimmingCharacters(in: .punctuationCharacters)
+
+        guard !normalized.isEmpty else { return [] }
+
+        // Check dictionary first
+        if let phonemes = pronunciationDictionary[normalized] {
+            return phonemes
+        }
+
+        // Fall back to rule-based G2P
+        return graphemeToPhonemeRules(normalized)
+    }
+
+    /// Applies grapheme-to-phoneme conversion rules for unknown words.
+    private func graphemeToPhonemeRules(_ word: String) -> [Phoneme] {
+        var phonemes: [Phoneme] = []
+        let chars = Array(word)
+        var i = 0
+
+        while i < chars.count {
+            let char = chars[i]
+            let nextChar = i + 1 < chars.count ? chars[i + 1] : nil
+
+            // Vowels
+            if isCharVowel(char) {
+                if char == "a" {
+                    if nextChar == "i" {
+                        phonemes.append(Phoneme("aɪ"))
+                        i += 2
+                        continue
+                    } else if nextChar == "u" {
+                        phonemes.append(Phoneme("ɔ"))
+                        i += 2
+                        continue
+                    }
+                    phonemes.append(Phoneme(isVowelLong(word, at: i) ? "eɪ" : "æ"))
+                } else if char == "e" {
+                    if nextChar == "y" {
+                        phonemes.append(Phoneme("i"))
+                        i += 2
+                        continue
+                    }
+                    phonemes.append(Phoneme(isVowelLong(word, at: i) ? "iː" : "ɛ"))
+                } else if char == "i" {
+                    phonemes.append(Phoneme(isVowelLong(word, at: i) ? "iː" : "ɪ"))
+                } else if char == "o" {
+                    if nextChar == "i" {
+                        phonemes.append(Phoneme("ɔɪ"))
+                        i += 2
+                        continue
+                    }
+                    phonemes.append(Phoneme(isVowelLong(word, at: i) ? "oʊ" : "ɑ"))
+                } else if char == "u" {
+                    phonemes.append(Phoneme(isVowelLong(word, at: i) ? "uː" : "ʊ"))
+                } else if char == "y" {
+                    phonemes.append(Phoneme(i == 0 ? "j" : "ɪ"))
+                }
+                i += 1
+            }
+            // Consonant digraphs
+            else if char == "c" && nextChar == "h" {
+                phonemes.append(Phoneme("tʃ"))
+                i += 2
+            } else if char == "s" && nextChar == "h" {
+                phonemes.append(Phoneme("ʃ"))
+                i += 2
+            } else if char == "t" && nextChar == "h" {
+                phonemes.append(Phoneme("θ"))
+                i += 2
+            } else if char == "d" && nextChar == "h" {
+                phonemes.append(Phoneme("ð"))
+                i += 2
+            } else if char == "z" && nextChar == "h" {
+                phonemes.append(Phoneme("ʒ"))
+                i += 2
+            } else if char == "n" && nextChar == "g" {
+                phonemes.append(Phoneme("ŋ"))
+                i += 2
+            } else if char == "j" {
+                phonemes.append(Phoneme("dʒ"))
+                i += 1
+            }
+            // Single consonants
+            else if let phoneme = consonantPhoneme(char) {
+                phonemes.append(Phoneme(phoneme))
+                i += 1
+            } else {
+                i += 1
+            }
+        }
+
+        return phonemes
+    }
+
+    /// Determines if a vowel should be pronounced as a long vowel.
+    private func isVowelLong(_ word: String, at index: Int) -> Bool {
+        let chars = Array(word)
+
+        // Vowel at end of word is often long
+        if index == chars.count - 1 {
+            return true
+        }
+
+        // Vowel followed by silent 'e'
+        if index + 1 < chars.count && chars[index + 1] == "e" {
+            if index + 2 >= chars.count {
+                return true
+            }
+        }
+
+        // Vowel followed by single consonant and vowel (open syllable)
+        if index + 2 < chars.count {
+            let nextChar = chars[index + 1]
+            let nextNextChar = chars[index + 2]
+            if !isCharVowel(nextChar) && isCharVowel(nextNextChar) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /// Maps a consonant character to its phoneme.
+    private func consonantPhoneme(_ char: Character) -> String? {
+        switch char {
+        case "b": return "b"
+        case "c": return "k"
+        case "d": return "d"
+        case "f": return "f"
+        case "g": return "g"
+        case "h": return "h"
+        case "j": return "dʒ"
+        case "k": return "k"
+        case "l": return "l"
+        case "m": return "m"
+        case "n": return "n"
+        case "p": return "p"
+        case "q": return "k"
+        case "r": return "r"
+        case "s": return "z"
+        case "t": return "t"
+        case "v": return "v"
+        case "w": return "w"
+        case "x": return "ks"
+        case "z": return "z"
+        default: return nil
+        }
+    }
+
+    /// Checks if a character is a vowel.
+    private func isCharVowel(_ char: Character) -> Bool {
+        "aeiouAEIOU".contains(char)
+    }
+
+    /// Default pronunciation dictionary with common English words.
+    private static let defaultDictionary: [String: [Phoneme]] = [
+        "the": [Phoneme("ð"), Phoneme("ə")],
+        "a": [Phoneme("ə")],
+        "and": [Phoneme("æ"), Phoneme("n"), Phoneme("d")],
+        "to": [Phoneme("t"), Phoneme("uː")],
+        "of": [Phoneme("ə"), Phoneme("v")],
+        "in": [Phoneme("ɪ"), Phoneme("n")],
+        "is": [Phoneme("ɪ"), Phoneme("z")],
+        "you": [Phoneme("j"), Phoneme("uː")],
+        "that": [Phoneme("ð"), Phoneme("æ"), Phoneme("t")],
+        "hello": [Phoneme("h"), Phoneme("ə"), Phoneme("l"), Phoneme("oʊ")],
+        "world": [Phoneme("w"), Phoneme("ə"), Phoneme("l"), Phoneme("d")],
+        "beautiful": [Phoneme("b"), Phoneme("j"), Phoneme("uː"), Phoneme("t"), Phoneme("ə"), Phoneme("f"), Phoneme("ə"), Phoneme("l")],
+        "choir": [Phoneme("k"), Phoneme("w"), Phoneme("aɪ"), Phoneme("ə"), Phoneme("r")],
+        "synthesis": [Phoneme("s"), Phoneme("ɪ"), Phoneme("n"), Phoneme("θ"), Phoneme("ə"), Phoneme("s"), Phoneme("ɪ"), Phoneme("s")],
+        "voice": [Phoneme("v"), Phoneme("ɔɪ"), Phoneme("s")],
+        "speech": [Phoneme("s"), Phoneme("p"), Phoneme("iː"), Phoneme("tʃ")],
+        "synthesize": [Phoneme("s"), Phoneme("ɪ"), Phoneme("n"), Phoneme("θ"), Phoneme("ə"), Phoneme("s"), Phoneme("aɪ"), Phoneme("z")],
+        "music": [Phoneme("m"), Phoneme("j"), Phoneme("uː"), Phoneme("z"), Phoneme("ɪ"), Phoneme("k")],
+        "read": [Phoneme("r"), Phoneme("ɛ"), Phoneme("d")],
+        "through": [Phoneme("θ"), Phoneme("r"), Phoneme("uː")],
+        "important": [Phoneme("ɪ"), Phoneme("m"), Phoneme("p"), Phoneme("ɔ"), Phoneme("r"), Phoneme("t"), Phoneme("ə"), Phoneme("n"), Phoneme("t")],
+    ]
+}
