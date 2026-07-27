@@ -83,6 +83,24 @@ try await engine.streamSynthesis(
 )
 ```
 
+## 📚 Documentation
+
+Complete guides for all use cases:
+
+| Guide | Purpose | Best For |
+|-------|---------|----------|
+| **[Getting Started](./GETTING_STARTED.md)** | 5-min quickstart, installation, common patterns | New users |
+| **[Error Handling](./ERROR_HANDLING.md)** | All error types, recovery patterns, testing | Production reliability |
+| **[Streaming Synthesis](./STREAMING.md)** | Real-time audio, chunk management, patterns | Interactive apps, games |
+| **[Voice Blending](./VOICE_BLENDING_GUIDE.md)** | Smooth voice transitions, character morphing | Creative applications |
+| **[Platforms Guide](./PLATFORMS.md)** | iOS, macOS, watchOS, visionOS, tvOS specifics | Cross-platform apps |
+
+**Quick Links:**
+- [API Reference](#api-overview) — Core types and methods
+- [Advanced Features](#advanced-features) — Voice blending, ToBI prosody, SSML
+- [Implementation Status](#implementation-status) — Phase tracking
+- [Examples](./Sources/Choir/Demo/ChoirDemo.swift) — 9 runnable examples
+
 ## API Overview
 
 ### ChoirEngine
