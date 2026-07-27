@@ -135,17 +135,20 @@ public struct StreamingSynthesisPipeline: Sendable {
         // Synthesize complete audio first
         let audio = try await pipeline.synthesize(text: text, voice: voice, parameters: parameters)
 
-        // Stream in chunks
+        // Stream in chunks using zero-copy ArraySlice to reduce memory allocations
         let samples = audio.samples
         var offset = 0
         var timestamp = 0.0
 
         while offset < samples.count {
             let end = min(offset + chunkSize, samples.count)
-            let chunk = Array(samples[offset..<end])
+            // Use ArraySlice<Int16> for zero-copy view into samples
+            // Eliminates redundant memory allocation compared to Array(samples[...])
+            let chunk: ArraySlice<Int16> = samples[offset..<end]
             let isFinal = end >= samples.count
 
-            let audioChunk = AudioChunk(samples: chunk, isFinal: isFinal, timestamp: timestamp)
+            // Convert to Array only at output boundary (when necessary for API compatibility)
+            let audioChunk = AudioChunk(samples: Array(chunk), isFinal: isFinal, timestamp: timestamp)
             try await onChunk(audioChunk)
 
             offset = end

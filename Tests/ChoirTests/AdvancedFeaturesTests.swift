@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import Choir
 
 @Suite("ToBI Prosody System")
@@ -176,8 +177,8 @@ struct AudioFiltersTests {
 
         #expect(normalized.count == samples.count)
         // Normalized samples should be louder on average
-        let originalAvg = samples.map { abs($0) }.reduce(0, +) / samples.count
-        let normalizedAvg = normalized.map { abs($0) }.reduce(0, +) / normalized.count
+        let originalAvg = Double(samples.map { Int(abs($0)) }.reduce(0, +)) / Double(samples.count)
+        let normalizedAvg = Double(normalized.map { Int(abs($0)) }.reduce(0, +)) / Double(normalized.count)
         #expect(normalizedAvg > originalAvg)
     }
 
