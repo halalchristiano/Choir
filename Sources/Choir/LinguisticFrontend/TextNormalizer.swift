@@ -78,40 +78,41 @@ public struct TextNormalizer: Sendable {
         (100, "hundred"),
     ]
 
+    // MARK: - Cached Regex Patterns
+    private static let dollarRegex = try! NSRegularExpression(pattern: #"\$(\d+(?:\.\d{2})?)"#)
+    private static let multiSpaceRegex = try! NSRegularExpression(pattern: " +")
+    private static let hyphenRegex = try! NSRegularExpression(pattern: "([a-z])-([a-z])")
+    private static let multiPunctuationRegex = try! NSRegularExpression(pattern: "[.!?]{2,}")
+
     public init() {}
 
     /// Normalizes text for synthesis, expanding numbers, abbreviations, etc.
     public func normalize(_ text: String) -> String {
         var result = text.lowercased()
 
-        // Expand contractions
-        for (contraction, expansion) in Self.contractions {
-            result = result.replacingOccurrences(
-                of: contraction,
-                with: expansion,
-                options: .caseInsensitive
-            )
-        }
-
-        // Process numbers (basic: 123 → "one hundred twenty three")
+        // Expand contractions and abbreviations
+        result = expandDictionary(result, Self.contractions)
         result = expandNumbers(result)
+        result = expandDictionary(result, Self.abbreviations)
 
-        // Expand abbreviations
-        for (abbr, expansion) in Self.abbreviations {
-            result = result.replacingOccurrences(
-                of: abbr,
-                with: expansion,
-                options: .caseInsensitive
-            )
-        }
-
-        // Handle currency (basic: $50 → "fifty dollars")
+        // Handle currency and punctuation
         result = expandCurrency(result)
-
-        // Remove or replace problematic punctuation
         result = cleanPunctuation(result)
 
         return result.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Expands a dictionary of text replacements.
+    private func expandDictionary(_ text: String, _ expansions: [String: String]) -> String {
+        var result = text
+        for (original, replacement) in expansions {
+            result = result.replacingOccurrences(
+                of: original,
+                with: replacement,
+                options: .caseInsensitive
+            )
+        }
+        return result
     }
 
     /// Expands numbers to words (e.g., "123" → "one hundred twenty three").
@@ -172,20 +173,15 @@ public struct TextNormalizer: Sendable {
     /// Expands currency notation (e.g., "$50" → "fifty dollars").
     private func expandCurrency(_ text: String) -> String {
         var result = text
+        let range = NSRange(result.startIndex..<result.endIndex, in: result)
+        let matches = Self.dollarRegex.matches(in: result, range: range)
 
-        // Dollar amounts: $50 → fifty dollars
-        let dollarPattern = #"\$(\d+(?:\.\d{2})?)"#
-        if let regex = try? NSRegularExpression(pattern: dollarPattern) {
-            let range = NSRange(result.startIndex..<result.endIndex, in: result)
-            let matches = regex.matches(in: result, range: range)
-
-            for match in matches.reversed() {
-                if let matchRange = Range(match.range(at: 1), in: result) {
-                    let numberStr = String(result[matchRange])
-                    let expanded = numberToWords(numberStr) + " dollars"
-                    if let fullRange = Range(match.range, in: result) {
-                        result.replaceSubrange(fullRange, with: expanded)
-                    }
+        for match in matches.reversed() {
+            if let matchRange = Range(match.range(at: 1), in: result) {
+                let numberStr = String(result[matchRange])
+                let expanded = numberToWords(numberStr) + " dollars"
+                if let fullRange = Range(match.range, in: result) {
+                    result.replaceSubrange(fullRange, with: expanded)
                 }
             }
         }
@@ -196,26 +192,29 @@ public struct TextNormalizer: Sendable {
     /// Cleans and normalizes punctuation.
     private func cleanPunctuation(_ text: String) -> String {
         var result = text
+        let range = NSRange(result.startIndex..<result.endIndex, in: result)
 
         // Replace multiple spaces with single space
-        result = result.replacingOccurrences(
-            of: " +",
-            with: " ",
-            options: .regularExpression
+        result = Self.multiSpaceRegex.stringByReplacingMatches(
+            in: result,
+            range: range,
+            withTemplate: " "
         )
 
         // Remove hyphens between letters (e-mail → email)
-        result = result.replacingOccurrences(
-            of: "([a-z])-([a-z])",
-            with: "$1$2",
-            options: .regularExpression
+        var rangeAfterFirst = NSRange(result.startIndex..<result.endIndex, in: result)
+        result = Self.hyphenRegex.stringByReplacingMatches(
+            in: result,
+            range: rangeAfterFirst,
+            withTemplate: "$1$2"
         )
 
         // Keep sentence-ending punctuation but handle multiple
-        result = result.replacingOccurrences(
-            of: "[.!?]{2,}",
-            with: ".",
-            options: .regularExpression
+        rangeAfterFirst = NSRange(result.startIndex..<result.endIndex, in: result)
+        result = Self.multiPunctuationRegex.stringByReplacingMatches(
+            in: result,
+            range: rangeAfterFirst,
+            withTemplate: "."
         )
 
         return result
