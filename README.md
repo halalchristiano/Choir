@@ -88,10 +88,28 @@ try await engine.streamSynthesis(
 ### ChoirEngine
 The main synthesis actor. Supports both batch and streaming synthesis with full async/await support.
 
+```swift
+let engine = ChoirEngine()
+try await engine.initialize()
+
+// Batch synthesis
+let audio = try await engine.synthesize(
+    text: "Hello world",
+    voice: .narratorFeminine,
+    parameters: SynthesisParameters(rate: 1.2, emotionalIntensity: 0.8)
+)
+
+// Streaming synthesis
+try await engine.streamSynthesis(
+    text: "Real-time output",
+    voice: .youngAdultMasculine,
+    onChunk: { chunk in print(chunk.samples.count) }
+)
+```
+
 - `initialize()` — Load models and initialize the engine
 - `synthesize(text:voice:parameters:)` — Batch synthesis, returns AudioBuffer
 - `streamSynthesis(text:voice:parameters:options:onChunk:)` — Streaming synthesis with chunk callback
-- `exportAudio(_:format:)` — Export to WAV, MP3, AAC, or FLAC
 
 ### Voice
 32 cases representing each available voice. Properties:
@@ -118,6 +136,79 @@ Parametric control over synthesis:
 - `.notInitialized`
 - `.cancelled`
 - And more...
+
+## Advanced Features
+
+### Speaking Styles
+Pre-configured parameter sets for common speaking patterns:
+
+```swift
+let audio = try await engine.synthesize(
+    text: "What an amazing day!",
+    voice: .youngAdultFeminine,
+    parameters: SpeakingStyle.happy.parameters  // Built-in happy voice
+)
+```
+
+Available styles: `.normal`, `.fast`, `.slow`, `.whisper`, `.shout`, `.happy`, `.sad`, `.angry`, `.calm`
+
+### Voice Blending
+Smooth interpolation between two voices:
+
+```swift
+let blending = VoiceBlending()
+let profile1 = VoiceBlending.VoiceProfile(voice: .narratorMasculine)
+let profile2 = VoiceBlending.VoiceProfile(voice: .narratorFeminine)
+
+for step in 0...10 {
+    let mix = Double(step) / 10.0
+    let params = blending.blend(profile1, with: profile2, mix: mix)
+    let audio = try await engine.synthesize(text, voice: .narratorMasculine, parameters: params)
+}
+```
+
+### ToBI Prosody Control
+Linguistic prosody annotations (Tones and Break Indices):
+
+```swift
+let predictor = ToBIPredictor()
+let tobi = ToBI(
+    pitchAccent: .L_H,      // Rising accent
+    phraseAccent: .high,
+    boundaryTone: .low,
+    breakIndex: .intonational
+)
+
+let f0 = predictor.applyToBIToF0(baseF0: 120, tobi: tobi, position: 0.5)
+```
+
+### Audio Post-Processing
+Professional audio quality filters:
+
+```swift
+let filters = AudioFilters()
+
+let audio = try await engine.synthesize(text: "Demo", voice: .narratorFeminine)
+
+// Apply processing chain
+let deessed = filters.deEsser(audio.samples)
+let normalized = filters.normalize(deessed, targetLevel: -6.0)
+let compressed = filters.compress(normalized, threshold: -20, ratio: 4.0)
+```
+
+Supported filters: high-pass, low-pass, normalize, soft clip, compress, de-esser, reverb
+
+### SSML Markup
+Control prosody with XML-like tags:
+
+```swift
+let ssml = """
+Hello <prosody pitch="+5" rate="1.2">there!</prosody>
+<emphasis level="strong">This is important!</emphasis>
+"""
+
+let audio = try await engine.synthesize(text: ssml, voice: .youngAdultMasculine)
+```
 
 ## Implementation Status
 
@@ -163,9 +254,17 @@ Parametric control over synthesis:
 - Cache statistics and monitoring
 - Memory-efficient storage management
 
+**Phase 7: Advanced Prosody & Audio**
+- ToBI (Tones and Break Indices) linguistic prosody
+- Voice blending and interpolation
+- 9 speaking style presets
+- Audio post-processing filters (7 filter types)
+- Professional quality enhancement
+- Comprehensive demo module
+
 ### 📋 Test Coverage
 
-**57+ tests passing** across 10 suites:
+**75+ tests passing** across 12 suites:
 - Text normalization (6 tests)
 - Phonemization/G2P (5 tests)
 - Stress assignment (3 tests)
