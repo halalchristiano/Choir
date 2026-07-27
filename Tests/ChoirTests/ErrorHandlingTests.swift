@@ -245,16 +245,15 @@ struct ErrorHandlingTests {
         }
 
         let hasErrorOccurred = await tracker.hasError()
-        #expect(hasErrorOccurred || await tracker.getChunkCount() >= 0)
+        let chunkCount = await tracker.getChunkCount()
+        #expect(hasErrorOccurred || chunkCount >= 0)
     }
 
     @Test("streaming error includes context about failure point")
     func testStreamingErrorContextPreservation() async {
         let engine = ChoirEngine()
         try? await engine.initialize()
-
-        var chunkCount = 0
-        var errorOccurred = false
+        let tracker = StreamErrorTracker()
 
         do {
             try await engine.streamSynthesis(
@@ -262,15 +261,17 @@ struct ErrorHandlingTests {
                 voice: .youngAdultMasculine,
                 options: StreamingOptions(),
                 onChunk: { _ in
-                    chunkCount += 1
+                    await tracker.recordChunk()
                 }
             )
         } catch {
-            errorOccurred = true
+            await tracker.recordError()
         }
 
+        let chunkCount = await tracker.getChunkCount()
+        let hasError = await tracker.hasError()
         #expect(chunkCount >= 0)
-        #expect(errorOccurred || chunkCount > 0)
+        #expect(hasError || chunkCount > 0)
     }
 
     // MARK: - Other Error Types Tests
