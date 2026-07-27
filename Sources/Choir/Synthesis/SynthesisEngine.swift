@@ -16,6 +16,7 @@ public actor ChoirEngine {
 
     private var state: State = .uninitialized
     private let audioFormat: AudioFormat
+    private var pipeline: SynthesisPipeline?
 
     /// Creates a new Choir synthesis engine.
     ///
@@ -33,7 +34,8 @@ public actor ChoirEngine {
     public func initialize() async throws {
         guard case .uninitialized = state else { return }
 
-        // TODO: Load Core ML models, voice assets, and initialize synthesis components
+        // Initialize synthesis pipeline with default components
+        self.pipeline = SynthesisPipeline(audioFormat: audioFormat)
 
         state = .ready
     }
@@ -59,18 +61,15 @@ public actor ChoirEngine {
         try validateState()
         try validateText(text)
 
-        let state = state
-        defer { self.state = state }
+        guard let pipeline = pipeline else {
+            throw ChoirError.notInitialized
+        }
+
+        let savedState = state
         self.state = .synthesizing
+        defer { self.state = savedState }
 
-        // TODO: Implement batch synthesis pipeline
-        // 1. Text processing (normalization, G2P, phonemization)
-        // 2. Prosody prediction
-        // 3. Acoustic model inference
-        // 4. Vocoder inference
-        // 5. Return PCM audio buffer
-
-        throw ChoirError.unknown("Synthesis not yet implemented")
+        return try await pipeline.synthesize(text: text, voice: voice, parameters: parameters)
     }
 
     /// Synthesizes text to audio in streaming mode, yielding audio chunks as they are produced.
@@ -87,17 +86,30 @@ public actor ChoirEngine {
         voice: Voice,
         parameters: SynthesisParameters = SynthesisParameters(),
         options: StreamingOptions = StreamingOptions(),
-        onChunk: (AudioChunk) async throws -> Void
+        onChunk: @Sendable (AudioChunk) async throws -> Void
     ) async throws {
         try validateState()
         try validateText(text)
 
-        let state = state
-        defer { self.state = state }
-        self.state = .synthesizing
+        guard let pipeline = pipeline else {
+            throw ChoirError.notInitialized
+        }
 
-        // TODO: Implement streaming synthesis pipeline
-        // Process text in chunks and yield audio as available
+        let savedState = state
+        self.state = .synthesizing
+        defer { self.state = savedState }
+
+        let streamPipeline = StreamingSynthesisPipeline(
+            pipeline: pipeline,
+            chunkSize: options.chunkSize
+        )
+
+        try await streamPipeline.streamSynthesis(
+            text: text,
+            voice: voice,
+            parameters: parameters,
+            onChunk: onChunk
+        )
     }
 
     /// Exports audio to a specific format.
