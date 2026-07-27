@@ -65,26 +65,18 @@ public enum Voice: String, Sendable, CaseIterable {
 
     /// The age band of this voice (1-4), or 0 for specialty voices.
     public var ageBand: Int {
-        switch self {
-        case .childNeutral1, .childNeutral2, .childMasculine, .childFeminine:
-            return 1
-        case .youngAdultNeutral1, .youngAdultNeutral2, .youngAdultMasculine, .youngAdultFeminine:
-            return 2
-        case .middleAgedNeutral1, .middleAgedNeutral2, .middleAgedMasculine, .middleAgedFeminine:
-            return 3
-        case .elderlyNeutral1, .elderlyNeutral2, .elderlyMasculine, .elderlyFeminine:
-            return 4
-        case .villainMasculine1, .villainMasculine2, .villainFeminine1, .villainFeminine2, .villainNeutral1, .villainNeutral2:
-            return 3
-        case .narratorMasculine, .narratorFeminine:
-            return 3
-        case .teenageMasculine, .teenageFeminine:
-            return 2
-        case .characterWitchyFeminine, .characterGrufMasculine, .characterMysticalNeutral, .characterRobotNeutral, .characterMysteryMasculine:
-            return 0
-        case .audiobook:
-            return 0
-        }
+        let ageBandMap: [Voice: Int] = [
+            .childNeutral1: 1, .childNeutral2: 1, .childMasculine: 1, .childFeminine: 1,
+            .youngAdultNeutral1: 2, .youngAdultNeutral2: 2, .youngAdultMasculine: 2, .youngAdultFeminine: 2,
+            .middleAgedNeutral1: 3, .middleAgedNeutral2: 3, .middleAgedMasculine: 3, .middleAgedFeminine: 3,
+            .elderlyNeutral1: 4, .elderlyNeutral2: 4, .elderlyMasculine: 4, .elderlyFeminine: 4,
+            .villainMasculine1: 3, .villainMasculine2: 3, .villainFeminine1: 3, .villainFeminine2: 3, .villainNeutral1: 3, .villainNeutral2: 3,
+            .narratorMasculine: 3, .narratorFeminine: 3,
+            .teenageMasculine: 2, .teenageFeminine: 2,
+            .characterWitchyFeminine: 0, .characterGrufMasculine: 0, .characterMysticalNeutral: 0, .characterRobotNeutral: 0, .characterMysteryMasculine: 0,
+            .audiobook: 0
+        ]
+        return ageBandMap[self] ?? 0
     }
 
     /// Whether this is a villain voice archetype.

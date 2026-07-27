@@ -2,6 +2,21 @@ import Foundation
 
 /// Audio signal processing filters and effects.
 public struct AudioFilters: Sendable {
+    // MARK: - Filter Constants
+    @usableFromInline static let defaultHighPassCutoff: Double = 80.0
+    @usableFromInline static let defaultLowPassCutoff: Double = 8000.0
+    @usableFromInline static let defaultNormalizationTarget: Double = -6.0
+    @usableFromInline static let defaultSoftClipThreshold: Double = 0.9
+    @usableFromInline static let defaultSibilantFrequency: Double = 6000.0
+    @usableFromInline static let sibilantFilterRatio: Double = 0.8
+    @usableFromInline static let deEsserDryMix: Double = 0.8
+    @usableFromInline static let deEsserWetMix: Double = 0.2
+    @usableFromInline static let defaultReverbDelay: Int = 50
+    @usableFromInline static let defaultReverbWetLevel: Double = 0.3
+    @usableFromInline static let pcmMaxValue: Double = 32767.0
+    @usableFromInline static let pcmMinValue: Int16 = -32768
+    @usableFromInline static let pcmMaxValueInt: Int16 = 32767
+
     public init() {}
 
     /// Applies high-pass filter to remove low-frequency noise.
@@ -13,7 +28,7 @@ public struct AudioFilters: Sendable {
     /// - Returns: Filtered samples.
     public func highPassFilter(
         _ samples: [Int16],
-        cutoffFrequency: Double = 80.0,
+        cutoffFrequency: Double = defaultHighPassCutoff,
         sampleRate: Int = 48000
     ) -> [Int16] {
         // Simple RC high-pass filter
@@ -29,7 +44,7 @@ public struct AudioFilters: Sendable {
             let input = Double(sample)
             let output = alpha * (prevOutput + input - prevInput)
 
-            filtered.append(Int16(max(-32768, min(32767, output))))
+            filtered.append(Int16(max(Self.pcmMinValue, min(Self.pcmMaxValueInt, Int16(output)))))
 
             prevOutput = output
             prevInput = input
@@ -47,7 +62,7 @@ public struct AudioFilters: Sendable {
     /// - Returns: Filtered samples.
     public func lowPassFilter(
         _ samples: [Int16],
-        cutoffFrequency: Double = 8000.0,
+        cutoffFrequency: Double = defaultLowPassCutoff,
         sampleRate: Int = 48000
     ) -> [Int16] {
         // Simple RC low-pass filter
@@ -62,7 +77,7 @@ public struct AudioFilters: Sendable {
             let input = Double(sample)
             let output = prevOutput + alpha * (input - prevOutput)
 
-            filtered.append(Int16(max(-32768, min(32767, output))))
+            filtered.append(Int16(max(Self.pcmMinValue, min(Self.pcmMaxValueInt, Int16(output)))))
             prevOutput = output
         }
 
@@ -77,7 +92,7 @@ public struct AudioFilters: Sendable {
     /// - Returns: Normalized samples.
     public func normalize(
         _ samples: [Int16],
-        targetLevel: Double = -6.0
+        targetLevel: Double = defaultNormalizationTarget
     ) -> [Int16] {
         guard !samples.isEmpty else { return samples }
 
@@ -89,12 +104,12 @@ public struct AudioFilters: Sendable {
 
         // Calculate gain to reach target level
         let targetLinear = pow(10.0, targetLevel / 20.0)
-        let gain = targetLinear / (rms / 32767.0)
+        let gain = targetLinear / (rms / Self.pcmMaxValue)
 
         // Apply gain with clipping protection
         return samples.map { sample in
             let scaled = Double(sample) * gain
-            return Int16(max(-32768, min(32767, scaled)))
+            return Int16(max(Self.pcmMinValue, min(Self.pcmMaxValueInt, Int16(scaled))))
         }
     }
 
@@ -106,9 +121,9 @@ public struct AudioFilters: Sendable {
     /// - Returns: Clipped samples.
     public func softClip(
         _ samples: [Int16],
-        threshold: Double = 0.9
+        threshold: Double = defaultSoftClipThreshold
     ) -> [Int16] {
-        let thresholdValue = Int16(32767 * threshold)
+        let thresholdValue = Int16(Self.pcmMaxValue * threshold)
 
         return samples.map { sample in
             if abs(sample) <= thresholdValue {
@@ -116,9 +131,9 @@ public struct AudioFilters: Sendable {
             }
 
             // Soft clipping using tanh approximation
-            let normalized = Double(sample) / 32767.0
+            let normalized = Double(sample) / Self.pcmMaxValue
             let clipped = tanh(normalized)
-            return Int16(clipped * 32767.0)
+            return Int16(clipped * Self.pcmMaxValue)
         }
     }
 
@@ -131,17 +146,17 @@ public struct AudioFilters: Sendable {
     /// - Returns: De-essed samples.
     public func deEsser(
         _ samples: [Int16],
-        sibilantFrequency: Double = 6000.0,
+        sibilantFrequency: Double = defaultSibilantFrequency,
         sampleRate: Int = 48000
     ) -> [Int16] {
         // Simplified de-esser: reduce energy in sibilant frequency range
         let filtered = lowPassFilter(samples, cutoffFrequency: sibilantFrequency, sampleRate: sampleRate)
-        let highpassed = highPassFilter(filtered, cutoffFrequency: sibilantFrequency * 0.8, sampleRate: sampleRate)
+        let highpassed = highPassFilter(filtered, cutoffFrequency: sibilantFrequency * Self.sibilantFilterRatio, sampleRate: sampleRate)
 
         // Mix: 80% original, 20% filtered (reduces sibilance)
         return zip(samples, highpassed).map { original, filtered in
-            let mixed = Double(original) * 0.8 + Double(filtered) * 0.2
-            return Int16(max(-32768, min(32767, mixed)))
+            let mixed = Double(original) * Self.deEsserDryMix + Double(filtered) * Self.deEsserWetMix
+            return Int16(max(Self.pcmMinValue, min(Self.pcmMaxValueInt, Int16(mixed))))
         }
     }
 
@@ -157,7 +172,7 @@ public struct AudioFilters: Sendable {
         threshold: Double = -20.0,
         ratio: Double = 4.0
     ) -> [Int16] {
-        let thresholdLinear = pow(10.0, threshold / 20.0) * 32767.0
+        let thresholdLinear = pow(10.0, threshold / 20.0) * Self.pcmMaxValue
 
         return samples.map { sample in
             let absValue = Double(abs(sample))
@@ -184,11 +199,10 @@ public struct AudioFilters: Sendable {
     /// - Returns: Reverb-processed samples.
     public func reverb(
         _ samples: [Int16],
-        wetLevel: Double = 0.3,
+        wetLevel: Double = defaultReverbWetLevel,
         sampleRate: Int = 48000
     ) -> [Int16] {
-        let delayMs = 50  // 50 ms delay
-        let delaySamples = (delayMs * sampleRate) / 1000
+        let delaySamples = (Self.defaultReverbDelay * sampleRate) / 1000
 
         var output = Array(samples)
 
@@ -198,7 +212,7 @@ public struct AudioFilters: Sendable {
             let current = Double(samples[i])
             let mixed = current * (1.0 - wetLevel) + delayed * wetLevel
 
-            output[i] = Int16(max(-32768, min(32767, mixed)))
+            output[i] = Int16(max(Self.pcmMinValue, min(Self.pcmMaxValueInt, Int16(mixed))))
         }
 
         return output

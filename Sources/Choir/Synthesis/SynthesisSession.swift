@@ -170,14 +170,14 @@ public actor SynthesisSessionManager {
     }
 
     /// Returns manager statistics.
+    ///
+    /// Note: totalCacheSize requires async access to session actors.
+    /// For accurate cache statistics, call `getSession()` then `getStatistics()` on each session.
     public func getStatistics() -> ManagerStatistics {
         ManagerStatistics(
             totalSessions: sessions.count,
             activeSessions: activeSessions.count,
-            totalCacheSize: sessions.values.reduce(0) { acc, session in
-                // This requires getting stats from the session
-                acc
-            }
+            totalCacheSize: 0
         )
     }
 }
