@@ -48,22 +48,24 @@ public struct VoiceQualityAnalyzer: Sendable {
         let rmsDb = 20.0 * log10(max(rms / 32767.0, 0.00001))
 
         // Find peak
-        let peak = samples.max(by: { abs($0) < abs($1) }) ?? 0
+        // `abs` traps on Int16.min (-32768), an ordinary full-scale sample,
+        // so magnitudes are taken as UInt16 throughout.
+        let peakMagnitude = samples.map { $0.magnitude }.max() ?? 0
 
         // Dynamic range
-        let minNonZero = samples.filter { $0 != 0 }.map { abs($0) }.min() ?? 1
-        let dynamicRange = 20.0 * log10(Double(abs(peak)) / Double(minNonZero))
+        let minNonZero = samples.filter { $0 != 0 }.map { $0.magnitude }.min() ?? 1
+        let dynamicRange = 20.0 * log10(Double(peakMagnitude) / Double(minNonZero))
 
         // Estimate LUFS (simplified K-weighting approximation)
         let lufs = rmsDb - 4.0  // Simplified
 
         // Estimate SNR
-        let quietFloor = abs(peak) / 10
-        let snr = 20.0 * log10(max(Double(abs(peak)) / Double(max(quietFloor, 1)), 0.00001))
+        let quietFloor = peakMagnitude / 10
+        let snr = 20.0 * log10(max(Double(peakMagnitude) / Double(max(quietFloor, 1)), 0.00001))
 
         // Check clipping (samples above 95% of max)
         let clipThreshold = Int16(32767 * 0.95)
-        let clippedSamples = samples.filter { abs($0) > clipThreshold }.count
+        let clippedSamples = samples.filter { $0.magnitude > clipThreshold.magnitude }.count
         let clippingPercent = Double(clippedSamples) / Double(samples.count) * 100.0
 
         // Zero crossing rate (for voice presence)
@@ -78,7 +80,9 @@ public struct VoiceQualityAnalyzer: Sendable {
 
         return QualityMetrics(
             rmsLoudness: rmsDb,
-            peakLevel: peak,
+            // A full-scale negative sample has magnitude 32768, which Int16
+            // cannot hold; report it as the nearest representable peak.
+            peakLevel: Int16(min(peakMagnitude, UInt16(Int16.max))),
             dynamicRange: dynamicRange,
             lufs: lufs,
             snrEstimate: snr,
