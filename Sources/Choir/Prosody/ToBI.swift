@@ -132,12 +132,14 @@ public struct ToBIPredictor: Sendable {
         case .L_star:
             f0 -= 10  // Lower pitch for L*
         case .L_H:
-            f0 -= 15 + (30 * position)  // Rising accent
+            // Starts 15 Hz low and rises 30 Hz across the syllable.
+            // Note `-=` would subtract the whole sum and fall instead.
+            f0 += -15 + (30 * position)
         case .H_L:
             f0 += 15 - (30 * position)  // Falling accent
         case .L_H_delayed:
             let delayedPos = max(0, position - 0.3)  // Rise delayed
-            f0 -= 15 + (30 * delayedPos)
+            f0 += -15 + (30 * delayedPos)
         case .none:
             break
         }
