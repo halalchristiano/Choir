@@ -1,9 +1,9 @@
 # CHOIR Project Status Report
 
-**Date**: July 27, 2026  
+**Date**: August 20, 2026  
 **Status**: 🟢 Phase 7 Complete (7/9 phases)  
 **Build**: ✅ Clean (0 warnings, 0 errors)  
-**Tests**: 121 tests across 25 suites, green as of 2026-08-20
+**Tests**: 136 tests across 26 suites, green in CI on 2026-08-20
 
 > **Correction (2026-08-20):** the previously reported "75+ passing across 12
 > suites" was never accurate on Swift 6.3.1 — the test process aborted with
@@ -84,27 +84,50 @@
 ## Metrics
 
 ### Code Statistics
-- **Total Lines**: 6,800+
-- **Core Logic**: 4,500+ lines
-- **Tests**: 1,200+ lines
-- **Documentation**: 1,100+ lines
+
+Measured with `find <dir> -name '*.swift' | xargs cat | wc -l` on 2026-08-20:
+
+| | Lines |
+|---|---|
+| `Sources/` | 4,826 |
+| `Tests/` | 1,788 |
+| Markdown docs | 3,484 |
 
 ### Test Coverage
-| Suite | Tests | Status |
-|-------|-------|--------|
-| Text Normalization | 6 | ✅ |
-| Phonemization (G2P) | 5 | ✅ |
-| Stress Assignment | 3 | ✅ |
-| SSML Parsing | 8 | ✅ |
-| Linguistic Integration | 8 | ✅ |
-| Prosody Prediction | 5 | ✅ |
-| Acoustic Models | 2 | ✅ |
-| Vocoder | 2 | ✅ |
-| Synthesis Pipeline | 3 | ✅ |
-| Caching/Audio | 13 | ✅ |
-| ToBI/Blending | 8 | ✅ |
-| Audio Filters | 7 | ✅ |
-| **Total** | **121** | **✅** |
+
+Suite names and counts below are the `@Suite`/`@Test` declarations in
+`Tests/ChoirTests`. The previous version of this table listed twelve suites
+whose counts summed to 70 while claiming a total of 121.
+
+| Suite | Tests |
+|-------|-------|
+| Error Handling | 20 |
+| Full-scale and degenerate audio input | 15 |
+| Linguistic Frontend Integration | 9 |
+| Audio Filters | 7 |
+| SSML Parsing | 7 |
+| Choir Package Tests | 7 |
+| Asset Cache | 6 |
+| Text Normalization | 5 |
+| Phonemization (G2P) | 5 |
+| Voice Blending | 4 |
+| Speaking Styles | 4 |
+| Audio Encoding | 4 |
+| Pronunciation Dictionary | 4 |
+| Synthesis Session | 4 |
+| Real-Time Controller | 4 |
+| Voice Quality Metrics | 4 |
+| Prosody Prediction | 4 |
+| ToBI Prosody System | 3 |
+| Stress Assignment | 3 |
+| Audio Effect Chain | 3 |
+| Acoustic Model | 3 |
+| Synthesis Pipeline | 3 |
+| ChoirEngine Full Integration | 3 |
+| Session Manager | 2 |
+| Vocoder | 2 |
+| Demo Module | 1 |
+| **Total** | **136** |
 
 ### Architecture Quality
 - ✅ Full Swift 6 type safety
@@ -198,8 +221,9 @@ swift test              # Run test suite
 
 ## License & Attribution
 
-**Type**: Internal Sole Developer Project  
-**License**: Proprietary  
+**License**: [MIT](./LICENSE) — see the license file, which is authoritative.
+This file previously said "Proprietary", which contradicted both the LICENSE
+added in 47c24de and the badge in the README.  
 **Author**: Kiana Arabpour  
 **Contributors**: Claude AI (code generation and testing)
 
@@ -216,4 +240,4 @@ swift test              # Run test suite
 
 ---
 
-**Last Updated**: July 27, 2026 18:45 UTC
+**Last Updated**: August 20, 2026

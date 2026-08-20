@@ -316,10 +316,10 @@ let audio = try await engine.synthesize(text: ssml, voice: .youngAdultMasculine)
 
 ### 📋 Test Coverage
 
-**121 tests across 25 suites**, covering text normalization, G2P and
+**136 tests across 26 suites**, covering text normalization, G2P and
 stress assignment, SSML parsing, prosody and ToBI, the acoustic model and
 vocoder interfaces, the synthesis pipeline, streaming, audio encoding,
-filters, caching, and error paths.
+filters, caching, error paths, and full-scale/degenerate audio input.
 
 Run them with `swift test`. CI executes the same suite on every push.
 
