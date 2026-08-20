@@ -110,7 +110,7 @@ struct AudioEffectChainTests {
 struct SynthesisSessionTests {
     @Test("Creates session with configuration")
     func testSessionCreation() async {
-        let session = SynthesisSession(voice: .youngAdultFeminine)
+        let session = SynthesisSession(voice: .lyra)
 
         let state = await session.getState()
         if case .idle = state {
@@ -163,7 +163,7 @@ struct SynthesisSessionManagerTests {
     func testSessionManagement() async {
         let manager = SynthesisSessionManager()
 
-        let session = await manager.createSession(voice: .narratorMasculine)
+        let session = await manager.createSession(voice: .garrick)
         let retrieved = await manager.getSession(session.id)
 
         #expect(retrieved != nil)

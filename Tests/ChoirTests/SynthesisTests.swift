@@ -184,7 +184,7 @@ struct SynthesisPipelineTests {
     func testPipelineOrchestration() async throws {
         let audio = try await pipeline.synthesize(
             text: "Hello world",
-            voice: .narratorFeminine,
+            voice: .isla,
             parameters: SynthesisParameters()
         )
 
@@ -197,7 +197,7 @@ struct SynthesisPipelineTests {
         let ssml = "Hello <prosody pitch=\"+5\">world</prosody>"
         let audio = try await pipeline.synthesize(
             text: ssml,
-            voice: .youngAdultMasculine,
+            voice: .orion,
             parameters: SynthesisParameters()
         )
 
@@ -214,7 +214,7 @@ struct SynthesisPipelineTests {
 
         let audio = try await pipeline.synthesize(
             text: "Test",
-            voice: .youngAdultFeminine,
+            voice: .lyra,
             parameters: params
         )
 
@@ -234,7 +234,7 @@ struct ChoirEngineIntegrationTests {
 
         let audio = try await engine.synthesize(
             text: "The quick brown fox",
-            voice: .narratorMasculine,
+            voice: .garrick,
             parameters: SynthesisParameters()
         )
 
@@ -251,7 +251,7 @@ struct ChoirEngineIntegrationTests {
 
         try await engine.streamSynthesis(
             text: "Hello world",
-            voice: .youngAdultFeminine,
+            voice: .lyra,
             parameters: SynthesisParameters(),
             options: StreamingOptions(),
             onChunk: { chunk in
@@ -271,7 +271,7 @@ struct ChoirEngineIntegrationTests {
         do {
             _ = try await engine.synthesize(
                 text: "Test",
-                voice: .narratorFeminine
+                voice: .isla
             )
             #expect(Bool(false), "Should reject uninitialized engine")
         } catch ChoirError.notInitialized {

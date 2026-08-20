@@ -36,7 +36,7 @@ struct ErrorHandlingTests {
 
         // Attempt synthesis without initializing
         do {
-            _ = try await engine.synthesize(text: "Hello", voice: .narratorFeminine)
+            _ = try await engine.synthesize(text: "Hello", voice: .isla)
             #expect(Bool(false), "Should have thrown notInitialized error")
         } catch let error as ChoirError {
             #expect(error == .notInitialized)
@@ -50,7 +50,7 @@ struct ErrorHandlingTests {
         let engine = ChoirEngine()
 
         do {
-            _ = try await engine.synthesize(text: "test", voice: .narratorMasculine)
+            _ = try await engine.synthesize(text: "test", voice: .garrick)
         } catch let error as ChoirError {
             let message = error.errorDescription ?? ""
             #expect(message.contains("not initialized"))
@@ -67,7 +67,7 @@ struct ErrorHandlingTests {
         try? await engine.initialize()
 
         do {
-            _ = try await engine.synthesize(text: "", voice: .narratorFeminine)
+            _ = try await engine.synthesize(text: "", voice: .isla)
             #expect(Bool(false), "Should have thrown invalidParameter error")
         } catch let error as ChoirError {
             if case .invalidParameter(let parameter, _) = error {
@@ -86,7 +86,7 @@ struct ErrorHandlingTests {
         try? await engine.initialize()
 
         do {
-            _ = try await engine.synthesize(text: "", voice: .narratorMasculine)
+            _ = try await engine.synthesize(text: "", voice: .garrick)
         } catch let error as ChoirError {
             let message = error.errorDescription ?? ""
             #expect(message.contains("cannot be empty"))
@@ -105,7 +105,7 @@ struct ErrorHandlingTests {
         let longText = String(repeating: "a", count: 5001)
 
         do {
-            _ = try await engine.synthesize(text: longText, voice: .narratorFeminine)
+            _ = try await engine.synthesize(text: longText, voice: .isla)
             #expect(Bool(false), "Should have thrown invalidParameter error")
         } catch let error as ChoirError {
             if case .invalidParameter(let parameter, _) = error {
@@ -126,7 +126,7 @@ struct ErrorHandlingTests {
         let longText = String(repeating: "x", count: 5001)
 
         do {
-            _ = try await engine.synthesize(text: longText, voice: .narratorMasculine)
+            _ = try await engine.synthesize(text: longText, voice: .garrick)
         } catch let error as ChoirError {
             let message = error.errorDescription ?? ""
             #expect(message.contains("5000"))
@@ -234,7 +234,7 @@ struct ErrorHandlingTests {
         do {
             try await engine.streamSynthesis(
                 text: "test",
-                voice: .narratorFeminine,
+                voice: .isla,
                 options: StreamingOptions(),
                 onChunk: { chunk in
                     await tracker.recordChunk()
@@ -258,7 +258,7 @@ struct ErrorHandlingTests {
         do {
             try await engine.streamSynthesis(
                 text: "Hello world",
-                voice: .youngAdultMasculine,
+                voice: .orion,
                 options: StreamingOptions(),
                 onChunk: { _ in
                     await tracker.recordChunk()

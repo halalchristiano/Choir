@@ -37,7 +37,7 @@ public actor SynthesisSession {
 
     /// Creates a new synthesis session.
     public init(
-        voice: Voice = .narratorFeminine,
+        voice: Voice = .isla,
         parameters: SynthesisParameters = SynthesisParameters(),
         effectChain: AudioEffectChain? = nil,
         pronunciationDictionary: PronunciationDictionary = .standard
@@ -121,7 +121,7 @@ public actor SynthesisSessionManager {
 
     /// Creates a new synthesis session.
     public func createSession(
-        voice: Voice = .narratorFeminine,
+        voice: Voice = .isla,
         parameters: SynthesisParameters = SynthesisParameters(),
         effectChain: AudioEffectChain? = nil
     ) -> SynthesisSession {

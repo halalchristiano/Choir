@@ -30,7 +30,7 @@ try await engine.initialize()
 
 let audio = try await engine.synthesize(
     text: "Hello, world!",
-    voice: .narratorFeminine,
+    voice: .isla,
     parameters: SynthesisParameters(rate: 0.95, emotionalIntensity: 0.7)
 )
 ```
@@ -41,7 +41,7 @@ for the whole utterance:
 ```swift
 try await engine.streamSynthesis(
     text: "Speaking in real-time...",
-    voice: .youngAdultNeutral1,
+    voice: .orion,
     options: StreamingOptions(),
     onChunk: { chunk in
         // Feed chunk.samples to your audio output

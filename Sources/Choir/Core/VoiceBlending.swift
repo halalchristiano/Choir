@@ -73,8 +73,8 @@ public struct VoiceBlending: Sendable {
     ) -> [SynthesisParameters] {
         var transitions: [SynthesisParameters] = []
 
-        let fromAge = from.ageBand
-        let toAge = to.ageBand
+        let fromAge = from.ageBand.ordinal
+        let toAge = to.ageBand.ordinal
 
         for step in 0...steps {
             let mix = Double(step) / Double(steps)

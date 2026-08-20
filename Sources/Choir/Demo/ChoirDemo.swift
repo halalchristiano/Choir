@@ -27,7 +27,7 @@ public struct ChoirDemo {
         // Synthesize simple text
         let audio = try await engine.synthesize(
             text: "Hello, welcome to Choir, the on-device voice synthesis engine.",
-            voice: .narratorFeminine,
+            voice: .isla,
             parameters: SynthesisParameters()
         )
 
@@ -44,17 +44,17 @@ public struct ChoirDemo {
 
         // Slow, calm speech
         let calmParams = SynthesisParameters(rate: 0.8, emotionalIntensity: 0.3)
-        let calmAudio = try await engine.synthesize(text: text, voice: .narratorMasculine, parameters: calmParams)
+        let calmAudio = try await engine.synthesize(text: text, voice: .garrick, parameters: calmParams)
         print("✓ Calm speech: \(String(format: "%.2f", calmAudio.duration))s")
 
         // Fast, energetic speech
         let energeticParams = SynthesisParameters(pitchShift: 5, rate: 1.3, emotionalIntensity: 0.9)
-        let energeticAudio = try await engine.synthesize(text: text, voice: .youngAdultFeminine, parameters: energeticParams)
+        let energeticAudio = try await engine.synthesize(text: text, voice: .lyra, parameters: energeticParams)
         print("✓ Energetic speech: \(String(format: "%.2f", energeticAudio.duration))s")
 
         // Whispered speech
         let whisperParams = SynthesisParameters(pitchShift: -5, rate: 0.9, breathiness: 0.8)
-        let whisperAudio = try await engine.synthesize(text: text, voice: .narratorFeminine, parameters: whisperParams)
+        let whisperAudio = try await engine.synthesize(text: text, voice: .isla, parameters: whisperParams)
         print("✓ Whispered speech: \(String(format: "%.2f", whisperAudio.duration))s")
     }
 
@@ -64,7 +64,7 @@ public struct ChoirDemo {
         try await engine.initialize()
 
         let text = "Speaking styles make synthesis more expressive."
-        let voice = Voice.youngAdultFeminine
+        let voice = Voice.lyra
 
         for style in SpeakingStyle.allStyles {
             let audio = try await engine.synthesize(
@@ -85,8 +85,8 @@ public struct ChoirDemo {
         let blending = VoiceBlending()
 
         // Blend between two voices
-        let profile1 = VoiceBlending.VoiceProfile(voice: .narratorMasculine)
-        let profile2 = VoiceBlending.VoiceProfile(voice: .narratorFeminine)
+        let profile1 = VoiceBlending.VoiceProfile(voice: .garrick)
+        let profile2 = VoiceBlending.VoiceProfile(voice: .isla)
 
         print("Voice blending demo:")
         for step in 0...4 {
@@ -116,7 +116,7 @@ public struct ChoirDemo {
             </s>
             """
 
-        let audio = try await engine.synthesize(text: ssml, voice: .youngAdultMasculine)
+        let audio = try await engine.synthesize(text: ssml, voice: .orion)
         print("✓ SSML synthesis: \(String(format: "%.2f", audio.duration))s")
     }
 
@@ -131,7 +131,7 @@ public struct ChoirDemo {
 
         try await engine.streamSynthesis(
             text: "Streaming synthesis allows real-time audio generation.",
-            voice: .narratorFeminine,
+            voice: .isla,
             options: StreamingOptions(chunkSize: 2400),  // 50ms chunks
             onChunk: { chunk in
                 await streamCounter.add(chunk)
@@ -149,7 +149,7 @@ public struct ChoirDemo {
 
         let audio = try await engine.synthesize(
             text: "Audio post-processing improves quality.",
-            voice: .youngAdultFeminine
+            voice: .lyra
         )
 
         let filters = AudioFilters()
@@ -176,7 +176,7 @@ public struct ChoirDemo {
 
         let audio = try await engine.synthesize(
             text: "Audio can be exported to different formats.",
-            voice: .narratorMasculine
+            voice: .garrick
         )
 
         let encoder = AudioEncoder()
@@ -199,11 +199,11 @@ public struct ChoirDemo {
         try await engine.initialize()
 
         let dialogues = [
-            (voice: Voice.characterWitchyFeminine, text: "Beware the curse..."),
-            (voice: Voice.characterGrufMasculine, text: "Aye, what brings ye to these parts?"),
-            (voice: Voice.characterRobotNeutral, text: "BEEP BOOP. Analyzing your request."),
-            (voice: Voice.villainMasculine1, text: "You fool! You've played right into my hands!"),
-            (voice: Voice.villainFeminine1, text: "Pathetic. Your resistance is futile."),
+            (voice: Voice.hespera, text: "Beware the curse..."),
+            (voice: Voice.bram, text: "Aye, what brings ye to these parts?"),
+            (voice: Voice.sable, text: "BEEP BOOP. Analyzing your request."),
+            (voice: Voice.malvern, text: "You fool! You've played right into my hands!"),
+            (voice: Voice.ravenna, text: "Pathetic. Your resistance is futile."),
         ]
 
         print("Character voice synthesis:")
