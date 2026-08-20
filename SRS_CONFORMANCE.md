@@ -47,6 +47,39 @@ precision are not quantified per voice in §8 and are not yet modelled.
 
 ---
 
+## Part III — Functional Requirements
+
+| Requirement | Priority | Status | Verified by |
+|---|---|---|---|
+| `TXT-001` accept 1 … 1,000,000 characters | MUST | Implemented | `testSingleCharacter`, `testLargeRepeatedInput` |
+| `TXT-002` never crash, hang, or produce unbounded output | MUST | **Implemented — was violated** | `testNormalizerRobustness`, `testFrontendRobustness` (29 adversarial inputs) |
+| `TXT-003` input mode selected explicitly, never guessed | MUST | **Not implemented** | The engine still infers SSML from content |
+| `TXT-010` full normalization inventory | MUST | **Partial** | Cardinals, currency and abbreviations only; ordinals, decimals, fractions, percentages, dates, times, phone numbers, years, Roman numerals, units, URLs and ranges outstanding |
+| `TXT-011` Scripture reference formats | MUST | Implemented | 14 tests in `ScriptureNormalizationTests` |
+| `TXT-012` configurable `NormalizationPolicy` | SHOULD | Implemented | `testConfigurableStyle`, `testCanBeDisabled`, `testVerbatimMode` |
+| `TXT-013` typography (smart quotes, dashes, ellipses, caps) | SHOULD | **Not implemented** | — |
+| `TXT-020` 120,000-word lexicon, ≥92% OOV accuracy | MUST | **Not implemented** | Needs a lexicon and a held-out test set |
+| `TXT-021` ≥60 heteronyms disambiguated by part of speech | MUST | **Not implemented** | — |
+| `TXT-022` runtime user lexicon API | MUST | **Not implemented** | — |
+| `TXT-023` biblical/theological proper-noun supplement (≥2,500) | SHOULD | **Not implemented** | Pairs naturally with `TXT-011` |
+| `TXT-024` documented, stable phoneme inventory | MUST | **Not implemented** | — |
+| `TXT-030` sentence and phrase segmentation | MUST | **Partial** | Splitting exists; phrase-boundary strength is not passed to prosody |
+| `TXT-031` breath groups for long sentences | MUST | **Not implemented** | — |
+| `TXT-040` SSML-C dialect | MUST | **Partial** | `prosody`, `emphasis` and `break` parse; `phoneme`, `say-as`, `voice` and `mark` do not |
+| `TXT-041` graceful degradation + markup diagnostics | MUST | **Partial** | Malformed markup is tolerated, but no diagnostics list is returned and there is no strict mode |
+| `TXT-042` `<voice>` mid-text switching | MUST | **Not implemented** | — |
+| `SYN-002` deterministic output given a seed | MUST | **Not implemented** | No seed parameter exists |
+| `SYN-005` timing metadata (per word/phoneme, marks) | MUST | **Not implemented** | Called out in the SRS as "a core deliverable, not an extra" |
+| `SYN-008` failures surface as typed errors, never traps | MUST | Implemented | `testFrontendRobustness`; 16 traps fixed across 0.2.x–0.3.x |
+| `SYN-010` duration estimate API | SHOULD | **Not implemented** | — |
+
+Part III is where the bulk of the remaining work sits. `TXT-020` through
+`TXT-024` (lexicon, heteronyms, user pronunciations) are the largest block and
+are prerequisites for the acoustic model being useful, since a trained voice
+saying the wrong phonemes is not an improvement.
+
+---
+
 ## Specification defects found
 
 Conflicts between §7's per-band realization rules and §8's binding per-voice
