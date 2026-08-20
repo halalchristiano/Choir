@@ -60,22 +60,47 @@ Tests/ChoirTests/
 
 ## The 32 Voices
 
-### Age Bands (4 × 2 = 8 base voices)
-- **Child**: 4 voices (2 neutral, masculine, feminine)
-- **Young Adult**: 4 voices (2 neutral, masculine, feminine)
-- **Middle-Aged**: 4 voices (2 neutral, masculine, feminine)
-- **Elderly**: 4 voices (2 neutral, masculine, feminine)
+Per SRS `VOX-G-001`, the library is organized as **4 age bands x 2 gender
+presentations x 4 voices per cell**, exactly one of which is a villain
+archetype (`VOX-V-001`). Every voice carries a stable identifier that is
+permanent across versions (`VOX-G-005`).
 
-### Villain Archetypes (6)
-- Masculine (2 variants)
-- Feminine (2 variants)
-- Neutral/Enigmatic (2 variants)
+| Age band | Male | Female |
+|---|---|---|
+| **Child** | FINCH, SCOUT, ALDER, *WICK* | WREN, JUNIPER, CLOVER, *BRIAR* |
+| **Young Adult** | ORION, FLINT, REED, *CORVIN* | LYRA, ISLA, NOVA, *SABLE* |
+| **Middle-Aged** | GARRICK, HALE, BRAM, *MALVERN* | MARION, TAMSIN, GREER, *RAVENNA* |
+| **Elderly** | ALARIC, WILFRED, CORMAC, *GRIMSHAW* | MAEVE, ODETTE, HATTIE, *HESPERA* |
 
-### Specialty Voices (6)
-- **Narration**: Masculine, Feminine
-- **Teenage**: Masculine, Feminine
-- **Character**: Witchy Feminine, Gruff Masculine, Mystical Neutral, Robot Neutral, Mystery Masculine
-- **Audiobook**: Premium quality narration
+*Italics mark the eight villain voices.*
+
+Each voice exposes its full designed parameter set (`VOX-P-001`) — median F0
+and range, formant scale, spectral tilt, breathiness, roughness, tempo, and
+pitch dynamism — together with a character description and recommended-use
+tags:
+
+```swift
+let voice = Voice.grimshaw
+voice.identifier                  // "choir.eld.male.villain.grimshaw"
+voice.displayName                 // "GRIMSHAW"
+voice.ageBand                     // .elderly
+voice.gender                      // .male
+voice.isVillain                   // true
+voice.profile.medianF0            // 98.0
+voice.profile.f0Range             // 70.0...140.0
+voice.profile.roughness           // 0.30
+voice.profile.recommendedUse      // [.antagonist, .narration]
+
+// Query the library
+Voice.voices(ageBand: .child, gender: .female)   // WREN, JUNIPER, CLOVER, BRIAR
+Voice.villains                                    // the eight villains
+Voice.voices(for: .narration)                     // every narration-tagged voice
+Voice.voice(withIdentifier: "choir.ya.female.lyra")
+```
+
+> **Note:** the voice roster changed in 0.3.0 to conform to the SRS. See
+> [SRS_CONFORMANCE.md](./SRS_CONFORMANCE.md) for the migration table and for
+> specification defects found while implementing it.
 
 ## Installation
 
