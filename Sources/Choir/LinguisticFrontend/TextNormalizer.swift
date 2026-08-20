@@ -76,7 +76,10 @@ public struct TextNormalizer: Sendable {
     ]
 
     /// Scale words for large numbers.
-    private static let scaleWords = [
+    ///
+    /// Typed as `Int64` because `Int` is 32 bits on watchOS (arm64_32), where
+    /// the trillion literal would not fit.
+    private static let scaleWords: [(Int64, String)] = [
         (1_000_000_000_000, "trillion"),
         (1_000_000_000, "billion"),
         (1_000_000, "million"),
@@ -149,7 +152,7 @@ public struct TextNormalizer: Sendable {
 
     /// Converts a numeric string to English words.
     private func numberToWords(_ numStr: String) -> String {
-        guard let num = Int(numStr), num >= 0 else { return numStr }
+        guard let num = Int64(numStr), num >= 0 else { return numStr }
 
         if num == 0 { return "zero" }
 
@@ -179,12 +182,12 @@ public struct TextNormalizer: Sendable {
     }
 
     /// Converts a value in 0..<100 to words, e.g. 50 -> "fifty", 42 -> "forty two".
-    private func wordsBelowHundred(_ n: Int) -> String {
+    private func wordsBelowHundred(_ n: Int64) -> String {
         guard n > 0 else { return Self.numberWords[0] }
-        if n < Self.numberWords.count { return Self.numberWords[n] }
+        if n < Int64(Self.numberWords.count) { return Self.numberWords[Int(n)] }
 
-        let tens = n / 10
-        let ones = n % 10
+        let tens = Int(n / 10)
+        let ones = Int(n % 10)
         guard tens < Self.tensWords.count else { return String(n) }
 
         let tensWord = Self.tensWords[tens]
