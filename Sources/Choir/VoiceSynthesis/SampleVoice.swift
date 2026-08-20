@@ -153,13 +153,18 @@ public actor SampleBasedSynthesizer {
     private func normalize(_ samples: [Int16]) -> [Int16] {
         guard !samples.isEmpty else { return samples }
 
-        let maxValue = samples.max { abs($0) < abs($1) }.map(abs) ?? 1
+        // `abs` traps on Int16.min; magnitude is UInt16 and holds 32768.
+        let maxValue = samples.map { $0.magnitude }.max() ?? 1
         guard maxValue > 0 else { return samples }
 
         let scale = 32767.0 / Float(maxValue)
 
         return samples.map { sample in
-            Int16(Float(sample) * scale * 0.95)  // 0.95 for headroom
+            // Clamp before narrowing: Int16(_:) traps on out-of-range input.
+            let scaled = Float(sample) * scale * 0.95  // 0.95 for headroom
+            if scaled <= -32768 { return -32768 }
+            if scaled >= 32767 { return 32767 }
+            return Int16(scaled)
         }
     }
 }

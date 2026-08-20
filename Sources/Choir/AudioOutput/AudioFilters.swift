@@ -137,14 +137,14 @@ public struct AudioFilters: Sendable {
         let thresholdValue = Int16(Self.pcmMaxValue * threshold)
 
         return samples.map { sample in
-            if abs(sample) <= thresholdValue {
+            if sample.magnitude <= thresholdValue.magnitude {
                 return sample
             }
 
             // Soft clipping using tanh approximation
             let normalized = Double(sample) / Self.pcmMaxValue
             let clipped = tanh(normalized)
-            return Int16(clipped * Self.pcmMaxValue)
+            return Self.clampToPCM(clipped * Self.pcmMaxValue)
         }
     }
 
@@ -186,7 +186,7 @@ public struct AudioFilters: Sendable {
         let thresholdLinear = pow(10.0, threshold / 20.0) * Self.pcmMaxValue
 
         return samples.map { sample in
-            let absValue = Double(abs(sample))
+            let absValue = abs(Double(sample))
 
             if absValue <= thresholdLinear {
                 return sample
@@ -197,7 +197,7 @@ public struct AudioFilters: Sendable {
             let compressed = thresholdLinear + overshoot / ratio
             let sign = sample >= 0 ? 1 : -1
 
-            return Int16(compressed * Double(sign))
+            return Self.clampToPCM(compressed * Double(sign))
         }
     }
 
