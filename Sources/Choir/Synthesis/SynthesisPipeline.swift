@@ -88,7 +88,7 @@ public struct SynthesisPipeline: Sendable {
         let voicing = prosody.phonemes.map { $0.prosody.voicing }
 
         // Map voice to voice ID
-        let voiceID = voice.ageBand
+        let voiceID = voice.ageBand.ordinal
 
         return AcousticModelInput(
             phonemeIndices: phonemeIndices,

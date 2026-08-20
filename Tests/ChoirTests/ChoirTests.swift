@@ -14,14 +14,17 @@ struct ChoirTests {
 
         for voice in Voice.allCases {
             #expect(!voice.displayName.isEmpty)
-            #expect(voice.ageBand >= 0 && voice.ageBand <= 4)
+            #expect(voice.ageBand.ordinal >= 1 && voice.ageBand.ordinal <= 4)
         }
     }
 
     @Test("Villain voices are correctly identified")
     func testVillainVoices() {
+        // SRS VOX-V-001 requires exactly eight villains, one per
+        // (age band x gender) cell. This previously asserted six, which
+        // matched the pre-SRS voice roster rather than the specification.
         let villainVoices = Voice.allCases.filter { $0.isVillain }
-        #expect(villainVoices.count == 6)
+        #expect(villainVoices.count == 8)
     }
 
     @Test("Synthesis parameters are clamped correctly")

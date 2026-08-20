@@ -53,11 +53,11 @@ struct VoiceBlendingTests {
     @Test("Blends voices at midpoint")
     func testMidpointBlending() {
         let profile1 = VoiceBlending.VoiceProfile(
-            voice: .narratorMasculine,
+            voice: .garrick,
             parameters: SynthesisParameters(pitchShift: -5, rate: 0.8)
         )
         let profile2 = VoiceBlending.VoiceProfile(
-            voice: .narratorFeminine,
+            voice: .isla,
             parameters: SynthesisParameters(pitchShift: 5, rate: 1.2)
         )
 
@@ -70,8 +70,8 @@ struct VoiceBlendingTests {
 
     @Test("Clamps mix value to [0, 1]")
     func testMixClamping() {
-        let profile1 = VoiceBlending.VoiceProfile(voice: .youngAdultMasculine)
-        let profile2 = VoiceBlending.VoiceProfile(voice: .youngAdultFeminine)
+        let profile1 = VoiceBlending.VoiceProfile(voice: .orion)
+        let profile2 = VoiceBlending.VoiceProfile(voice: .lyra)
 
         let tooLow = blending.blend(profile1, with: profile2, mix: -0.5)
         let tooHigh = blending.blend(profile1, with: profile2, mix: 1.5)
@@ -83,7 +83,7 @@ struct VoiceBlendingTests {
 
     @Test("Gender transition creates spectrum")
     func testGenderTransition() {
-        let transition = blending.genderTransition(from: .youngAdultMasculine, to: .youngAdultFeminine, steps: 3)
+        let transition = blending.genderTransition(from: .orion, to: .lyra, steps: 3)
 
         #expect(transition.count == 4)  // steps + 1
 
@@ -95,7 +95,7 @@ struct VoiceBlendingTests {
 
     @Test("Age transition creates spectrum")
     func testAgeTransition() {
-        let transition = blending.ageTransition(from: .childFeminine, to: .elderlyFeminine, steps: 4)
+        let transition = blending.ageTransition(from: .wren, to: .maeve, steps: 4)
 
         #expect(transition.count == 5)
         // Verify ages progress appropriately
