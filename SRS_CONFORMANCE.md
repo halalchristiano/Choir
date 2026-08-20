@@ -29,7 +29,7 @@ paraphrasing it.
 | `VOX-P-003` young adult realization | MUST | Implemented | `testYoungAdultRealization` |
 | `VOX-P-004` middle-aged realization | MUST | Implemented | `testMiddleAgedRealization` |
 | `VOX-P-005` elderly realization | MUST | Implemented | `testElderlyRealization`, `testElderlyRoughness` |
-| `VOX-P-006` gender via F0 *and* formant scale | MUST | Implemented, **1 defect** | `testGenderDirection`, `testGenderSeparationAdultBands` |
+| `VOX-P-006` gender via F0 *and* formant scale | MUST | Implemented, **amended by [`AMD-001`](./SRS_AMENDMENTS.md)** | `testGenderDirection`, `testGenderSeparationByBand`, `testChildBandFormantSeparation`, `testChildGenderCarriedByF0` |
 | `VOX-P-007` ageShift / genderShift modifiers | MUST | Partial | `testAgeBandOrdering`; runtime modifiers exist, safe ranges undocumented |
 | `VOX-08-01` … `VOX-08-32` the 32 binding profiles | MUST | Implemented | Values transcribed from §8 and machine-generated |
 | `VOX-V-001` exactly eight named villains | MUST | Implemented | `testVillainRoster` |
@@ -49,9 +49,10 @@ precision are not quantified per voice in §8 and are not yet modelled.
 
 ## Specification defects found
 
-Four conflicts between §7's per-band realization rules and §8's binding
-per-voice profiles surfaced the first time the conformance tests ran. Three are
-resolved by the specification's own tolerance; one is not.
+Conflicts between §7's per-band realization rules and §8's binding per-voice
+profiles surfaced the first time the conformance tests ran. Three are resolved
+by the specification's own tolerance; the fourth required amending the
+requirement.
 
 ### Resolved by QUA-008
 
@@ -68,32 +69,32 @@ inside that tolerance:
 The conformance tests apply the QUA-008 tolerance to band checks and cite it,
 rather than loosening the assertion arbitrarily.
 
-### Unresolved — `VOX-P-006` versus §8 in the child band
+### Resolved by amendment — `VOX-P-006` per-band formant separation
 
-**`VOX-P-006` requires** female formant scale approximately **+15–20%** above
+**`VOX-P-006` as published** required female formant scale ≈ **+15–20%** above
 male within the same age band. Measured across §8's profiles:
 
-| Band | Mean male | Mean female | Separation | Meets VOX-P-006 |
+| Band | Mean male | Mean female | Separation | Against v1.0 text |
 |---|---|---|---|---|
-| Child | 1.1775 | 1.2175 | **+3.4%** | **No** |
-| Young Adult | 0.9950 | 1.1625 | +16.8% | Yes |
-| Middle-Aged | 0.9800 | 1.1350 | +15.8% | Yes |
-| Elderly | 0.9862 | 1.1050 | +12.0% | Approximately |
+| Child | 1.1775 | 1.2175 | **+3.4%** | Violates |
+| Young Adult | 0.9950 | 1.1625 | +16.8% | Complies |
+| Middle-Aged | 0.9800 | 1.1350 | +15.8% | Complies |
+| Elderly | 0.9862 | 1.1050 | **+12.0%** | Violates |
 
-The child band misses by a wide margin. This is not a tolerance question:
-`QUA-008` sets tolerances for F0 and tempo, not formant scale, and +3.4%
-against +15% is far outside any of them.
+Two bands failed as written, not one. Neither is a tolerance question:
+`QUA-008` covers median F0 and tempo, not formant scale.
 
-**Assessment.** §8's values are the physically defensible ones. Pre-pubertal
-vocal tracts differ little by sex, which is why child voices are distinguished
-chiefly by F0 and prosody rather than by vocal-tract length. `VOX-P-006` reads
-as an adult-band generalization applied too broadly.
+**Resolution.** §8's values are acoustically correct and the v1.0 threshold was
+over-generalized. Vocal-tract dimorphism is age-dependent: it is minimal before
+puberty and compresses again with age, the latter being the same convergence
+`VOX-P-005` already encodes on the F0 axis. `VOX-P-006` has therefore been
+amended by [`AMD-001`](./SRS_AMENDMENTS.md) to set per-band thresholds —
+Young Adult and Middle-Aged +15–20%, Elderly +10–15%, Child +2–6% — rather than
+re-tuning sixteen binding §8 profiles.
 
-**Recommendation.** Amend `VOX-P-006` to exempt the child band, rather than
-re-tune the eight child profiles, which are binding under §8 and acoustically
-sound. Pending that decision, the deviation is pinned by
-`testChildBandFormantSeparationDeviation` so it cannot drift unnoticed, and the
-test carries instructions to retire it once the requirement is clarified.
+All four bands now conform. The child band is additionally checked to confirm
+gender there is carried by F0 rather than formant structure, which is what the
+amendment asserts is happening.
 
 An adjacent inconsistency, not affecting the build: `VOX-G-004` gives an example
 identifier `choir.elderly.male.villain.grimshaw`, while §8's binding table uses
