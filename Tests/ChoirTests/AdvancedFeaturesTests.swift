@@ -177,8 +177,8 @@ struct AudioFiltersTests {
 
         #expect(normalized.count == samples.count)
         // Normalized samples should be louder on average
-        let originalAvg = Double(samples.map { Int(abs($0)) }.reduce(0, +)) / Double(samples.count)
-        let normalizedAvg = Double(normalized.map { Int(abs($0)) }.reduce(0, +)) / Double(normalized.count)
+        let originalAvg = Double(samples.map(AudioFilters.magnitude).reduce(0, +)) / Double(samples.count)
+        let normalizedAvg = Double(normalized.map(AudioFilters.magnitude).reduce(0, +)) / Double(normalized.count)
         #expect(normalizedAvg > originalAvg)
     }
 
@@ -189,8 +189,11 @@ struct AudioFiltersTests {
         let clipped = filters.softClip(samples, threshold: 0.9)
 
         #expect(clipped.count == samples.count)
-        // Clipped values should be within range
-        #expect(clipped.allSatisfy { abs($0) <= 32767 })
+        // Loud samples are pulled down; anything under the knee passes through.
+        // (`abs($0) <= 32767` held for every Int16 that did not already trap.)
+        #expect(AudioFilters.magnitude(clipped[0]) < 32000)
+        #expect(AudioFilters.magnitude(clipped[1]) < 32000)
+        #expect(clipped[2] == 10000)
     }
 
     @Test("Compression reduces dynamic range")

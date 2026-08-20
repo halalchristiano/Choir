@@ -9,7 +9,8 @@ public struct VoiceQualityAnalyzer: Sendable {
         /// RMS (root mean square) loudness.
         public let rmsLoudness: Double
 
-        /// Peak level.
+        /// Peak level: the signed sample of greatest magnitude, so a buffer
+        /// whose loudest excursion is negative reports a negative peak.
         public let peakLevel: Int16
 
         /// Dynamic range (peak - quiet floor).
@@ -47,23 +48,28 @@ public struct VoiceQualityAnalyzer: Sendable {
         let rms = sqrt(sumSquares / Double(samples.count))
         let rmsDb = 20.0 * log10(max(rms / 32767.0, 0.00001))
 
-        // Find peak
-        let peak = samples.max(by: { abs($0) < abs($1) }) ?? 0
+        // `abs(Int16.min)` traps, and -32768 is an ordinary full-scale sample,
+        // so every magnitude here goes through the widening helper.
+        let magnitudes = samples.map(AudioFilters.magnitude)
+
+        // Find peak (reported as the signed sample of greatest magnitude)
+        let peakMagnitude = magnitudes.max() ?? 0
+        let peak = samples.max(by: { AudioFilters.magnitude($0) < AudioFilters.magnitude($1) }) ?? 0
 
         // Dynamic range
-        let minNonZero = samples.filter { $0 != 0 }.map { abs($0) }.min() ?? 1
-        let dynamicRange = 20.0 * log10(Double(abs(peak)) / Double(minNonZero))
+        let minNonZero = magnitudes.filter { $0 != 0 }.min() ?? 1
+        let dynamicRange = 20.0 * log10(max(Double(peakMagnitude) / Double(minNonZero), 0.00001))
 
         // Estimate LUFS (simplified K-weighting approximation)
         let lufs = rmsDb - 4.0  // Simplified
 
         // Estimate SNR
-        let quietFloor = abs(peak) / 10
-        let snr = 20.0 * log10(max(Double(abs(peak)) / Double(max(quietFloor, 1)), 0.00001))
+        let quietFloor = peakMagnitude / 10
+        let snr = 20.0 * log10(max(Double(peakMagnitude) / Double(max(quietFloor, 1)), 0.00001))
 
         // Check clipping (samples above 95% of max)
-        let clipThreshold = Int16(32767 * 0.95)
-        let clippedSamples = samples.filter { abs($0) > clipThreshold }.count
+        let clipThreshold = Int(32767.0 * 0.95)
+        let clippedSamples = magnitudes.filter { $0 > clipThreshold }.count
         let clippingPercent = Double(clippedSamples) / Double(samples.count) * 100.0
 
         // Zero crossing rate (for voice presence)
@@ -74,7 +80,8 @@ public struct VoiceQualityAnalyzer: Sendable {
             }
         }
         let duration = Double(samples.count) / Double(sampleRate)
-        let zcr = Double(zeroCrossings) / duration
+        // A zero sample rate gives a zero duration, and 0/0 is NaN.
+        let zcr = duration > 0 ? Double(zeroCrossings) / duration : 0
 
         return QualityMetrics(
             rmsLoudness: rmsDb,
@@ -187,6 +194,14 @@ public struct QualityReport: Sendable {
     public let issues: [String]
     public let recommendations: [String]
 
+    /// Peak level in dBFS.
+    ///
+    /// Taken from the magnitude: the peak sample is signed, and `log10` of a
+    /// negative number is NaN, so a buffer peaking negative used to print "nan".
+    public var peakDbFS: Double {
+        20.0 * log10(max(Double(AudioFilters.magnitude(metrics.peakLevel)) / 32767.0, 0.00001))
+    }
+
     public var ratingStars: String {
         let fullStars = Int(rating)
         let hasHalf = rating.truncatingRemainder(dividingBy: 1) >= 0.5
@@ -206,7 +221,7 @@ public struct QualityReport: Sendable {
 
         Metrics:
         • Loudness: \(String(format: "%.1f", metrics.lufs)) LUFS
-        • Peak: \(String(format: "%.1f", 20.0 * log10(Double(metrics.peakLevel) / 32767.0))) dBFS
+        • Peak: \(String(format: "%.1f", peakDbFS)) dBFS
         • Dynamic Range: \(String(format: "%.1f", metrics.dynamicRange)) dB
         • SNR: \(String(format: "%.1f", metrics.snrEstimate)) dB
         • Clipping: \(String(format: "%.2f", metrics.clippingPercent))%

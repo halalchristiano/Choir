@@ -153,13 +153,15 @@ public actor SampleBasedSynthesizer {
     private func normalize(_ samples: [Int16]) -> [Int16] {
         guard !samples.isEmpty else { return samples }
 
-        let maxValue = samples.max { abs($0) < abs($1) }.map(abs) ?? 1
+        // `abs(Int16.min)` traps, and a recorded sample can legitimately sit at
+        // the full-scale minimum, so widen to Int before taking the magnitude.
+        let maxValue = samples.map(AudioFilters.magnitude).max() ?? 0
         guard maxValue > 0 else { return samples }
 
-        let scale = 32767.0 / Float(maxValue)
+        let scale = 32767.0 / Double(maxValue)
 
         return samples.map { sample in
-            Int16(Float(sample) * scale * 0.95)  // 0.95 for headroom
+            AudioFilters.clampToPCM(Double(sample) * scale * 0.95)  // 0.95 for headroom
         }
     }
 }

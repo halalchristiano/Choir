@@ -155,6 +155,11 @@ public struct NeuralVocoder: VocoderProtocol {
     private func resample(_ waveform: [Float], from inputRate: Int, to outputRate: Int) -> [Float] {
         guard inputRate != outputRate else { return waveform }
 
+        // `sampleRate` reaches here straight from the public `synthesize` call.
+        // Zero input rate makes the ratio infinite and `Int(_:)` traps on it;
+        // a negative rate gives a negative length, and `0..<negative` traps too.
+        guard inputRate > 0, outputRate > 0 else { return waveform }
+
         let ratio = Double(outputRate) / Double(inputRate)
         let outputLength = Int(Double(waveform.count) * ratio)
 
@@ -179,12 +184,17 @@ public struct NeuralVocoder: VocoderProtocol {
 
     /// Converts normalized float samples to 16-bit PCM.
     private func toPCM16(_ samples: [Float]) -> [Int16] {
-        // Find max for normalization
-        let maxValue = samples.max().map(abs) ?? 1.0
+        // Find max for normalization.
+        //
+        // `max()` returns the largest signed value, not the largest magnitude,
+        // so a waveform whose loudest excursion is negative normalized against
+        // a reference smaller than its own peak and hard-clipped instead of
+        // scaling — the more negative the peak, the worse the distortion.
+        let maxValue = samples.map { abs($0) }.max() ?? 1.0
 
         let normalized = samples.map { sample in
             let scaled = (sample / (maxValue + 0.001)) * 32767.0
-            return Int16(max(-32768, min(32767, scaled)))
+            return AudioFilters.clampToPCM(Double(scaled))
         }
 
         return normalized

@@ -23,9 +23,22 @@ public struct AudioFilters: Sendable {
     /// `Int16(_:)` initializer requires the value to already be in range.
     @usableFromInline
     static func clampToPCM(_ value: Double) -> Int16 {
+        // NaN compares false against everything, so it would fall past both
+        // bounds and trap in `Int16(_:)`. Silence is the safe reading.
+        guard !value.isNaN else { return 0 }
         if value <= Double(pcmMinValue) { return pcmMinValue }
         if value >= Double(pcmMaxValueInt) { return pcmMaxValueInt }
         return Int16(value)
+    }
+
+    /// Magnitude of a PCM sample, widened so the asymmetric minimum survives.
+    ///
+    /// `abs(Int16.min)` traps: the magnitude of -32768 is 32768, which is not
+    /// representable as an `Int16`. -32768 is an ordinary full-scale sample,
+    /// so every magnitude comparison has to widen before negating.
+    @usableFromInline
+    static func magnitude(_ sample: Int16) -> Int {
+        abs(Int(sample))
     }
 
     public init() {}
@@ -42,6 +55,10 @@ public struct AudioFilters: Sendable {
         cutoffFrequency: Double = defaultHighPassCutoff,
         sampleRate: Int = 48000
     ) -> [Int16] {
+        // A zero cutoff makes the RC constant infinite and alpha NaN, which
+        // would poison every sample in the buffer. Nothing to filter, so pass through.
+        guard cutoffFrequency > 0, sampleRate > 0 else { return samples }
+
         // Simple RC high-pass filter
         let rc = 1.0 / (2.0 * .pi * cutoffFrequency)
         let dt = 1.0 / Double(sampleRate)
@@ -76,6 +93,9 @@ public struct AudioFilters: Sendable {
         cutoffFrequency: Double = defaultLowPassCutoff,
         sampleRate: Int = 48000
     ) -> [Int16] {
+        // See `highPassFilter`: a non-positive cutoff or rate yields a NaN alpha.
+        guard cutoffFrequency > 0, sampleRate > 0 else { return samples }
+
         // Simple RC low-pass filter
         let rc = 1.0 / (2.0 * .pi * cutoffFrequency)
         let dt = 1.0 / Double(sampleRate)
@@ -126,25 +146,38 @@ public struct AudioFilters: Sendable {
 
     /// Applies soft clipping to prevent harsh distortion.
     ///
+    /// Samples below the threshold pass through untouched; above it the
+    /// overshoot is bent through `tanh` so the curve leaves the knee at the
+    /// same value and the same slope, and approaches full scale without ever
+    /// reaching it. Shaping the whole sample rather than the overshoot puts a
+    /// step at the knee — at the default threshold a sample one LSB above it
+    /// dropped by roughly 6,000 — which is the harsh distortion this is
+    /// supposed to avoid.
+    ///
     /// - Parameters:
     ///   - samples: PCM audio samples.
-    ///   - threshold: Clipping threshold (0.0 to 1.0 of max).
+    ///   - threshold: Clipping threshold (0.0 to 1.0 of max). Values outside
+    ///     that range are clamped; a threshold of 1.0 leaves the buffer alone.
     /// - Returns: Clipped samples.
     public func softClip(
         _ samples: [Int16],
         threshold: Double = defaultSoftClipThreshold
     ) -> [Int16] {
-        let thresholdValue = Int16(Self.pcmMaxValue * threshold)
+        // `Int16(32767 * threshold)` trapped for any threshold above 1.0, and
+        // this is public API reachable through AudioEffectChain.
+        let knee = threshold.isNaN ? Self.defaultSoftClipThreshold : min(max(threshold, 0.0), 1.0)
+        let headroom = 1.0 - knee
+        guard headroom > 0 else { return samples }
 
         return samples.map { sample in
-            if abs(sample) <= thresholdValue {
-                return sample
-            }
-
-            // Soft clipping using tanh approximation
+            // Normalize first: `abs` on a Double cannot overflow, while
+            // `abs(Int16.min)` traps.
             let normalized = Double(sample) / Self.pcmMaxValue
-            let clipped = tanh(normalized)
-            return Int16(clipped * Self.pcmMaxValue)
+            let level = abs(normalized)
+            guard level > knee else { return sample }
+
+            let shaped = knee + headroom * tanh((level - knee) / headroom)
+            return Self.clampToPCM(copysign(shaped, normalized) * Self.pcmMaxValue)
         }
     }
 
@@ -176,17 +209,23 @@ public struct AudioFilters: Sendable {
     /// - Parameters:
     ///   - samples: PCM audio samples.
     ///   - threshold: Threshold in dB below which no compression.
-    ///   - ratio: Compression ratio (e.g., 4:1).
+    ///   - ratio: Compression ratio (e.g., 4:1). Ratios below 1:1 expand rather
+    ///     than compress and are treated as 1:1.
     /// - Returns: Compressed samples.
     public func compress(
         _ samples: [Int16],
         threshold: Double = -20.0,
         ratio: Double = 4.0
     ) -> [Int16] {
+        // A ratio of 0 divided by zero and anything below 1:1 pushed the
+        // overshoot past full scale, trapping in the unclamped `Int16(_:)` below.
+        let safeRatio = (ratio.isNaN || ratio < 1.0) ? 1.0 : ratio
         let thresholdLinear = pow(10.0, threshold / 20.0) * Self.pcmMaxValue
 
         return samples.map { sample in
-            let absValue = Double(abs(sample))
+            // Take the magnitude in Double: `abs(Int16.min)` traps.
+            let value = Double(sample)
+            let absValue = abs(value)
 
             if absValue <= thresholdLinear {
                 return sample
@@ -194,10 +233,9 @@ public struct AudioFilters: Sendable {
 
             // Above threshold: reduce by ratio
             let overshoot = absValue - thresholdLinear
-            let compressed = thresholdLinear + overshoot / ratio
-            let sign = sample >= 0 ? 1 : -1
+            let compressed = thresholdLinear + overshoot / safeRatio
 
-            return Int16(compressed * Double(sign))
+            return Self.clampToPCM(copysign(compressed, value))
         }
     }
 
@@ -205,7 +243,8 @@ public struct AudioFilters: Sendable {
     ///
     /// - Parameters:
     ///   - samples: PCM audio samples.
-    ///   - wetLevel: Mix level of reverb (0.0 to 1.0).
+    ///   - wetLevel: Mix level of reverb (0.0 to 1.0). Values outside that
+    ///     range are clamped.
     ///   - sampleRate: Sample rate in Hz.
     /// - Returns: Reverb-processed samples.
     public func reverb(
@@ -213,9 +252,14 @@ public struct AudioFilters: Sendable {
         wetLevel: Double = defaultReverbWetLevel,
         sampleRate: Int = 48000
     ) -> [Int16] {
-        let delaySamples = (Self.defaultReverbDelay * sampleRate) / 1000
-
         var output = Array(samples)
+
+        // A negative rate gives a negative delay, which reads past the end of
+        // the buffer instead of behind the write position.
+        guard sampleRate > 0 else { return output }
+
+        let wet = wetLevel.isNaN ? Self.defaultReverbWetLevel : min(max(wetLevel, 0.0), 1.0)
+        let delaySamples = (Self.defaultReverbDelay * sampleRate) / 1000
 
         // Buffers shorter than the delay line have nothing to reflect yet.
         guard delaySamples < samples.count else { return output }
@@ -224,7 +268,7 @@ public struct AudioFilters: Sendable {
         for i in delaySamples..<samples.count {
             let delayed = Double(samples[i - delaySamples])
             let current = Double(samples[i])
-            let mixed = current * (1.0 - wetLevel) + delayed * wetLevel
+            let mixed = current * (1.0 - wet) + delayed * wet
 
             output[i] = Self.clampToPCM(mixed)
         }
