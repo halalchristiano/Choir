@@ -1,5 +1,37 @@
 import Foundation
 
+/// Configures normalization behaviour (SRS TXT-012).
+public struct NormalizationPolicy: Sendable, Equatable {
+    /// Whether Scripture references are expanded as a first-class category
+    /// (TXT-011). When false they fall through to ordinary number handling.
+    public var expandsScriptureReferences: Bool
+
+    /// How an expanded Scripture reference is spoken.
+    public var scriptureStyle: ScriptureStyle
+
+    /// Verbatim mode for code and identifiers: suppresses the expansion of
+    /// numbers, currency, contractions, abbreviations and Scripture, leaving
+    /// the text to be spoken as written.
+    public var verbatim: Bool
+
+    public init(
+        expandsScriptureReferences: Bool = true,
+        scriptureStyle: ScriptureStyle = .chapterVerse,
+        verbatim: Bool = false
+    ) {
+        self.expandsScriptureReferences = expandsScriptureReferences
+        self.scriptureStyle = scriptureStyle
+        self.verbatim = verbatim
+    }
+
+    /// Natural prose reading: everything expanded, Scripture spoken as
+    /// "book chapter, verse".
+    public static let `default` = NormalizationPolicy()
+
+    /// Code and identifier reading.
+    public static let verbatimMode = NormalizationPolicy(verbatim: true)
+}
+
 /// Normalizes text for text-to-speech synthesis.
 ///
 /// Handles numbers, abbreviations, currency, acronyms, and other special text formats.
@@ -93,14 +125,30 @@ public struct TextNormalizer: Sendable {
     private static let hyphenRegex = try! NSRegularExpression(pattern: "([a-z])-([a-z])")
     private static let multiPunctuationRegex = try! NSRegularExpression(pattern: "[.!?]{2,}")
 
-    public init() {}
+    /// Behaviour configuration (TXT-012).
+    public let policy: NormalizationPolicy
+
+    public init(policy: NormalizationPolicy = .default) {
+        self.policy = policy
+    }
 
     /// Normalizes text for synthesis, expanding numbers, abbreviations, etc.
     public func normalize(_ text: String) -> String {
         var result = text.lowercased()
 
+        // Verbatim mode speaks the text as written (TXT-012).
+        guard !policy.verbatim else {
+            return cleanPunctuation(result).trimmingCharacters(in: .whitespaces)
+        }
+
         // Expand contractions and abbreviations
         result = expandDictionary(result, Self.contractions)
+
+        // Scripture references must expand before bare numbers, or "3:16"
+        // is spoken as two unrelated numbers (TXT-011).
+        if policy.expandsScriptureReferences {
+            result = ScriptureNormalizer(style: policy.scriptureStyle).normalize(result)
+        }
 
         // Currency must expand before bare numbers, otherwise "$50" becomes
         // "$fifty" and the currency pattern no longer matches.
@@ -151,47 +199,11 @@ public struct TextNormalizer: Sendable {
     }
 
     /// Converts a numeric string to English words.
+    ///
+    /// Delegates to ``NumberSpelling`` so that numbers are spoken identically
+    /// here and in ``ScriptureNormalizer``.
     private func numberToWords(_ numStr: String) -> String {
-        guard let num = Int64(numStr), num >= 0 else { return numStr }
-
-        if num == 0 { return "zero" }
-
-        var parts: [String] = []
-        var remaining = num
-
-        for (scale, scaleWord) in Self.scaleWords {
-            if remaining >= scale {
-                let quotient = remaining / scale
-                remaining = remaining % scale
-
-                if scale == 100 {
-                    parts.append("\(wordsBelowHundred(quotient)) \(scaleWord)")
-                } else {
-                    parts.append(
-                        "\(numberToWords(String(quotient))) \(scaleWord)"
-                    )
-                }
-            }
-        }
-
-        if remaining > 0 {
-            parts.append(wordsBelowHundred(remaining))
-        }
-
-        return parts.joined(separator: " ")
-    }
-
-    /// Converts a value in 0..<100 to words, e.g. 50 -> "fifty", 42 -> "forty two".
-    private func wordsBelowHundred(_ n: Int64) -> String {
-        guard n > 0 else { return Self.numberWords[0] }
-        if n < Int64(Self.numberWords.count) { return Self.numberWords[Int(n)] }
-
-        let tens = Int(n / 10)
-        let ones = Int(n % 10)
-        guard tens < Self.tensWords.count else { return String(n) }
-
-        let tensWord = Self.tensWords[tens]
-        return ones == 0 ? tensWord : "\(tensWord) \(Self.numberWords[ones])"
+        NumberSpelling.words(for: numStr)
     }
 
     /// Expands currency notation (e.g., "$50" → "fifty dollars").
