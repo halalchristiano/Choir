@@ -316,44 +316,60 @@ struct AcousticParameterTests {
         }
     }
 
-    /// VOX-P-006 quantifies the separation as female ~ +15-20% over male in the
-    /// same band. Section 8 honours this for the three adult bands.
-    @Test("VOX-P-006: adult bands achieve the specified formant separation")
-    func testGenderSeparationAdultBands() {
-        for band in [AgeBand.youngAdult, .middleAged, .elderly] {
+    /// VOX-P-006 as amended by AMD-001 sets per-band formant separation:
+    /// Young Adult and Middle-Aged +15-20%, Elderly +10-15%, Child +2-6%.
+    ///
+    /// The v1.0 text stated a single +15-20% band for every age band. Two
+    /// bands could not satisfy it: the child band (+3.4%) and the elderly
+    /// band (+12.0%). See SRS_AMENDMENTS.md for the reasoning; in short, the
+    /// magnitude of formant dimorphism is itself age-dependent, and section 8's
+    /// values are the acoustically correct ones.
+    @Test("VOX-P-006/AMD-001: each band meets its formant separation range")
+    func testGenderSeparationByBand() {
+        let expected: [AgeBand: ClosedRange<Double>] = [
+            .child: 1.02...1.06,
+            .youngAdult: 1.15...1.20,
+            .middleAged: 1.15...1.20,
+            .elderly: 1.10...1.15,
+        ]
+
+        for band in AgeBand.allCases {
             let ratio = Self.meanFormantScale(band, .female) / Self.meanFormantScale(band, .male)
-            // Young adult +16.8%, middle-aged +15.8%, elderly +12.0%. The
-            // elderly band sits just under the stated 15% but is read as
-            // satisfying "approximately +15-20%".
-            #expect(ratio >= 1.10,
-                    "\(band): formant separation \(ratio) below the specified range")
+            let range = expected[band]!
+            #expect(range.contains(ratio),
+                    "\(band) formant separation \(ratio) outside amended range \(range)")
         }
     }
 
-    /// KNOWN SPECIFICATION DEFECT — VOX-P-006 versus section 8, child band.
+    /// VOX-P-006/AMD-001: the child band is deliberately close to parity, and
+    /// that is now the specified behaviour rather than a recorded deviation.
     ///
-    /// VOX-P-006 requires female formant scale approximately +15-20% above male
-    /// within the same age band. The child profiles in section 8 give a mean
-    /// male scale of 1.1775 and female of 1.2175, a separation of +3.4%, which
-    /// the requirement cannot be read to permit. This is not a tolerance
-    /// question: QUA-008 sets tolerances for F0 and tempo, not formant scale,
-    /// and 3.4% against 15% is far outside any of them.
-    ///
-    /// Section 8's values are the physically defensible ones — pre-pubertal
-    /// vocal tracts differ little by sex, which is why child voices are
-    /// distinguished mainly by F0 and prosody. The contradiction is therefore
-    /// recorded against VOX-P-006 rather than resolved by altering the shipped
-    /// profiles, which are binding per section 8.
-    ///
-    /// This test pins the current, specified behaviour so the deviation cannot
-    /// drift unnoticed while the requirement is clarified.
-    @Test("VOX-P-006: child band deviates from the stated formant separation")
-    func testChildBandFormantSeparationDeviation() {
+    /// Guarding both ends matters. Too little separation and the female child
+    /// voices lose formant identity entirely; too much and they become
+    /// scaled-down adults, which VOX-G-010 forbids.
+    @Test("VOX-P-006/AMD-001: child band sits near formant parity by design")
+    func testChildBandFormantSeparation() {
         let ratio = Self.meanFormantScale(.child, .female) / Self.meanFormantScale(.child, .male)
-
         #expect(ratio > 1.0, "child female formant scale must still exceed male")
         #expect(ratio < 1.10,
-                "child band separation \(ratio) now meets VOX-P-006 — if the profiles or the requirement were corrected, retire this test")
+                "child band separation \(ratio) has drifted toward the adult range")
+    }
+
+    /// VOX-P-006/AMD-001: in the child band, gender must be carried by F0
+    /// rather than by formant structure. The F0 separation should therefore be
+    /// substantially larger than the formant separation.
+    @Test("VOX-P-006/AMD-001: child gender is carried by F0, not formants")
+    func testChildGenderCarriedByF0() {
+        func meanF0(_ gender: GenderPresentation) -> Double {
+            let voices = Voice.voices(ageBand: .child, gender: gender)
+            return voices.map(\.profile.medianF0).reduce(0, +) / Double(voices.count)
+        }
+
+        let f0Ratio = meanF0(.female) / meanF0(.male)
+        let formantRatio = Self.meanFormantScale(.child, .female) / Self.meanFormantScale(.child, .male)
+
+        #expect(f0Ratio > formantRatio,
+                "child F0 separation \(f0Ratio) should exceed formant separation \(formantRatio)")
     }
 
     /// VOX-P-007 (MUST): ageShift and genderShift move a voice within, not
