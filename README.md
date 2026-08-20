@@ -1,17 +1,33 @@
 # CHOIR — On-Device Neural Voice Synthesis Engine
 
-A fully on-device neural text-to-speech engine delivered as a Swift Package for the entire Apple ecosystem (iOS, iPadOS, macOS, visionOS, watchOS, tvOS). Complete sovereignty, zero network dependency, 32 original synthetic voices.
+[![CI](https://github.com/halalchristiano/Choir/actions/workflows/ci.yml/badge.svg)](https://github.com/halalchristiano/Choir/actions/workflows/ci.yml)
+[![Swift 6.3](https://img.shields.io/badge/Swift-6.3-orange.svg)](https://swift.org)
+[![Platforms](https://img.shields.io/badge/platforms-iOS%20%7C%20macOS%20%7C%20visionOS%20%7C%20watchOS%20%7C%20tvOS-lightgrey.svg)](https://swift.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
+An on-device text-to-speech engine delivered as a Swift Package for the entire Apple ecosystem (iOS, iPadOS, macOS, visionOS, watchOS, tvOS). Complete sovereignty, zero network dependency.
+
+> ### ⚠️ Pre-release (v0.1.0) — not yet production-ready
+>
+> The **architecture, API surface, and linguistic pipeline are implemented and usable.**
+> The **acoustic model is a mock** and the vocoder is Griffin-Lim, so CHOIR does not yet
+> produce natural-sounding speech on its own. The 32 voices are currently *parameter
+> definitions* — voice timbre comes from either trained acoustic models (not yet included)
+> or user-supplied phoneme recordings (see **[Real Voices](./REAL_VOICES.md)**).
+>
+> Treat this as a foundation to build on, not a drop-in replacement for AVSpeechSynthesizer.
+> The API may change before 1.0.
 
 ## Overview
 
 CHOIR is a self-contained TTS engine featuring:
 
-- **32 Synthetic Voices**: Engineered instruments, not clones. Spanning 4 age bands, multiple gender presentations, villain archetypes, and specialty voices for games, narration, and media.
+- **32 Voice Definitions**: Engineered instruments, not clones. Spanning 4 age bands, multiple gender presentations, villain archetypes, and specialty voices for games, narration, and media. *(Parameter profiles; see the pre-release note above.)*
 - **On-Device**: Zero network calls. Works identically in airplane mode on a mountaintop.
 - **Cross-Platform**: iOS, iPadOS, macOS, visionOS, watchOS, tvOS via a single Swift Package.
 - **Parametric Control**: Adjust pitch, rate, emotion, breathiness, age/gender shift, emphasis.
 - **Streaming & Batch**: Real-time streaming synthesis and offline batch rendering.
-- **Professional Audio**: 48 kHz, 16-bit PCM, high-quality vocoder output.
+- **Audio Output**: 48 kHz, 16-bit PCM, Griffin-Lim vocoder reconstruction.
 
 ## Project Structure
 
@@ -25,15 +41,21 @@ Sources/Choir/
 │   └── SynthesisEngine.swift      # Main ChoirEngine actor
 ├── AudioOutput/                   # Audio export
 │   └── AudioBuffer.swift          # PCM and format types
-├── LinguisticFrontend/            # (Planned) Text processing
-├── Prosody/                       # (Planned) Prosody prediction
-├── Streaming/                     # (Planned) Real-time streaming
-├── Caching/                       # (Planned) Model and asset caching
-├── VoiceLibrary/                  # (Planned) Voice assets
-└── Models/                        # (Planned) ML model definitions
+├── LinguisticFrontend/            # Text normalization, G2P, stress, SSML
+├── Prosody/                       # Prosody prediction, ToBI
+├── VoiceSynthesis/                # Sample-based synthesis (see REAL_VOICES.md)
+├── Caching/                       # Asset caching with LRU eviction
+├── Demo/                          # Runnable usage examples
+└── Models/                        # Acoustic model + vocoder (mock/Griffin-Lim)
 
 Tests/ChoirTests/
-└── ChoirTests.swift               # Core API tests
+├── ChoirTests.swift               # Core API tests
+├── LinguisticFrontendTests.swift  # Text processing
+├── SynthesisTests.swift           # Pipeline
+├── AdvancedFeaturesTests.swift    # Blending, ToBI, filters
+├── CachingAndAudioTests.swift     # Cache + encoding
+├── ErrorHandlingTests.swift       # Error paths
+└── ProductionFeaturesTests.swift  # Streaming, performance
 ```
 
 ## The 32 Voices
@@ -54,6 +76,18 @@ Tests/ChoirTests/
 - **Teenage**: Masculine, Feminine
 - **Character**: Witchy Feminine, Gruff Masculine, Mystical Neutral, Robot Neutral, Mystery Masculine
 - **Audiobook**: Premium quality narration
+
+## Installation
+
+Add CHOIR to your `Package.swift`:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/halalchristiano/Choir.git", from: "0.1.0")
+]
+```
+
+Or in Xcode: **File → Add Package Dependencies…** and paste the repository URL.
 
 ## Quick Start
 
@@ -282,18 +316,12 @@ let audio = try await engine.synthesize(text: ssml, voice: .youngAdultMasculine)
 
 ### 📋 Test Coverage
 
-**75+ tests passing** across 12 suites:
-- Text normalization (6 tests)
-- Phonemization/G2P (5 tests)
-- Stress assignment (3 tests)
-- SSML parsing (8 tests)
-- Linguistic integration (8 tests)
-- Prosody prediction (5 tests)
-- Acoustic models (2 tests)
-- Vocoder (2 tests)
-- Synthesis pipeline (3 tests)
-- Audio encoding (5 tests)
-- Cache management (5 tests)
+**121 tests across 25 suites**, covering text normalization, G2P and
+stress assignment, SSML parsing, prosody and ToBI, the acoustic model and
+vocoder interfaces, the synthesis pipeline, streaming, audio encoding,
+filters, caching, and error paths.
+
+Run them with `swift test`. CI executes the same suite on every push.
 
 ### 🚀 Next Phases
 
@@ -315,11 +343,9 @@ let audio = try await engine.synthesize(text: ssml, voice: .youngAdultMasculine)
 - Singing support (v2.0)
 
 ### 📊 Current Build Status
-- **Debug build**: ✅ Clean
-- **Release build**: ✅ Clean
-- **Test suite**: ✅ 57+ passing tests
-- **Compilation**: ✅ Zero warnings
-- **Code quality**: ✅ Full type safety with Swift 6
+
+Verified by [CI](./.github/workflows/ci.yml) on every push, rather than
+asserted here — see the badge at the top of this file for live status.
 
 ## Requirements
 
@@ -335,7 +361,7 @@ swift test
 
 ## License
 
-Proprietary — Sole Developer Project
+[MIT](./LICENSE) © 2026 Kiana Arabpour
 
 ---
 

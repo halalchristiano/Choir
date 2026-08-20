@@ -141,7 +141,10 @@ struct AudioEncoderTests {
         let wav48k = encoder.encodeWAV(buffer48k)
         let wav44k = encoder.encodeWAV(buffer44k)
 
-        // Different sample rates should produce different WAV file sizes
-        #expect(wav48k.count != wav44k.count)
+        // Sample rate does not change the byte count -- both buffers hold the
+        // same number of samples -- but it does change playback duration and
+        // the rate recorded in the WAV header.
+        #expect(buffer48k.duration != buffer44k.duration)
+        #expect(wav48k != wav44k)
     }
 }

@@ -17,6 +17,17 @@ public struct AudioFilters: Sendable {
     @usableFromInline static let pcmMinValue: Int16 = -32768
     @usableFromInline static let pcmMaxValueInt: Int16 = 32767
 
+    /// Clamps a sample to the representable PCM range before narrowing to `Int16`.
+    ///
+    /// Converting first and clamping afterwards traps at runtime, because the
+    /// `Int16(_:)` initializer requires the value to already be in range.
+    @usableFromInline
+    static func clampToPCM(_ value: Double) -> Int16 {
+        if value <= Double(pcmMinValue) { return pcmMinValue }
+        if value >= Double(pcmMaxValueInt) { return pcmMaxValueInt }
+        return Int16(value)
+    }
+
     public init() {}
 
     /// Applies high-pass filter to remove low-frequency noise.
@@ -44,7 +55,7 @@ public struct AudioFilters: Sendable {
             let input = Double(sample)
             let output = alpha * (prevOutput + input - prevInput)
 
-            filtered.append(Int16(max(Self.pcmMinValue, min(Self.pcmMaxValueInt, Int16(output)))))
+            filtered.append(Self.clampToPCM(output))
 
             prevOutput = output
             prevInput = input
@@ -77,7 +88,7 @@ public struct AudioFilters: Sendable {
             let input = Double(sample)
             let output = prevOutput + alpha * (input - prevOutput)
 
-            filtered.append(Int16(max(Self.pcmMinValue, min(Self.pcmMaxValueInt, Int16(output)))))
+            filtered.append(Self.clampToPCM(output))
             prevOutput = output
         }
 
@@ -109,7 +120,7 @@ public struct AudioFilters: Sendable {
         // Apply gain with clipping protection
         return samples.map { sample in
             let scaled = Double(sample) * gain
-            return Int16(max(Self.pcmMinValue, min(Self.pcmMaxValueInt, Int16(scaled))))
+            return Self.clampToPCM(scaled)
         }
     }
 
@@ -156,7 +167,7 @@ public struct AudioFilters: Sendable {
         // Mix: 80% original, 20% filtered (reduces sibilance)
         return zip(samples, highpassed).map { original, filtered in
             let mixed = Double(original) * Self.deEsserDryMix + Double(filtered) * Self.deEsserWetMix
-            return Int16(max(Self.pcmMinValue, min(Self.pcmMaxValueInt, Int16(mixed))))
+            return Self.clampToPCM(mixed)
         }
     }
 
@@ -206,13 +217,16 @@ public struct AudioFilters: Sendable {
 
         var output = Array(samples)
 
+        // Buffers shorter than the delay line have nothing to reflect yet.
+        guard delaySamples < samples.count else { return output }
+
         // Simple delay line effect
         for i in delaySamples..<samples.count {
             let delayed = Double(samples[i - delaySamples])
             let current = Double(samples[i])
             let mixed = current * (1.0 - wetLevel) + delayed * wetLevel
 
-            output[i] = Int16(max(Self.pcmMinValue, min(Self.pcmMaxValueInt, Int16(mixed))))
+            output[i] = Self.clampToPCM(mixed)
         }
 
         return output

@@ -69,6 +69,12 @@ public struct TextNormalizer: Sendable {
         "seventeen", "eighteen", "nineteen",
     ]
 
+    /// Words for the tens place (index 2 == "twenty", index 9 == "ninety").
+    private static let tensWords = [
+        "", "", "twenty", "thirty", "forty",
+        "fifty", "sixty", "seventy", "eighty", "ninety",
+    ]
+
     /// Scale words for large numbers.
     private static let scaleWords = [
         (1_000_000_000_000, "trillion"),
@@ -92,11 +98,13 @@ public struct TextNormalizer: Sendable {
 
         // Expand contractions and abbreviations
         result = expandDictionary(result, Self.contractions)
+
+        // Currency must expand before bare numbers, otherwise "$50" becomes
+        // "$fifty" and the currency pattern no longer matches.
+        result = expandCurrency(result)
         result = expandNumbers(result)
         result = expandDictionary(result, Self.abbreviations)
 
-        // Handle currency and punctuation
-        result = expandCurrency(result)
         result = cleanPunctuation(result)
 
         return result.trimmingCharacters(in: .whitespaces)
@@ -154,7 +162,7 @@ public struct TextNormalizer: Sendable {
                 remaining = remaining % scale
 
                 if scale == 100 {
-                    parts.append("\(Self.numberWords[quotient]) \(scaleWord)")
+                    parts.append("\(wordsBelowHundred(quotient)) \(scaleWord)")
                 } else {
                     parts.append(
                         "\(numberToWords(String(quotient))) \(scaleWord)"
@@ -164,10 +172,23 @@ public struct TextNormalizer: Sendable {
         }
 
         if remaining > 0 {
-            parts.append(Self.numberWords[remaining])
+            parts.append(wordsBelowHundred(remaining))
         }
 
         return parts.joined(separator: " ")
+    }
+
+    /// Converts a value in 0..<100 to words, e.g. 50 -> "fifty", 42 -> "forty two".
+    private func wordsBelowHundred(_ n: Int) -> String {
+        guard n > 0 else { return Self.numberWords[0] }
+        if n < Self.numberWords.count { return Self.numberWords[n] }
+
+        let tens = n / 10
+        let ones = n % 10
+        guard tens < Self.tensWords.count else { return String(n) }
+
+        let tensWord = Self.tensWords[tens]
+        return ones == 0 ? tensWord : "\(tensWord) \(Self.numberWords[ones])"
     }
 
     /// Expands currency notation (e.g., "$50" → "fifty dollars").
