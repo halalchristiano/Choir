@@ -52,25 +52,25 @@ public struct Phonemizer: Sendable {
                         i += 2
                         continue
                     }
-                    phonemes.append(Phoneme(isVowelLong(word, at: i) ? "eɪ" : "æ"))
+                    phonemes.append(Phoneme(isVowelLong(chars, at: i) ? "eɪ" : "æ"))
                 } else if char == "e" {
                     if nextChar == "y" {
                         phonemes.append(Phoneme("i"))
                         i += 2
                         continue
                     }
-                    phonemes.append(Phoneme(isVowelLong(word, at: i) ? "iː" : "ɛ"))
+                    phonemes.append(Phoneme(isVowelLong(chars, at: i) ? "iː" : "ɛ"))
                 } else if char == "i" {
-                    phonemes.append(Phoneme(isVowelLong(word, at: i) ? "iː" : "ɪ"))
+                    phonemes.append(Phoneme(isVowelLong(chars, at: i) ? "iː" : "ɪ"))
                 } else if char == "o" {
                     if nextChar == "i" {
                         phonemes.append(Phoneme("ɔɪ"))
                         i += 2
                         continue
                     }
-                    phonemes.append(Phoneme(isVowelLong(word, at: i) ? "oʊ" : "ɑ"))
+                    phonemes.append(Phoneme(isVowelLong(chars, at: i) ? "oʊ" : "ɑ"))
                 } else if char == "u" {
-                    phonemes.append(Phoneme(isVowelLong(word, at: i) ? "uː" : "ʊ"))
+                    phonemes.append(Phoneme(isVowelLong(chars, at: i) ? "uː" : "ʊ"))
                 } else if char == "y" {
                     phonemes.append(Phoneme(i == 0 ? "j" : "ɪ"))
                 }
@@ -112,8 +112,14 @@ public struct Phonemizer: Sendable {
     }
 
     /// Determines if a vowel should be pronounced as a long vowel.
-    private func isVowelLong(_ word: String, at index: Int) -> Bool {
-        let chars = Array(word)
+    /// Whether the vowel at `index` is realized long.
+    ///
+    /// Takes the caller's existing character array rather than a `String`.
+    /// Rebuilding `Array(word)` here made the function O(n) per call, and it is
+    /// called once per vowel, so grapheme-to-phoneme conversion was O(n^2) in
+    /// word length — a 100,000-character word (which TXT-002 requires the
+    /// engine to survive) meant on the order of 10^10 character copies.
+    private func isVowelLong(_ chars: [Character], at index: Int) -> Bool {
 
         // Vowel at end of word is often long
         if index == chars.count - 1 {
