@@ -3,7 +3,12 @@
 **Date**: July 27, 2026  
 **Status**: 🟢 Phase 7 Complete (7/9 phases)  
 **Build**: ✅ Clean (0 warnings, 0 errors)  
-**Tests**: ✅ 75+ passing across 12 suites
+**Tests**: 121 tests across 25 suites, green as of 2026-08-20
+
+> **Correction (2026-08-20):** the previously reported "75+ passing across 12
+> suites" was never accurate on Swift 6.3.1 — the test process aborted with
+> SIGTRAP partway through and never reported a result. Six runtime traps and
+> logic bugs have since been fixed and the suite now runs to completion.
 
 ## Completion Summary
 
@@ -99,7 +104,7 @@
 | Caching/Audio | 13 | ✅ |
 | ToBI/Blending | 8 | ✅ |
 | Audio Filters | 7 | ✅ |
-| **Total** | **75+** | **✅** |
+| **Total** | **121** | **✅** |
 
 ### Architecture Quality
 - ✅ Full Swift 6 type safety

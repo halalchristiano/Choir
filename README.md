@@ -1,5 +1,10 @@
 # CHOIR — On-Device Neural Voice Synthesis Engine
 
+[![CI](https://github.com/halalchristiano/Choir/actions/workflows/ci.yml/badge.svg)](https://github.com/halalchristiano/Choir/actions/workflows/ci.yml)
+[![Swift 6.3](https://img.shields.io/badge/Swift-6.3-orange.svg)](https://swift.org)
+[![Platforms](https://img.shields.io/badge/platforms-iOS%20%7C%20macOS%20%7C%20visionOS%20%7C%20watchOS%20%7C%20tvOS-lightgrey.svg)](https://swift.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 An on-device text-to-speech engine delivered as a Swift Package for the entire Apple ecosystem (iOS, iPadOS, macOS, visionOS, watchOS, tvOS). Complete sovereignty, zero network dependency.
 
 > ### ⚠️ Pre-release (v0.1.0) — not yet production-ready
@@ -311,18 +316,12 @@ let audio = try await engine.synthesize(text: ssml, voice: .youngAdultMasculine)
 
 ### 📋 Test Coverage
 
-**75+ tests passing** across 12 suites:
-- Text normalization (6 tests)
-- Phonemization/G2P (5 tests)
-- Stress assignment (3 tests)
-- SSML parsing (8 tests)
-- Linguistic integration (8 tests)
-- Prosody prediction (5 tests)
-- Acoustic models (2 tests)
-- Vocoder (2 tests)
-- Synthesis pipeline (3 tests)
-- Audio encoding (5 tests)
-- Cache management (5 tests)
+**121 tests across 25 suites**, covering text normalization, G2P and
+stress assignment, SSML parsing, prosody and ToBI, the acoustic model and
+vocoder interfaces, the synthesis pipeline, streaming, audio encoding,
+filters, caching, and error paths.
+
+Run them with `swift test`. CI executes the same suite on every push.
 
 ### 🚀 Next Phases
 
@@ -344,11 +343,9 @@ let audio = try await engine.synthesize(text: ssml, voice: .youngAdultMasculine)
 - Singing support (v2.0)
 
 ### 📊 Current Build Status
-- **Debug build**: ✅ Clean
-- **Release build**: ✅ Clean
-- **Test suite**: ✅ 57+ passing tests
-- **Compilation**: ✅ Zero warnings
-- **Code quality**: ✅ Full type safety with Swift 6
+
+Verified by [CI](./.github/workflows/ci.yml) on every push, rather than
+asserted here — see the badge at the top of this file for live status.
 
 ## Requirements
 
