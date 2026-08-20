@@ -1,17 +1,28 @@
 # CHOIR — On-Device Neural Voice Synthesis Engine
 
-A fully on-device neural text-to-speech engine delivered as a Swift Package for the entire Apple ecosystem (iOS, iPadOS, macOS, visionOS, watchOS, tvOS). Complete sovereignty, zero network dependency, 32 original synthetic voices.
+An on-device text-to-speech engine delivered as a Swift Package for the entire Apple ecosystem (iOS, iPadOS, macOS, visionOS, watchOS, tvOS). Complete sovereignty, zero network dependency.
+
+> ### ⚠️ Pre-release (v0.1.0) — not yet production-ready
+>
+> The **architecture, API surface, and linguistic pipeline are implemented and usable.**
+> The **acoustic model is a mock** and the vocoder is Griffin-Lim, so CHOIR does not yet
+> produce natural-sounding speech on its own. The 32 voices are currently *parameter
+> definitions* — voice timbre comes from either trained acoustic models (not yet included)
+> or user-supplied phoneme recordings (see **[Real Voices](./REAL_VOICES.md)**).
+>
+> Treat this as a foundation to build on, not a drop-in replacement for AVSpeechSynthesizer.
+> The API may change before 1.0.
 
 ## Overview
 
 CHOIR is a self-contained TTS engine featuring:
 
-- **32 Synthetic Voices**: Engineered instruments, not clones. Spanning 4 age bands, multiple gender presentations, villain archetypes, and specialty voices for games, narration, and media.
+- **32 Voice Definitions**: Engineered instruments, not clones. Spanning 4 age bands, multiple gender presentations, villain archetypes, and specialty voices for games, narration, and media. *(Parameter profiles; see the pre-release note above.)*
 - **On-Device**: Zero network calls. Works identically in airplane mode on a mountaintop.
 - **Cross-Platform**: iOS, iPadOS, macOS, visionOS, watchOS, tvOS via a single Swift Package.
 - **Parametric Control**: Adjust pitch, rate, emotion, breathiness, age/gender shift, emphasis.
 - **Streaming & Batch**: Real-time streaming synthesis and offline batch rendering.
-- **Professional Audio**: 48 kHz, 16-bit PCM, high-quality vocoder output.
+- **Audio Output**: 48 kHz, 16-bit PCM, Griffin-Lim vocoder reconstruction.
 
 ## Project Structure
 
@@ -25,15 +36,21 @@ Sources/Choir/
 │   └── SynthesisEngine.swift      # Main ChoirEngine actor
 ├── AudioOutput/                   # Audio export
 │   └── AudioBuffer.swift          # PCM and format types
-├── LinguisticFrontend/            # (Planned) Text processing
-├── Prosody/                       # (Planned) Prosody prediction
-├── Streaming/                     # (Planned) Real-time streaming
-├── Caching/                       # (Planned) Model and asset caching
-├── VoiceLibrary/                  # (Planned) Voice assets
-└── Models/                        # (Planned) ML model definitions
+├── LinguisticFrontend/            # Text normalization, G2P, stress, SSML
+├── Prosody/                       # Prosody prediction, ToBI
+├── VoiceSynthesis/                # Sample-based synthesis (see REAL_VOICES.md)
+├── Caching/                       # Asset caching with LRU eviction
+├── Demo/                          # Runnable usage examples
+└── Models/                        # Acoustic model + vocoder (mock/Griffin-Lim)
 
 Tests/ChoirTests/
-└── ChoirTests.swift               # Core API tests
+├── ChoirTests.swift               # Core API tests
+├── LinguisticFrontendTests.swift  # Text processing
+├── SynthesisTests.swift           # Pipeline
+├── AdvancedFeaturesTests.swift    # Blending, ToBI, filters
+├── CachingAndAudioTests.swift     # Cache + encoding
+├── ErrorHandlingTests.swift       # Error paths
+└── ProductionFeaturesTests.swift  # Streaming, performance
 ```
 
 ## The 32 Voices
@@ -54,6 +71,18 @@ Tests/ChoirTests/
 - **Teenage**: Masculine, Feminine
 - **Character**: Witchy Feminine, Gruff Masculine, Mystical Neutral, Robot Neutral, Mystery Masculine
 - **Audiobook**: Premium quality narration
+
+## Installation
+
+Add CHOIR to your `Package.swift`:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/halalchristiano/Choir.git", from: "0.1.0")
+]
+```
+
+Or in Xcode: **File → Add Package Dependencies…** and paste the repository URL.
 
 ## Quick Start
 
@@ -335,7 +364,7 @@ swift test
 
 ## License
 
-Proprietary — Sole Developer Project
+[MIT](./LICENSE) © 2026 Kiana Arabpour
 
 ---
 
