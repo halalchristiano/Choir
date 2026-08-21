@@ -65,11 +65,11 @@ precision are not quantified per voice in §8 and are not yet modelled.
 | `TXT-024` documented, stable phoneme inventory | MUST | **Not implemented** | — |
 | `TXT-030` sentence and phrase segmentation | MUST | **Partial** | Splitting exists; phrase-boundary strength is not passed to prosody |
 | `TXT-031` breath groups for long sentences | MUST | **Not implemented** | — |
-| `TXT-040` SSML-C dialect | MUST | **Partial** | `prosody`, `emphasis` and `break` parse; `phoneme`, `say-as`, `voice` and `mark` do not |
-| `TXT-041` graceful degradation + markup diagnostics | MUST | **Partial** | Malformed markup is tolerated, but no diagnostics list is returned and there is no strict mode |
-| `TXT-042` `<voice>` mid-text switching | MUST | **Not implemented** | — |
+| `TXT-040` SSML-C dialect | MUST | Implemented | 13 tests in `SSMLCParsingTests` — all seven tag types, nestable prosody |
+| `TXT-041` graceful degradation + markup diagnostics | MUST | Implemented | 9 tests in `SSMLDegradationTests` — degradation, diagnostics, strict mode |
+| `TXT-042` `<voice>` mid-text switching | MUST | **Partial** | Parsed and carried per segment (`testVoiceSwitching`); synthesis does not yet render segments in different voices |
 | `SYN-002` deterministic output given a seed | MUST | **Not implemented** | No seed parameter exists |
-| `SYN-005` timing metadata (per word/phoneme, marks) | MUST | **Partial** | 10 tests in `SynthesisMetadataTests`; `<mark>` positions await `TXT-040` parsing |
+| `SYN-005` timing metadata (per word/phoneme, marks) | MUST | Implemented | 14 tests across `SynthesisMetadataTests` and `SynthesisMarkTests` |
 | `SYN-008` failures surface as typed errors, never traps | MUST | Implemented | `testFrontendRobustness`; 16 traps fixed across 0.2.x–0.3.x |
 | `SYN-010` duration estimate API | SHOULD | **Not implemented** | — |
 
@@ -83,14 +83,28 @@ ranges, the effective parameter set and the voice, with `word(at:)` and
 `phoneme(at:)` queries for verse highlighting and lip-sync. Timings derive from
 the prosody model's predicted phoneme durations — the same values that drive the
 acoustic model — so the metadata describes the audio produced rather than an
-independent estimate. The `marks` array is present and always empty until
-`TXT-040` parses `<mark>` tags; likewise `diagnostics` awaits `TXT-041`. Both
-requirements are therefore recorded as partial rather than complete.
+independent estimate. `marks` and `diagnostics` are now populated from the SSML-C stream, so
+`SYN-005` is complete. A mark sits between words, so its time is the start of
+the following word, or the end of the audio when it trails the final word.
 
 Part III is where the bulk of the remaining work sits. `TXT-020` through
 `TXT-024` (lexicon, heteronyms, user pronunciations) are the largest block and
 are prerequisites for the acoustic model being useful, since a trained voice
 saying the wrong phonemes is not an improvement.
+
+### Known issue — two markup parsers
+
+`SSMLCParser` implements the SSML-C dialect that `TXT-040`/`TXT-041` specify.
+The older `SSMLParser` remains in place because `LinguisticFrontend` still
+depends on it for segment styling, so the package currently carries two markup
+parsers: one specification-conformant, one not.
+
+The synthesis path reads marks and diagnostics from `SSMLCParser`, so the
+metadata is correct, but text styling still flows through the older parser and
+therefore ignores `phoneme`, `say-as` and `voice`. Migrating the front end is
+the next step and is deliberately not bundled with this change, because it
+alters phonemization output and wants its own diff.
+
 
 ---
 
