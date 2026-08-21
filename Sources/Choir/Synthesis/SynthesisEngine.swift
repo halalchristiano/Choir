@@ -72,6 +72,32 @@ public actor ChoirEngine {
         return try await pipeline.synthesize(text: text, voice: voice, parameters: parameters)
     }
 
+    /// Synthesizes `text` and returns the audio together with the timing
+    /// metadata SYN-005 requires.
+    ///
+    /// Use this wherever the caller needs to know *when* something is spoken:
+    /// verse highlighting, subtitle and caption sync, lip-sync, and timeline
+    /// placement. ``synthesize(text:voice:parameters:)`` remains for callers
+    /// that only want audio.
+    public func synthesizeWithMetadata(
+        text: String,
+        voice: Voice,
+        parameters: SynthesisParameters = SynthesisParameters()
+    ) async throws -> SynthesisResult {
+        try validateState()
+        try validateText(text)
+
+        guard let pipeline = pipeline else {
+            throw ChoirError.notInitialized
+        }
+
+        return try await pipeline.synthesizeWithMetadata(
+            text: text,
+            voice: voice,
+            parameters: parameters
+        )
+    }
+
     /// Synthesizes text to audio in streaming mode, yielding audio chunks as they are produced.
     ///
     /// - Parameters:

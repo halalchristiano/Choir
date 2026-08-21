@@ -53,16 +53,24 @@ public struct PhoneticTranscription: Sendable {
     /// Syllable boundaries (indices where new syllables begin).
     public let syllableBoundaries: [Int]
 
+    /// The normalized text of each word, parallel to ``wordBoundaries``.
+    ///
+    /// Carried so that SYN-005 per-word timing can report *what* is being
+    /// spoken, not merely when.
+    public let wordTexts: [String]
+
     public init(
         phonemes: [Phoneme],
         originalText: String,
         wordBoundaries: [Int] = [],
-        syllableBoundaries: [Int] = []
+        syllableBoundaries: [Int] = [],
+        wordTexts: [String] = []
     ) {
         self.phonemes = phonemes
         self.originalText = originalText
         self.wordBoundaries = wordBoundaries
         self.syllableBoundaries = syllableBoundaries
+        self.wordTexts = wordTexts
     }
 
     /// Reconstructs the phonetic representation as a string.

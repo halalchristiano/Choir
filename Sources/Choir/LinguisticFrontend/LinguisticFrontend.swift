@@ -22,6 +22,17 @@ public struct LinguisticFrontend: Sendable {
         self.ssmlParser = ssmlParser
     }
 
+    /// Returns a copy of this front end whose phonemizer honours `lexicon`
+    /// (SRS TXT-022).
+    public func withUserLexicon(_ lexicon: UserLexiconSnapshot) -> LinguisticFrontend {
+        LinguisticFrontend(
+            normalizer: normalizer,
+            phonemizer: phonemizer.withUserLexicon(lexicon),
+            stressAssigner: stressAssigner,
+            ssmlParser: ssmlParser
+        )
+    }
+
     /// Processes raw text into a phonetic transcription with prosodic annotation.
     ///
     /// - Parameter text: The input text, optionally with SSML markup.
@@ -38,6 +49,7 @@ public struct LinguisticFrontend: Sendable {
         // Step 2: Normalize and phonemize each segment
         var allPhonemes: [Phoneme] = []
         var wordBoundaries: [Int] = []
+        var wordTexts: [String] = []
         var ssmlMetadata: [(range: Range<Int>, segment: SSMLParser.SegmentTag)] = []
 
         for segment in segments {
@@ -53,6 +65,7 @@ public struct LinguisticFrontend: Sendable {
                 wordBoundaries.append(allPhonemes.count)
 
                 let wordStr = String(word)
+                wordTexts.append(wordStr)
                 let wordPhonemes = phonemizer.phonemize(wordStr)
 
                 // Assign stress
@@ -83,7 +96,8 @@ public struct LinguisticFrontend: Sendable {
         return PhoneticTranscription(
             phonemes: allPhonemes,
             originalText: text,
-            wordBoundaries: wordBoundaries
+            wordBoundaries: wordBoundaries,
+            wordTexts: wordTexts
         )
     }
 

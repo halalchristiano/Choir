@@ -1,7 +1,7 @@
 import Foundation
 
 /// Parameters for controlling synthesis output, including prosody and expression.
-public struct SynthesisParameters: Sendable {
+public struct SynthesisParameters: Sendable, Equatable, Hashable, Codable {
     /// Pitch shift in semitones (-12 to +12). Default is 0.
     public var pitchShift: Double = 0
 

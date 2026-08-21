@@ -60,7 +60,7 @@ precision are not quantified per voice in §8 and are not yet modelled.
 | `TXT-013` typography (smart quotes, dashes, ellipses, caps) | SHOULD | **Not implemented** | — |
 | `TXT-020` 120,000-word lexicon, ≥92% OOV accuracy | MUST | **Not implemented** | Needs a lexicon and a held-out test set |
 | `TXT-021` ≥60 heteronyms disambiguated by part of speech | MUST | **Not implemented** | — |
-| `TXT-022` runtime user lexicon API | MUST | **Not implemented** | — |
+| `TXT-022` runtime user lexicon API | MUST | Implemented | 9 tests in `UserLexiconTests` |
 | `TXT-023` biblical/theological proper-noun supplement (≥2,500) | SHOULD | **Not implemented** | Pairs naturally with `TXT-011` |
 | `TXT-024` documented, stable phoneme inventory | MUST | **Not implemented** | — |
 | `TXT-030` sentence and phrase segmentation | MUST | **Partial** | Splitting exists; phrase-boundary strength is not passed to prosody |
@@ -69,9 +69,23 @@ precision are not quantified per voice in §8 and are not yet modelled.
 | `TXT-041` graceful degradation + markup diagnostics | MUST | **Partial** | Malformed markup is tolerated, but no diagnostics list is returned and there is no strict mode |
 | `TXT-042` `<voice>` mid-text switching | MUST | **Not implemented** | — |
 | `SYN-002` deterministic output given a seed | MUST | **Not implemented** | No seed parameter exists |
-| `SYN-005` timing metadata (per word/phoneme, marks) | MUST | **Not implemented** | Called out in the SRS as "a core deliverable, not an extra" |
+| `SYN-005` timing metadata (per word/phoneme, marks) | MUST | **Partial** | 10 tests in `SynthesisMetadataTests`; `<mark>` positions await `TXT-040` parsing |
 | `SYN-008` failures surface as typed errors, never traps | MUST | Implemented | `testFrontendRobustness`; 16 traps fixed across 0.2.x–0.3.x |
 | `SYN-010` duration estimate API | SHOULD | **Not implemented** | — |
+
+`TXT-022` is implemented as an actor with a replaceable persistence store,
+defaulting to `UserDefaults`. Registrations take precedence over the built-in
+lexicon and are resolved through an immutable snapshot taken once per synthesis
+request, so the synchronous per-word phonemization path never awaits.
+
+`SYN-005` returns total duration, per-word and per-phoneme spans, sentence
+ranges, the effective parameter set and the voice, with `word(at:)` and
+`phoneme(at:)` queries for verse highlighting and lip-sync. Timings derive from
+the prosody model's predicted phoneme durations — the same values that drive the
+acoustic model — so the metadata describes the audio produced rather than an
+independent estimate. The `marks` array is present and always empty until
+`TXT-040` parses `<mark>` tags; likewise `diagnostics` awaits `TXT-041`. Both
+requirements are therefore recorded as partial rather than complete.
 
 Part III is where the bulk of the remaining work sits. `TXT-020` through
 `TXT-024` (lexicon, heteronyms, user pronunciations) are the largest block and
