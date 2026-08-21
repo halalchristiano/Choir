@@ -17,59 +17,82 @@ public actor AssetCache: Sendable {
     /// Current cache size in bytes.
     private var currentCacheSize: Int = 0
 
+    /// Exact estimated sizes for replacement-safe accounting.
+    private var featureSizes: [String: Int] = [:]
+    private var transcriptionSizes: [String: Int] = [:]
+    private var prosodySizes: [String: Int] = [:]
+
     /// Creation and last-access timestamps for LRU eviction.
     private var accessTimes: [String: Date] = [:]
 
     public init(maxCacheSize: Int = 100 * 1024 * 1024) {
-        self.maxCacheSize = maxCacheSize
+        self.maxCacheSize = max(0, maxCacheSize)
     }
 
     /// Stores acoustic features in cache.
     public func cacheAcousticFeatures(_ features: AcousticFeatures, for key: String) {
         let size = features.frameCount * features.frequencyBins * MemoryLayout<Float>.size
-        ensureSpace(size)
+        removeFeature(for: key)
+        guard ensureSpace(size) else {
+            removeAccessTimeIfUnused(for: key)
+            return
+        }
 
         featureCache[key] = features
+        featureSizes[key] = size
         currentCacheSize += size
         accessTimes[key] = Date()
     }
 
     /// Retrieves cached acoustic features.
     public func getAcousticFeatures(for key: String) -> AcousticFeatures? {
+        guard let value = featureCache[key] else { return nil }
         accessTimes[key] = Date()
-        return featureCache[key]
+        return value
     }
 
     /// Stores transcription in cache.
     public func cacheTranscription(_ transcript: PhoneticTranscription, for key: String) {
         let size = transcript.phonemes.count * 64  // Rough estimate
-        ensureSpace(size)
+        removeTranscription(for: key)
+        guard ensureSpace(size) else {
+            removeAccessTimeIfUnused(for: key)
+            return
+        }
 
         transcriptionCache[key] = transcript
+        transcriptionSizes[key] = size
         currentCacheSize += size
         accessTimes[key] = Date()
     }
 
     /// Retrieves cached transcription.
     public func getTranscription(for key: String) -> PhoneticTranscription? {
+        guard let value = transcriptionCache[key] else { return nil }
         accessTimes[key] = Date()
-        return transcriptionCache[key]
+        return value
     }
 
     /// Stores prosody prediction in cache.
     public func cacheProsody(_ prosody: ProsodyDescription, for key: String) {
         let size = prosody.phonemes.count * 128  // Rough estimate
-        ensureSpace(size)
+        removeProsody(for: key)
+        guard ensureSpace(size) else {
+            removeAccessTimeIfUnused(for: key)
+            return
+        }
 
         prosodyCache[key] = prosody
+        prosodySizes[key] = size
         currentCacheSize += size
         accessTimes[key] = Date()
     }
 
     /// Retrieves cached prosody prediction.
     public func getProsody(for key: String) -> ProsodyDescription? {
+        guard let value = prosodyCache[key] else { return nil }
         accessTimes[key] = Date()
-        return prosodyCache[key]
+        return value
     }
 
     /// Clears all caches.
@@ -77,6 +100,9 @@ public actor AssetCache: Sendable {
         featureCache.removeAll()
         transcriptionCache.removeAll()
         prosodyCache.removeAll()
+        featureSizes.removeAll()
+        transcriptionSizes.removeAll()
+        prosodySizes.removeAll()
         accessTimes.removeAll()
         currentCacheSize = 0
     }
@@ -93,12 +119,13 @@ public actor AssetCache: Sendable {
     }
 
     /// Ensures there's enough space for new data using LRU eviction.
-    private func ensureSpace(_ requiredBytes: Int) {
-        guard requiredBytes > 0 else { return }
+    private func ensureSpace(_ requiredBytes: Int) -> Bool {
+        guard requiredBytes >= 0, requiredBytes <= maxCacheSize else { return false }
 
-        while currentCacheSize + requiredBytes > maxCacheSize && !featureCache.isEmpty {
+        while currentCacheSize + requiredBytes > maxCacheSize && !accessTimes.isEmpty {
             evictLRUItem()
         }
+        return currentCacheSize + requiredBytes <= maxCacheSize
     }
 
     /// Evicts the least recently used item.
@@ -106,22 +133,41 @@ public actor AssetCache: Sendable {
         guard let lruKey = accessTimes.min(by: { $0.value < $1.value })?.key else { return }
 
         // Remove from all caches
-        if let features = featureCache.removeValue(forKey: lruKey) {
-            currentCacheSize -= features.frameCount * features.frequencyBins * MemoryLayout<Float>.size
-        }
-        if let transcript = transcriptionCache.removeValue(forKey: lruKey) {
-            currentCacheSize -= transcript.phonemes.count * 64
-        }
-        if let prosody = prosodyCache.removeValue(forKey: lruKey) {
-            currentCacheSize -= prosody.phonemes.count * 128
-        }
+        removeFeature(for: lruKey)
+        removeTranscription(for: lruKey)
+        removeProsody(for: lruKey)
 
         accessTimes.removeValue(forKey: lruKey)
+    }
+
+    private func removeFeature(for key: String) {
+        featureCache.removeValue(forKey: key)
+        currentCacheSize -= featureSizes.removeValue(forKey: key) ?? 0
+        currentCacheSize = max(0, currentCacheSize)
+    }
+
+    private func removeTranscription(for key: String) {
+        transcriptionCache.removeValue(forKey: key)
+        currentCacheSize -= transcriptionSizes.removeValue(forKey: key) ?? 0
+        currentCacheSize = max(0, currentCacheSize)
+    }
+
+    private func removeProsody(for key: String) {
+        prosodyCache.removeValue(forKey: key)
+        currentCacheSize -= prosodySizes.removeValue(forKey: key) ?? 0
+        currentCacheSize = max(0, currentCacheSize)
+    }
+
+    private func removeAccessTimeIfUnused(for key: String) {
+        guard featureCache[key] == nil,
+              transcriptionCache[key] == nil,
+              prosodyCache[key] == nil else { return }
+        accessTimes.removeValue(forKey: key)
     }
 }
 
 /// Cache statistics.
-public struct CacheStatistics: Sendable {
+public struct CacheStatistics: Sendable, Equatable {
     /// Number of cached acoustic features.
     public let featureCount: Int
 
@@ -140,6 +186,16 @@ public struct CacheStatistics: Sendable {
     /// Cache utilization as percentage.
     public var utilizationPercent: Double {
         guard maxSizeBytes > 0 else { return 0 }
-        return Double(currentSizeBytes) / Double(maxSizeBytes) * 100
+        return min(100, max(0, Double(currentSizeBytes) / Double(maxSizeBytes) * 100))
+    }
+
+    /// Capacity still available under the configured limit.
+    public var remainingCapacityBytes: Int {
+        max(0, maxSizeBytes - currentSizeBytes)
+    }
+
+    /// Whether no entries are currently cached.
+    public var isEmpty: Bool {
+        featureCount == 0 && transcriptionCount == 0 && prosodyCount == 0
     }
 }

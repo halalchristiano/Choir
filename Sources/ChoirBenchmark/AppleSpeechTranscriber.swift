@@ -60,7 +60,7 @@ struct AppleSpeechTranscriber: SpeechTranscriber {
         // the package's own encoder rather than a second audio path.
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("choir-asr-\(UUID().uuidString).wav")
-        let wav = AudioEncoder().encodeWAV(audio)
+        let wav = try AudioEncoder().encodeWAV(audio)
         try wav.write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
 

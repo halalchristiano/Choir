@@ -16,13 +16,22 @@ public actor ChoirEngine {
 
     private var state: State = .uninitialized
     private let audioFormat: AudioFormat
+    private let configuredPipeline: SynthesisPipeline?
     private var pipeline: SynthesisPipeline?
 
     /// Creates a new Choir synthesis engine.
     ///
-    /// - Parameter audioFormat: The audio format for all synthesis output. Default is 48kHz mono 16-bit.
-    public init(audioFormat: AudioFormat = AudioFormat()) {
+    /// - Parameters:
+    ///   - audioFormat: The audio format for synthesis output.
+    ///   - pipeline: An explicitly configured pipeline. Supply this to inject
+    ///     production models or test doubles; `nil` uses the package's current
+    ///     mock-backed development pipeline.
+    public init(
+        audioFormat: AudioFormat = AudioFormat(),
+        pipeline: SynthesisPipeline? = nil
+    ) {
         self.audioFormat = audioFormat
+        self.configuredPipeline = pipeline
     }
 
     /// Initializes the engine, loading necessary models and resources.
@@ -32,10 +41,28 @@ public actor ChoirEngine {
     ///
     /// - Throws: `ChoirError` if model loading fails.
     public func initialize() async throws {
-        guard case .uninitialized = state else { return }
+        switch state {
+        case .ready:
+            return
+        case .initializing, .synthesizing:
+            throw ChoirError.engineBusy
+        case .error(let error):
+            throw error
+        case .uninitialized:
+            break
+        }
 
-        // Initialize synthesis pipeline with default components
-        self.pipeline = SynthesisPipeline(audioFormat: audioFormat)
+        state = .initializing
+        do {
+            try audioFormat.validate()
+        } catch let error as ChoirError {
+            state = .error(error)
+            throw error
+        }
+        // The default components are explicitly test scaffolding until model
+        // assets are integrated; public documentation must not call this a
+        // production neural path.
+        self.pipeline = configuredPipeline ?? SynthesisPipeline(audioFormat: audioFormat)
 
         state = .ready
     }
@@ -312,6 +339,7 @@ public actor ChoirEngine {
     ) async throws {
         try validateState()
         try validateText(text)
+        try options.validate()
 
         guard let pipeline = pipeline else {
             throw ChoirError.notInitialized
@@ -342,19 +370,45 @@ public actor ChoirEngine {
     /// - Returns: `AudioOutput` in the requested format.
     /// - Throws: `ChoirError` if encoding fails.
     public func exportAudio(_ audio: AudioBuffer, format: AudioOutputFormat) throws -> AudioOutput {
-        // TODO: Implement audio encoding to WAV, MP3, AAC
-        throw ChoirError.unknown("Audio export not yet implemented")
+        let encoder = AudioEncoder()
+        switch format {
+        case .wav:
+            return .wav(try encoder.encodeWAV(audio))
+        case .mp3:
+            return .mp3(try encoder.encodeMP3(audio))
+        case .aac:
+            return .aac(try encoder.encodeAAC(audio))
+        case .flac:
+            _ = try encoder.encodeFLAC(audio)
+            throw ChoirError.audioEncodingFailed(
+                reason: "FLAC has no AudioOutput representation in this API version")
+        }
     }
 
-    /// Clears cached models and resources to free memory.
+    /// Releases the initialized pipeline and any model resources it owns.
+    ///
+    /// The engine must be initialized again before its next synthesis. An
+    /// active request keeps its pipeline until it completes; calling this
+    /// while synthesis is active is therefore a no-op.
     public func clearCache() {
-        // TODO: Implement cache clearing
+        guard case .synthesizing = state else {
+            pipeline = nil
+            state = .uninitialized
+            return
+        }
     }
 
     // MARK: - Private Helpers
 
     private func validateState() throws {
-        guard case .ready = state else {
+        switch state {
+        case .ready:
+            return
+        case .initializing, .synthesizing:
+            throw ChoirError.engineBusy
+        case .error(let error):
+            throw error
+        case .uninitialized:
             throw ChoirError.notInitialized
         }
     }

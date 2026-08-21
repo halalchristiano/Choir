@@ -56,7 +56,7 @@ extension Choir {
         // Played from encoded WAV rather than an AVAudioPCMBuffer so playback
         // goes through the package's own encoder: one audio format path rather
         // than two that can drift apart.
-        let data = AudioEncoder().encodeWAV(audio)
+        let data = try AudioEncoder().encodeWAV(audio)
         let player: AVAudioPlayer
         do {
             player = try AVAudioPlayer(data: data)

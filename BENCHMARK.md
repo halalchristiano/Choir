@@ -6,7 +6,7 @@
 > about it and prints a warning into the report itself.
 >
 > **Baseline, not a shipping measurement.** The acoustic model is a mock and the
-> vocoder is Griffin-Lim, so throughput describes the current pipeline rather
+> vocoder is `MockVocoder`, so throughput describes the current pipeline rather
 > than a trained voice. That is the point: a baseline taken *before* the model
 > lands is what makes the model's cost measurable when it arrives.
 >
@@ -38,9 +38,9 @@
 
 ## Caveats
 
-- **PRF-011** Cold start to first audio: Single sample by nature: a true cold start includes process launch and the first lexicon load, neither of which recurs in-process. Repeat the whole command for a distribution. Measured against the mock acoustic model and Griffin-Lim vocoder; not representative of a trained model.
-- **PRF-001** Batch RTF: Measured against the mock acoustic model and Griffin-Lim vocoder; not representative of a trained model.
-- **PRF-010** Warm TTFA: Measured against the mock acoustic model and Griffin-Lim vocoder; not representative of a trained model.
+- **PRF-011** Cold start to first audio: Single sample by nature: a true cold start includes process launch and the first lexicon load, neither of which recurs in-process. Repeat the whole command for a distribution. Measured against the mock acoustic model and mock vocoder; not representative of a trained model.
+- **PRF-001** Batch RTF: Measured against the mock acoustic model and mock vocoder; not representative of a trained model.
+- **PRF-010** Warm TTFA: The current chunk callback begins only after a full render. Measured against mocks; not representative of progressive neural synthesis.
 - **PRF-011** Lexicon load: Component of cold start, not a requirement in itself. Sampled with a fresh lexicon each time; the shared instance loads once per process.
 - **PRF-020** Peak resident memory: Whole-process RSS, which includes the test host; the requirement asks for memory attributable to CHOIR alone.
 - **PRF-030** Installed asset size: Voice model assets do not exist yet; this is the lexicon and licence files only.

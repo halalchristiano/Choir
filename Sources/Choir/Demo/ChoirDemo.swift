@@ -182,7 +182,7 @@ public struct ChoirDemo {
         let encoder = AudioEncoder()
 
         // Export to WAV
-        let wavData = encoder.encodeWAV(audio)
+        let wavData = try encoder.encodeWAV(audio)
         print("✓ WAV encoded: \(wavData.count) bytes")
 
         // Export raw PCM

@@ -9,17 +9,28 @@ public struct AudioEncoder: Sendable {
     /// - Parameters:
     ///   - buffer: Audio buffer containing PCM samples.
     /// - Returns: WAV encoded data.
-    public func encodeWAV(_ buffer: AudioBuffer) -> Data {
+    public func encodeWAV(_ buffer: AudioBuffer) throws -> Data {
+        try buffer.format.validate()
+        guard buffer.samples.count % buffer.format.channels == 0 else {
+            throw ChoirError.audioEncodingFailed(
+                reason: "Interleaved sample count must be divisible by the channel count")
+        }
+        let dataByteCount = buffer.samples.count.multipliedReportingOverflow(by: 2)
+        guard !dataByteCount.overflow,
+              dataByteCount.partialValue <= Int(UInt32.max) - 36 else {
+            throw ChoirError.audioEncodingFailed(reason: "Audio is too large for a RIFF/WAV file")
+        }
+
         var wavData = Data()
 
         // RIFF header
-        let chunkSize = 36 + buffer.samples.count * 2
-        wavData.append("RIFF".data(using: .utf8)!)
+        let chunkSize = 36 + dataByteCount.partialValue
+        wavData.append(Data("RIFF".utf8))
         wavData.append(UInt32(chunkSize).littleEndianData)
-        wavData.append("WAVE".data(using: .utf8)!)
+        wavData.append(Data("WAVE".utf8))
 
         // fmt subchunk
-        wavData.append("fmt ".data(using: .utf8)!)
+        wavData.append(Data("fmt ".utf8))
         wavData.append(UInt32(16).littleEndianData)  // Subchunk1Size
         wavData.append(UInt16(1).littleEndianData)   // AudioFormat (1 = PCM)
         wavData.append(UInt16(buffer.format.channels).littleEndianData)
@@ -31,8 +42,8 @@ public struct AudioEncoder: Sendable {
         wavData.append(UInt16(buffer.format.bitDepth).littleEndianData)
 
         // data subchunk
-        wavData.append("data".data(using: .utf8)!)
-        wavData.append(UInt32(buffer.samples.count * 2).littleEndianData)
+        wavData.append(Data("data".utf8))
+        wavData.append(UInt32(dataByteCount.partialValue).littleEndianData)
 
         // Sample data
         for sample in buffer.samples {
@@ -57,25 +68,34 @@ public struct AudioEncoder: Sendable {
         return rawData
     }
 
-    /// Stub for MP3 encoding (requires external library).
-    public func encodeMP3(_ buffer: AudioBuffer, quality: Int = 128) -> Data {
-        // TODO: Implement MP3 encoding using lame or similar library
-        // For now, return empty data
-        return Data()
+    /// Reports that MP3 encoding is unavailable in the current package.
+    public func encodeMP3(_ buffer: AudioBuffer, quality: Int = 128) throws -> Data {
+        _ = buffer
+        try validateBitrate(quality)
+        throw ChoirError.audioEncodingFailed(
+            reason: "MP3 encoding is not available in this build")
     }
 
-    /// Stub for AAC encoding (requires AudioToolbox framework).
-    public func encodeAAC(_ buffer: AudioBuffer, quality: Int = 128) -> Data {
-        // TODO: Implement AAC encoding using AudioToolbox
-        // For now, return empty data
-        return Data()
+    /// Reports that AAC encoding is unavailable in the current package.
+    public func encodeAAC(_ buffer: AudioBuffer, quality: Int = 128) throws -> Data {
+        _ = buffer
+        try validateBitrate(quality)
+        throw ChoirError.audioEncodingFailed(
+            reason: "AAC encoding is not available in this build")
     }
 
-    /// Stub for FLAC encoding.
-    public func encodeFLAC(_ buffer: AudioBuffer) -> Data {
-        // TODO: Implement FLAC encoding
-        // For now, return empty data
-        return Data()
+    /// Reports that FLAC encoding is unavailable in the current package.
+    public func encodeFLAC(_ buffer: AudioBuffer) throws -> Data {
+        _ = buffer
+        throw ChoirError.audioEncodingFailed(
+            reason: "FLAC encoding is not available in this build")
+    }
+
+    private func validateBitrate(_ bitrate: Int) throws {
+        guard 8...320 ~= bitrate else {
+            throw ChoirError.invalidParameter(
+                parameter: "bitrate", reason: "Bitrate must be within 8...320 kbps")
+        }
     }
 }
 

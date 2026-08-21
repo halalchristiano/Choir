@@ -1,19 +1,20 @@
-# CHOIR — On-Device Neural Voice Synthesis Engine
+# CHOIR — On-Device Voice Synthesis Development Kit
 
 [![CI](https://github.com/halalchristiano/Choir/actions/workflows/ci.yml/badge.svg)](https://github.com/halalchristiano/Choir/actions/workflows/ci.yml)
 [![Swift 6.3](https://img.shields.io/badge/Swift-6.3-orange.svg)](https://swift.org)
 [![Platforms](https://img.shields.io/badge/platforms-iOS%20%7C%20macOS%20%7C%20visionOS%20%7C%20watchOS%20%7C%20tvOS-lightgrey.svg)](https://swift.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-An on-device text-to-speech engine delivered as a Swift Package for the entire Apple ecosystem (iOS, iPadOS, macOS, visionOS, watchOS, tvOS). Complete sovereignty, zero network dependency.
+An experimental on-device text-to-speech Swift package for Apple platforms.
 
-> ### ⚠️ Pre-release (v0.1.0) — not yet production-ready
+> ### ⚠️ Pre-alpha (v0.15.0) — not a speech product yet
 >
-> The **architecture, API surface, and linguistic pipeline are implemented and usable.**
-> The **acoustic model is a mock** and the vocoder is Griffin-Lim, so CHOIR does not yet
-> produce natural-sounding speech on its own. The 32 voices are currently *parameter
-> definitions* — voice timbre comes from either trained acoustic models (not yet included)
-> or user-supplied phoneme recordings (see **[Real Voices](./REAL_VOICES.md)**).
+> The package contains substantial API, linguistic, prosody, caching, and test
+> infrastructure. The default `SynthesisPipeline` still uses
+> `MockAcousticModel` and `MockVocoder`, producing a test sine wave rather than
+> speech. `CoreMLAcousticModel` reports that no production model is bundled.
+> The 32 voices are metadata profiles with unique conditioning IDs, not 32
+> trained or perceptually distinct voices.
 >
 > Treat this as a foundation to build on, not a drop-in replacement for AVSpeechSynthesizer.
 > The API may change before 1.0.
@@ -23,11 +24,11 @@ An on-device text-to-speech engine delivered as a Swift Package for the entire A
 CHOIR is a self-contained TTS engine featuring:
 
 - **32 Voice Definitions**: Engineered instruments, not clones. Spanning 4 age bands, multiple gender presentations, villain archetypes, and specialty voices for games, narration, and media. *(Parameter profiles; see the pre-release note above.)*
-- **On-Device**: Zero network calls. Works identically in airplane mode on a mountaintop.
-- **Cross-Platform**: iOS, iPadOS, macOS, visionOS, watchOS, tvOS via a single Swift Package.
-- **Parametric Control**: Adjust pitch, rate, emotion, breathiness, age/gender shift, emphasis.
-- **Streaming & Batch**: Real-time streaming synthesis and offline batch rendering.
-- **Audio Output**: 48 kHz, 16-bit PCM, Griffin-Lim vocoder reconstruction.
+- **Offline architecture**: The runtime code has no intended network dependency; a release still requires an automated network-silence audit.
+- **Declared platform targets**: iOS, iPadOS, macOS, visionOS, watchOS, and tvOS; physical-device conformance remains outstanding.
+- **Parameter API**: Pitch, rate, emotion, breathiness, and age/gender controls exist, but the mock path does not prove their audible effect.
+- **Batch and chunked delivery**: Streaming currently renders the full utterance before emitting chunks.
+- **Audio output**: 48 kHz mono 16-bit PCM by default, with validated WAV export.
 
 ## Project Structure
 
@@ -46,7 +47,7 @@ Sources/Choir/
 ├── VoiceSynthesis/                # Sample-based synthesis (see REAL_VOICES.md)
 ├── Caching/                       # Asset caching with LRU eviction
 ├── Demo/                          # Runnable usage examples
-└── Models/                        # Acoustic model + vocoder (mock/Griffin-Lim)
+└── Models/                        # Model protocols, development mocks, experimental vocoder
 
 Tests/ChoirTests/
 ├── ChoirTests.swift               # Core API tests
@@ -108,7 +109,7 @@ Add CHOIR to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/halalchristiano/Choir.git", from: "0.1.0")
+    .package(url: "https://github.com/halalchristiano/Choir.git", from: "0.15.0")
 ]
 ```
 
@@ -126,14 +127,14 @@ try await engine.initialize()
 // Synthesize text
 let audio = try await engine.synthesize(
     text: "Hello, world!",
-    voice: .narratorFeminine,
+    voice: .isla,
     parameters: SynthesisParameters(rate: 0.95, emotionalIntensity: 0.7)
 )
 
-// Stream synthesis for real-time playback
+// Deliver the completed render in chunks (not yet progressive synthesis)
 try await engine.streamSynthesis(
-    text: "Speaking in real-time...",
-    voice: .youngAdultNeutral1,
+    text: "Deliver this render in chunks...",
+    voice: .orion,
     options: StreamingOptions(),
     onChunk: { chunk in
         // Handle audio chunk
@@ -150,7 +151,7 @@ Complete guides for all use cases:
 |-------|---------|----------|
 | **[Getting Started](./GETTING_STARTED.md)** | 5-min quickstart, installation, common patterns | New users |
 | **[Error Handling](./ERROR_HANDLING.md)** | All error types, recovery patterns, testing | Production reliability |
-| **[Streaming Synthesis](./STREAMING.md)** | Real-time audio, chunk management, patterns | Interactive apps, games |
+| **[Streaming Synthesis](./STREAMING.md)** | Current chunked-delivery behavior and true-streaming gates | Integration planning |
 | **[Voice Blending](./VOICE_BLENDING_GUIDE.md)** | Smooth voice transitions, character morphing | Creative applications |
 | **[Platforms Guide](./PLATFORMS.md)** | iOS, macOS, watchOS, visionOS, tvOS specifics | Cross-platform apps |
 
@@ -163,7 +164,7 @@ Complete guides for all use cases:
 ## API Overview
 
 ### ChoirEngine
-The main synthesis actor. Supports both batch and streaming synthesis with full async/await support.
+The main synthesis actor. Supports batch synthesis and post-render chunked delivery with async/await.
 
 ```swift
 let engine = ChoirEngine()
@@ -172,26 +173,26 @@ try await engine.initialize()
 // Batch synthesis
 let audio = try await engine.synthesize(
     text: "Hello world",
-    voice: .narratorFeminine,
+    voice: .isla,
     parameters: SynthesisParameters(rate: 1.2, emotionalIntensity: 0.8)
 )
 
-// Streaming synthesis
+// Post-render chunked delivery
 try await engine.streamSynthesis(
-    text: "Real-time output",
-    voice: .youngAdultMasculine,
+    text: "Chunked output",
+    voice: .orion,
     onChunk: { chunk in print(chunk.samples.count) }
 )
 ```
 
 - `initialize()` — Load models and initialize the engine
 - `synthesize(text:voice:parameters:)` — Batch synthesis, returns AudioBuffer
-- `streamSynthesis(text:voice:parameters:options:onChunk:)` — Streaming synthesis with chunk callback
+- `streamSynthesis(text:voice:parameters:options:onChunk:)` — Full render followed by chunk callbacks
 
 ### Voice
 32 cases representing each available voice. Properties:
 - `displayName` — Human-readable name
-- `ageBand` — Age band (1-4) or 0 for specialty voices
+- `ageBand` — Child, young-adult, middle-aged, or elderly
 - `isVillain` — Boolean flag for villain voices
 
 ### SynthesisParameters
@@ -211,6 +212,7 @@ Parametric control over synthesis:
 - `.audioEncodingFailed(reason:)`
 - `.invalidParameter(parameter:reason:)`
 - `.notInitialized`
+- `.engineBusy`
 - `.cancelled`
 - And more...
 
@@ -222,25 +224,28 @@ Pre-configured parameter sets for common speaking patterns:
 ```swift
 let audio = try await engine.synthesize(
     text: "What an amazing day!",
-    voice: .youngAdultFeminine,
-    parameters: SpeakingStyle.happy.parameters  // Built-in happy voice
+    voice: .lyra,
+    parameters: SpeakingStyle.happy.parameters
 )
 ```
 
 Available styles: `.normal`, `.fast`, `.slow`, `.whisper`, `.shout`, `.happy`, `.sad`, `.angry`, `.calm`
 
+These presets are parameter bundles. Their audible behavior must be validated
+again after production models replace the mocks.
+
 ### Voice Blending
-Smooth interpolation between two voices:
+Interpolation between two parameter sets (not yet timbre interpolation):
 
 ```swift
 let blending = VoiceBlending()
-let profile1 = VoiceBlending.VoiceProfile(voice: .narratorMasculine)
-let profile2 = VoiceBlending.VoiceProfile(voice: .narratorFeminine)
+let profile1 = VoiceBlending.VoiceProfile(voice: .orion)
+let profile2 = VoiceBlending.VoiceProfile(voice: .lyra)
 
 for step in 0...10 {
     let mix = Double(step) / 10.0
     let params = blending.blend(profile1, with: profile2, mix: mix)
-    let audio = try await engine.synthesize(text, voice: .narratorMasculine, parameters: params)
+    let audio = try await engine.synthesize(text: text, voice: .orion, parameters: params)
 }
 ```
 
@@ -265,7 +270,7 @@ Professional audio quality filters:
 ```swift
 let filters = AudioFilters()
 
-let audio = try await engine.synthesize(text: "Demo", voice: .narratorFeminine)
+let audio = try await engine.synthesize(text: "Demo", voice: .isla)
 
 // Apply processing chain
 let deessed = filters.deEsser(audio.samples)
@@ -284,12 +289,12 @@ Hello <prosody pitch="+5" rate="1.2">there!</prosody>
 <emphasis level="strong">This is important!</emphasis>
 """
 
-let audio = try await engine.synthesize(text: ssml, voice: .youngAdultMasculine)
+let audio = try await engine.synthesize(text: ssml, voice: .orion)
 ```
 
 ## Implementation Status
 
-### ✅ Completed Phases
+### Implemented infrastructure
 
 **Phase 1: Core Package & API**
 - Swift Package structure with cross-platform support
@@ -311,17 +316,17 @@ let audio = try await engine.synthesize(text: ssml, voice: .youngAdultMasculine)
 - Stress-based accentuation
 - Emotional intensity mapping to pitch/loudness
 
-**Phase 4: Acoustic Models & Vocoding**
+**Phase 4: Model and vocoder interfaces**
 - Phoneme encoding/decoding interface
-- Mock acoustic model for testing
-- Neural vocoder with Griffin-Lim reconstruction
+- Deterministic mock acoustic model for testing
+- Experimental spectral reconstruction code and a separate sine-wave mock vocoder
 - Resampling and windowing
 - PCM 16-bit output
 
-**Phase 5: Complete Pipeline**
+**Phase 5: Development pipeline**
 - End-to-end synthesis orchestration
 - Batch (offline) synthesis
-- Streaming synthesis with async/await
+- Post-render chunk delivery with async/await
 - ChoirEngine with full state management
 
 **Phase 6: Output & Caching**
@@ -336,32 +341,33 @@ let audio = try await engine.synthesize(text: ssml, voice: .youngAdultMasculine)
 - Voice blending and interpolation
 - 9 speaking style presets
 - Audio post-processing filters (7 filter types)
-- Professional quality enhancement
+- Experimental post-processing utilities
 - Comprehensive demo module
 
 ### 📋 Test Coverage
 
-**121 tests across 25 suites**, covering text normalization, G2P and
-stress assignment, SSML parsing, prosody and ToBI, the acoustic model and
-vocoder interfaces, the synthesis pipeline, streaming, audio encoding,
-filters, caching, and error paths.
+The suite covers text normalization, G2P, stress assignment, SSML parsing,
+prosody and ToBI, model/vocoder interfaces, the mock pipeline, chunk delivery,
+audio encoding, filters, caching, and error paths. Passing infrastructure tests
+does not establish speech naturalness, voice distinctness, or production SRS
+conformance.
 
 Run them with `swift test`. CI executes the same suite on every push.
 
 ### 🚀 Next Phases
 
-**Phase 7: Model Training**
+**Next: Model Training**
 - Acoustic model training pipeline
 - Vocoder training with sample data
 - Voice model asset preparation
 
-**Phase 8: Performance Optimization**
+**Then: Performance Optimization**
 - Core ML model integration
 - GPU acceleration
 - Quantization for edge devices
 - Latency benchmarking
 
-**Phase 9: Advanced Features**
+**Later optional features**
 - Voice conversion/morphing
 - Real-time parameter adjustment
 - Multi-speaker synthesis
@@ -375,7 +381,7 @@ asserted here — see the badge at the top of this file for live status.
 ## Requirements
 
 - Swift 6.3+
-- iOS 16+, macOS 13+, visionOS 1+, watchOS 9+, tvOS 16+
+- iOS 17+, macOS 14+, visionOS 1+, watchOS 10+, tvOS 17+
 
 ## Building
 

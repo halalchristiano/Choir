@@ -5,17 +5,13 @@ dependency.
 
 ## Overview
 
-CHOIR synthesizes speech entirely on-device across iOS, iPadOS, macOS,
-visionOS, watchOS and tvOS from a single Swift package. It makes no network
-calls, so it behaves identically offline.
+CHOIR is designed for entirely on-device synthesis across Apple platforms from
+a single Swift package.
 
-> Important: CHOIR is pre-release software (0.2.0). The architecture, API
-> surface and linguistic pipeline are implemented and usable, but the acoustic
-> model is a mock and the vocoder is Griffin-Lim, so the engine does not yet
-> produce natural-sounding speech on its own. The 32 voices are parameter
-> profiles rather than trained models; voice timbre comes from either trained
-> acoustic models, which are not included, or from user-supplied phoneme
-> recordings. Treat this as a foundation to build on rather than a drop-in
+> Important: CHOIR is pre-alpha software (0.15.0). The default pipeline uses
+> `MockAcousticModel` and `MockVocoder`, so it emits a test waveform rather than
+> speech. The 32 voices are metadata profiles with unique conditioning IDs,
+> not trained voices. Treat this as development infrastructure rather than a
 > replacement for `AVSpeechSynthesizer`.
 
 ### Synthesizing speech
@@ -35,12 +31,12 @@ let audio = try await engine.synthesize(
 )
 ```
 
-For real-time playback, stream chunks as they are produced instead of waiting
-for the whole utterance:
+The current API can deliver a completed render in chunks. It does not yet emit
+audio while later text is still being synthesized:
 
 ```swift
 try await engine.streamSynthesis(
-    text: "Speaking in real-time...",
+    text: "Deliver this render in chunks...",
     voice: .orion,
     options: StreamingOptions(),
     onChunk: { chunk in

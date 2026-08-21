@@ -27,7 +27,7 @@ ProsodyDescription
     └─ AcousticFeatures (frequency-domain)
     ↓
 [Vocoder]
-    ├─ Phase reconstruction (Griffin-Lim)
+    ├─ Experimental phase reconstruction or injected vocoder
     ├─ Inverse FFT
     ├─ Overlap-add windowing
     └─ Resampling
@@ -204,7 +204,7 @@ instruments -t 'System Trace' <app>
 
 ### Required
 - Swift 6.3+
-- iOS 16+, macOS 13+, visionOS 1+
+- iOS 17+, macOS 14+, visionOS 1+, watchOS 10+, tvOS 17+
 
 ### Optional (for future features)
 - Core ML (acoustic models)

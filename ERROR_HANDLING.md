@@ -1,313 +1,132 @@
-# Error Handling in CHOIR
+# Error handling
 
-CHOIR uses typed errors to help you handle synthesis failures gracefully.
+CHOIR exposes `ChoirError`, a `Sendable`, `Equatable`, `LocalizedError` enum.
+Every case has a stable `code`, an `errorDescription`, a
+`recoverySuggestion`, and an `isRetryable` classification.
 
-## The ChoirError Type
+## Cases
 
-All CHOIR functions throw `ChoirError` which has specific cases for each failure:
+| Case | Code | Retryable | Meaning |
+|---|---|---:|---|
+| `modelLoadFailed(reason:)` | CHOIR-1001 | No | Required model assets could not be loaded |
+| `textProcessingFailed(reason:)` | CHOIR-1002 | No | Normalization, markup, or phonemization failed |
+| `synthesisError(reason:)` | CHOIR-1003 | Yes | Model or waveform generation failed |
+| `audioEncodingFailed(reason:)` | CHOIR-1004 | No | Export or codec preparation failed |
+| `notInitialized` | CHOIR-1005 | No | `initialize()` has not completed |
+| `cancelled` | CHOIR-1006 | No | The caller cancelled the task |
+| `invalidParameter(parameter:reason:)` | CHOIR-1007 | No | A value is outside its accepted contract |
+| `outOfMemory` | CHOIR-1008 | Yes | The operation could not obtain enough memory |
+| `timeout` | CHOIR-1009 | Yes | The operation exceeded its time budget |
+| `engineBusy` | CHOIR-1010 | Yes | The same engine is initializing or synthesizing |
+| `unknown(String)` | CHOIR-1999 | Yes | An unclassified failure occurred |
+
+Codes already assigned to older cases are never renumbered when a new case is
+added.
+
+## Basic handling
 
 ```swift
 do {
-    try await engine.synthesize(text: "...", voice: .narratorFeminine)
-} catch let error as ChoirError {
-    // Handle specific error types
-    switch error {
-    case .notInitialized:
-        // Model not loaded
-    case .invalidInput(let reason):
-        // Bad text or parameters
-    case .synthesisError(let reason):
-        // Synthesis failed mid-process
-    // ... more cases below
-    }
-} catch {
-    // Non-CHOIR errors (unlikely)
-}
-```
-
-## Error Cases & Recovery
-
-### 1. `.notInitialized`
-**Cause:** You called synthesis before loading models.
-
-**Recovery:**
-```swift
-do {
-    try await engine.initialize()  // Load models first
-    let audio = try await engine.synthesize(text: "Hello", voice: .narratorFeminine)
-} catch ChoirError.notInitialized {
-    print("Models loading, please retry...")
-}
-```
-
-### 2. `.invalidInput(let reason)`
-**Cause:** Bad parameters or empty text.
-
-**Recovery:**
-```swift
-do {
-    let audio = try await engine.synthesize(text: userInput, voice: selectedVoice)
-} catch ChoirError.invalidInput(let reason) {
-    print("Invalid input: \(reason)")
-    // Validate: text.count > 0, valid voice, etc.
-}
-```
-
-**Prevention:**
-```swift
-guard !text.isEmpty else { return }
-guard !text.count > 5000 else { print("Text too long"); return }
-```
-
-### 3. `.synthesisError(let reason)`
-**Cause:** Model inference or vocoding failed.
-
-**Recovery:**
-```swift
-do {
-    let audio = try await engine.synthesize(text: text, voice: voice)
-} catch ChoirError.synthesisError(let reason) {
-    print("Synthesis failed: \(reason)")
-    // Retry with shorter text or different voice
-    let shortText = String(text.prefix(500))
-    let audio = try await engine.synthesize(text: shortText, voice: .narratorFeminine)
-}
-```
-
-### 4. `.modelLoadError(let reason)`
-**Cause:** Failed to load voice models from disk.
-
-**Recovery:**
-```swift
-do {
-    try await engine.initialize()
-} catch ChoirError.modelLoadError(let reason) {
-    print("Model loading failed: \(reason)")
-    // Check available disk space
-    // Retry initialization
-    try await Task.sleep(nanoseconds: 1_000_000_000)  // Wait 1 second
-    try await engine.initialize()
-}
-```
-
-### 5. `.cachingError(let reason)`
-**Cause:** Asset cache failed to store/retrieve audio.
-
-**Recovery:**
-```swift
-do {
-    let audio = try await engine.synthesize(text: text, voice: voice)
-} catch ChoirError.cachingError(let reason) {
-    print("Cache error: \(reason)")
-    // Continue without caching
-    // The audio is still available, just not cached
-}
-```
-
-### 6. `.encodingError(let reason)`
-**Cause:** WAV encoding or audio format conversion failed.
-
-**Recovery:**
-```swift
-do {
-    let audio = try await engine.synthesize(text: "...", voice: .narratorFeminine)
-    let wavData = try audio.encodeWAV()
-} catch ChoirError.encodingError(let reason) {
-    print("Encoding failed: \(reason)")
-    // Save raw PCM instead
-    let rawData = audio.audioBuffer.data()
-    try rawData.write(to: rawURL)
-}
-```
-
-### 7. `.streamingError(let reason)`
-**Cause:** Chunk generation or streaming callback failed.
-
-**Recovery:**
-```swift
-do {
-    try await engine.streamSynthesis(
-        text: text,
-        voice: voice,
-        onChunk: { chunk in
-            do {
-                audioPlayer.enqueue(chunk.samples)
-            } catch {
-                print("Failed to enqueue chunk: \(error)")
-            }
-        }
+    let audio = try await engine.synthesize(
+        text: userText,
+        voice: .isla
     )
-} catch ChoirError.streamingError(let reason) {
-    print("Streaming failed: \(reason)")
-    // Fallback to batch synthesis
-    let audio = try await engine.synthesize(text: text, voice: voice)
-    audioPlayer.play(audio)
-}
-```
+    consume(audio)
+} catch let error as ChoirError {
+    logger.error("\(error.code): \(error.errorDescription ?? "")")
 
-## Common Patterns
-
-### Retry with Backoff
-
-```swift
-func synthesizeWithRetry(
-    text: String,
-    voice: Voice,
-    maxAttempts: Int = 3
-) async throws -> SynthesisResult {
-    var lastError: ChoirError?
-    
-    for attempt in 1...maxAttempts {
-        do {
-            return try await engine.synthesize(text: text, voice: voice)
-        } catch let error as ChoirError {
-            lastError = error
-            
-            // Exponential backoff: 1s, 2s, 4s
-            let delayNs = UInt64(1_000_000_000 * (1 << (attempt - 1)))
-            try await Task.sleep(nanoseconds: delayNs)
-        }
+    if error.isRetryable {
+        scheduleRetry()
+    } else {
+        show(error.recoverySuggestion ?? "The request could not be completed.")
     }
-    
-    throw lastError ?? ChoirError.synthesisError("Unknown error after retries")
 }
 ```
 
-### Fallback Voices
+Do not retry `.cancelled`. Cancellation is an expected control-flow outcome,
+not a transient synthesis failure.
+
+## Invalid input
+
+Empty text, text beyond the documented character ceiling, zero or negative
+streaming chunk sizes, unsupported PCM formats, unknown phonemes, mismatched
+acoustic tensors, non-finite model values, and invalid codec bitrates report
+`invalidParameter` before unsafe work begins.
 
 ```swift
-func synthesizeWithFallback(
+do {
+    try StreamingOptions(chunkSize: 0).validate()
+} catch ChoirError.invalidParameter(let parameter, let reason) {
+    print("\(parameter): \(reason)")
+}
+```
+
+## Engine lifecycle
+
+```swift
+let engine = ChoirEngine()
+
+do {
+    try await engine.initialize()
+    _ = try await engine.synthesize(text: "Hello.", voice: .garrick)
+} catch ChoirError.notInitialized {
+    // initialize() was not called, or clearCache() released the pipeline.
+} catch ChoirError.engineBusy {
+    // Wait, queue the request, or use a separate engine instance.
+}
+```
+
+`engineBusy` is intentionally distinct from `notInitialized`; callers should
+not respond to contention by repeatedly loading the engine.
+
+## Export errors
+
+```swift
+do {
+    let output = try await engine.exportAudio(audio, format: .wav)
+    if case .wav(let data) = output {
+        try data.write(to: destination, options: .atomic)
+    }
+} catch ChoirError.audioEncodingFailed(let reason) {
+    print(reason)
+}
+```
+
+WAV is implemented for valid 16-bit PCM. MP3, AAC, and FLAC currently throw a
+typed error instead of producing an empty file.
+
+## Cancellation
+
+```swift
+let task = Task {
+    try await engine.streamSynthesis(text: text, voice: .orion) { chunk in
+        enqueue(chunk)
+    }
+}
+
+task.cancel()
+```
+
+The pipeline checks cancellation between major stages and between delivered
+chunks. True model-internal cancellation still depends on production model and
+vocoder implementations adding checks inside their own long-running work.
+
+## Retry only retryable errors
+
+```swift
+func synthesizeWithOneRetry(
+    engine: ChoirEngine,
     text: String,
     voice: Voice
-) async throws -> SynthesisResult {
-    let fallbackVoices = [voice, .narratorFeminine, .narratorMasculine]
-    
-    for fallback in fallbackVoices {
-        do {
-            return try await engine.synthesize(text: text, voice: fallback)
-        } catch {
-            print("Failed with \(fallback), trying next...")
-        }
-    }
-    
-    throw ChoirError.synthesisError("All voices failed")
-}
-```
-
-### Graceful Degradation
-
-```swift
-func synthesizeOrUsePrerecorded(
-    text: String,
-    voice: Voice,
-    prerecordedURL: URL?
-) async throws -> SynthesisResult {
+) async throws -> AudioBuffer {
     do {
         return try await engine.synthesize(text: text, voice: voice)
-    } catch {
-        if let prerecordedURL = prerecordedURL {
-            print("Using prerecorded audio fallback")
-            return try SynthesisResult(audioURL: prerecordedURL)
-        }
-        throw error
+    } catch let error as ChoirError where error.isRetryable {
+        try await Task.sleep(for: .milliseconds(250))
+        return try await engine.synthesize(text: text, voice: voice)
     }
 }
 ```
 
-### Logging & Debugging
-
-```swift
-func synthesizeWithLogging(text: String, voice: Voice) async throws -> SynthesisResult {
-    do {
-        let result = try await engine.synthesize(text: text, voice: voice)
-        print("✅ Synthesis succeeded: \(text.count) chars, voice=\(voice)")
-        return result
-    } catch let error as ChoirError {
-        switch error {
-        case .notInitialized:
-            print("❌ Engine not initialized")
-        case .invalidInput(let reason):
-            print("⚠️ Invalid input: \(reason)")
-        case .synthesisError(let reason):
-            print("❌ Synthesis error: \(reason)")
-        case .modelLoadError(let reason):
-            print("❌ Model load error: \(reason)")
-        case .cachingError(let reason):
-            print("⚠️ Cache error (non-fatal): \(reason)")
-        case .encodingError(let reason):
-            print("⚠️ Encoding error: \(reason)")
-        case .streamingError(let reason):
-            print("❌ Streaming error: \(reason)")
-        }
-        throw error
-    }
-}
-```
-
-## Performance & Timeout Handling
-
-### Detecting Slow Synthesis
-
-```swift
-func synthesizeWithTimeout(
-    text: String,
-    voice: Voice,
-    timeoutSeconds: TimeInterval = 30.0
-) async throws -> SynthesisResult {
-    try await withThrowingTaskGroup(of: SynthesisResult.self) { group in
-        group.addTask {
-            try await engine.synthesize(text: text, voice: voice)
-        }
-        
-        group.addTask {
-            try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
-            throw ChoirError.synthesisError("Synthesis timeout")
-        }
-        
-        return try await group.next()!
-    }
-}
-```
-
-## Testing Error Paths
-
-```swift
-import Testing
-@testable import Choir
-
-@Suite("Error Handling")
-struct ErrorHandlingTests {
-    @Test("Catches not initialized error")
-    async func testNotInitialized() {
-        let engine = ChoirEngine()  // Don't initialize
-        
-        await #expect(throws: ChoirError.self) {
-            try await engine.synthesize(text: "Hi", voice: .narratorFeminine)
-        }
-    }
-    
-    @Test("Handles empty text")
-    async func testEmptyText() {
-        let engine = ChoirEngine()
-        try await engine.initialize()
-        
-        await #expect(throws: ChoirError.invalidInput.self) {
-            try await engine.synthesize(text: "", voice: .narratorFeminine)
-        }
-    }
-}
-```
-
-## Key Takeaways
-
-1. **Always call `initialize()`** before synthesis
-2. **Validate input** before attempting synthesis
-3. **Use specific error cases** for targeted recovery
-4. **Implement retries** for transient failures
-5. **Test error paths** in your test suite
-6. **Provide fallbacks** for critical features
-7. **Log errors** for debugging
-
----
-
-See also: [Getting Started](./GETTING_STARTED.md), [Streaming Guide](./STREAMING.md), [Architecture](./ARCHITECTURE.md)
+Avoid logging user text at normal levels. Log the stable code, operation,
+engine/model version, and non-sensitive diagnostics instead.
