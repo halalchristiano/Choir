@@ -55,6 +55,7 @@ public struct SynthesisPipeline: Sendable {
         voice: Voice,
         parameters: SynthesisParameters
     ) async throws -> AudioBuffer {
+        try audioFormat.validate()
         // CON-002/SYN-007: cancellation is checked between every stage. The
         // stages are the natural granularity — each is bounded work, and a
         // check between them stops compute well inside SYN-007's 100 ms.
@@ -69,7 +70,7 @@ public struct SynthesisPipeline: Sendable {
         try Cancellation.check()
 
         // Stage 3: Acoustic modeling
-        let acousticInput = createAcousticInput(from: prosody, voice: voice)
+        let acousticInput = try createAcousticInput(from: prosody, voice: voice)
         let acousticFeatures = try await acousticModel.predict(input: acousticInput)
         try Cancellation.check()
 
@@ -127,6 +128,13 @@ public struct SynthesisPipeline: Sendable {
         }
 
         // No voice switching: the ordinary path, unchanged.
+        if runs.count == 1, runs[0].voice != defaultVoice {
+            // A single explicit <voice> still overrides the request default.
+            // The old fast path discarded it unless there were two runs.
+            return try await synthesizeWithMetadata(
+                text: text, voice: runs[0].voice, parameters: parameters)
+        }
+
         guard runs.count > 1 else {
             return try await synthesizeWithMetadata(
                 text: text, voice: defaultVoice, parameters: parameters)
@@ -183,6 +191,7 @@ public struct SynthesisPipeline: Sendable {
         voice: Voice,
         parameters: SynthesisParameters
     ) async throws -> SynthesisResult {
+        try audioFormat.validate()
         try Cancellation.check()
         let transcript = try linguisticFrontend.process(text)
         try Cancellation.check()
@@ -190,7 +199,7 @@ public struct SynthesisPipeline: Sendable {
         let prosody = prosodyPredictor.predictProsody(for: transcript, with: parameters)
         try Cancellation.check()
 
-        let acousticInput = createAcousticInput(from: prosody, voice: voice)
+        let acousticInput = try createAcousticInput(from: prosody, voice: voice)
         let acousticFeatures = try await acousticModel.predict(input: acousticInput)
         try Cancellation.check()
 
@@ -322,8 +331,9 @@ public struct SynthesisPipeline: Sendable {
     private func createAcousticInput(
         from prosody: ProsodyDescription,
         voice: Voice
-    ) -> AcousticModelInput {
-        let phonemeIndices = phonemeEncoder.encode(prosody.phonemes.map { $0.phoneme })
+    ) throws -> AcousticModelInput {
+        let phonemeIndices = try phonemeEncoder.encodeStrict(
+            prosody.phonemes.map { $0.phoneme })
 
         let durations = prosody.phonemes.map { $0.prosody.duration }
         let fundamentalFrequency = prosody.phonemes.map { $0.prosody.fundamentalFrequency }
@@ -331,10 +341,9 @@ public struct SynthesisPipeline: Sendable {
         let stress = prosody.phonemes.map { Int($0.phoneme.stress) }
         let voicing = prosody.phonemes.map { $0.prosody.voicing }
 
-        // Map voice to voice ID
-        let voiceID = voice.ageBand.ordinal
+        let voiceID = voice.conditioningID
 
-        return AcousticModelInput(
+        let input = AcousticModelInput(
             phonemeIndices: phonemeIndices,
             durations: durations,
             fundamentalFrequency: fundamentalFrequency,
@@ -343,6 +352,8 @@ public struct SynthesisPipeline: Sendable {
             voicing: voicing,
             voiceID: voiceID
         )
+        try input.validate()
+        return input
     }
 }
 
@@ -376,6 +387,11 @@ public struct StreamingSynthesisPipeline: Sendable {
         parameters: SynthesisParameters,
         onChunk: @Sendable (AudioChunk) async throws -> Void
     ) async throws {
+        guard chunkSize > 0 else {
+            throw ChoirError.invalidParameter(
+                parameter: "chunkSize", reason: "Chunk size must be greater than zero")
+        }
+
         // Synthesize complete audio first
         let audio = try await pipeline.synthesize(text: text, voice: voice, parameters: parameters)
 
@@ -385,7 +401,8 @@ public struct StreamingSynthesisPipeline: Sendable {
         var timestamp = 0.0
 
         while offset < samples.count {
-            let end = min(offset + chunkSize, samples.count)
+            try Cancellation.check()
+            let end = offset + min(chunkSize, samples.count - offset)
             // Use ArraySlice<Int16> for zero-copy view into samples
             // Eliminates redundant memory allocation compared to Array(samples[...])
             let chunk: ArraySlice<Int16> = samples[offset..<end]

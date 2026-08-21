@@ -14,7 +14,10 @@ public struct Phoneme: Equatable, Hashable, Sendable {
     }
 
     public init(_ symbol: String, stress: Int = 0) {
-        self.symbol = symbol
+        // U+0261 LATIN SMALL LETTER SCRIPT G is the canonical IPA symbol.
+        // Accept the visually similar ASCII "g" at API boundaries, but never
+        // allow the two representations to split the model vocabulary.
+        self.symbol = symbol == "g" ? "\u{0261}" : symbol
         self.stress = min(2, max(0, stress))
     }
 
@@ -30,7 +33,7 @@ let englishPhonemes = Set([
     "ɑ", "æ", "ɛ", "ə", "ɪ", "ɔ", "ʊ", "ʌ",
     "iː", "uː", "oʊ", "eɪ", "aɪ", "ɔɪ", "aʊ", "ɪə", "ɛə", "ʊə",
     // Consonants
-    "b", "d", "f", "g", "h", "j", "k", "l", "m", "n", "ŋ", "p", "r", "s", "t", "v", "w", "z",
+    "b", "d", "f", "ɡ", "h", "j", "k", "l", "m", "n", "ŋ", "p", "r", "s", "t", "v", "w", "z",
     "θ", "ð", "ʃ", "ʒ", "tʃ", "dʒ",
 ])
 

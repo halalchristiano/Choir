@@ -94,11 +94,11 @@ struct AudioEncoderTests {
     let encoder = AudioEncoder()
 
     @Test("WAV encoding creates valid header")
-    func testWAVEncoding() {
+    func testWAVEncoding() throws {
         let samples = Array(repeating: Int16(1000), count: 1000)
         let buffer = AudioBuffer(samples: samples, format: AudioFormat())
 
-        let wavData = encoder.encodeWAV(buffer)
+        let wavData = try encoder.encodeWAV(buffer)
 
         #expect(!wavData.isEmpty)
         #expect(wavData.count > samples.count * 2)
@@ -109,11 +109,11 @@ struct AudioEncoderTests {
     }
 
     @Test("WAV data includes all samples")
-    func testWAVDataSize() {
+    func testWAVDataSize() throws {
         let samples = Array(repeating: Int16(500), count: 2000)
         let buffer = AudioBuffer(samples: samples, format: AudioFormat())
 
-        let wavData = encoder.encodeWAV(buffer)
+        let wavData = try encoder.encodeWAV(buffer)
 
         // WAV header is ~44 bytes, plus sample data
         let expectedMinSize = 44 + samples.count * 2
@@ -132,14 +132,14 @@ struct AudioEncoderTests {
     }
 
     @Test("Different sample rates produce different durations")
-    func testSampleRateVariation() {
+    func testSampleRateVariation() throws {
         let samples = Array(repeating: Int16(0), count: 48000)
 
         let buffer48k = AudioBuffer(samples: samples, format: AudioFormat(sampleRate: 48000))
         let buffer44k = AudioBuffer(samples: samples, format: AudioFormat(sampleRate: 44100))
 
-        let wav48k = encoder.encodeWAV(buffer48k)
-        let wav44k = encoder.encodeWAV(buffer44k)
+        let wav48k = try encoder.encodeWAV(buffer48k)
+        let wav44k = try encoder.encodeWAV(buffer44k)
 
         // Sample rate does not change the byte count -- both buffers hold the
         // same number of samples -- but it does change playback duration and

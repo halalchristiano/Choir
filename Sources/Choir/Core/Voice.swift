@@ -145,6 +145,48 @@ public enum Voice: String, Sendable, CaseIterable, Codable {
     case hattie = "choir.eld.female.hattie"
     case hespera = "choir.eld.female.villain.hespera"
 
+    /// Stable conditioning index used by acoustic models.
+    ///
+    /// This is deliberately one-to-one with ``Voice``. The previous mapping
+    /// used only ``AgeBand/ordinal``, collapsing 32 advertised voices into
+    /// four indistinguishable model IDs.
+    public var conditioningID: Int {
+        switch self {
+        case .finch: return 0
+        case .scout: return 1
+        case .alder: return 2
+        case .wick: return 3
+        case .wren: return 4
+        case .juniper: return 5
+        case .clover: return 6
+        case .briar: return 7
+        case .orion: return 8
+        case .flint: return 9
+        case .reed: return 10
+        case .corvin: return 11
+        case .lyra: return 12
+        case .isla: return 13
+        case .nova: return 14
+        case .sable: return 15
+        case .garrick: return 16
+        case .hale: return 17
+        case .bram: return 18
+        case .malvern: return 19
+        case .marion: return 20
+        case .tamsin: return 21
+        case .greer: return 22
+        case .ravenna: return 23
+        case .alaric: return 24
+        case .wilfred: return 25
+        case .cormac: return 26
+        case .grimshaw: return 27
+        case .maeve: return 28
+        case .odette: return 29
+        case .hattie: return 30
+        case .hespera: return 31
+        }
+    }
+
     /// The immutable design profile for this voice (SRS section 8).
     public var profile: VoiceProfile {
         switch self {

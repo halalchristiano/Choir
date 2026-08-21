@@ -17,6 +17,9 @@ public enum ChoirError: Error, Sendable, Equatable {
     /// The engine is not initialized.
     case notInitialized
 
+    /// The engine is already initializing or synthesizing another request.
+    case engineBusy
+
     /// The requested operation was cancelled.
     case cancelled
 
@@ -49,6 +52,7 @@ extension ChoirError: LocalizedError {
         case .invalidParameter: return "CHOIR-1007"
         case .outOfMemory: return "CHOIR-1008"
         case .timeout: return "CHOIR-1009"
+        case .engineBusy: return "CHOIR-1010"
         case .unknown: return "CHOIR-1999"
         }
     }
@@ -71,6 +75,8 @@ extension ChoirError: LocalizedError {
             return "Check the destination is writable and has free space, and that the requested format is supported."
         case .notInitialized:
             return "Call engine.initialize() before synthesizing, or use the warm-up API at launch."
+        case .engineBusy:
+            return "Wait for the active operation to finish, or use a separate engine instance for concurrent work."
         case .cancelled:
             return "No action needed: the task was cancelled by the caller."
         case .invalidParameter:
@@ -87,7 +93,7 @@ extension ChoirError: LocalizedError {
     /// Whether retrying the same request could plausibly succeed.
     public var isRetryable: Bool {
         switch self {
-        case .synthesisError, .outOfMemory, .timeout, .unknown: return true
+        case .synthesisError, .engineBusy, .outOfMemory, .timeout, .unknown: return true
         case .modelLoadFailed, .textProcessingFailed, .audioEncodingFailed,
              .notInitialized, .cancelled, .invalidParameter: return false
         }
@@ -105,6 +111,8 @@ extension ChoirError: LocalizedError {
             return "Audio encoding failed: \(reason)"
         case .notInitialized:
             return "Choir engine is not initialized"
+        case .engineBusy:
+            return "Choir engine is busy with another operation"
         case .cancelled:
             return "Operation was cancelled"
         case .invalidParameter(let parameter, let reason):

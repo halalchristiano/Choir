@@ -170,6 +170,22 @@ public struct AudioFormat: Sendable {
         self.channels = channels
         self.bitDepth = bitDepth
     }
+
+    /// Validates the PCM format supported by the current engine path.
+    public func validate() throws {
+        guard 8_000...384_000 ~= sampleRate else {
+            throw ChoirError.invalidParameter(
+                parameter: "sampleRate", reason: "Sample rate must be within 8,000...384,000 Hz")
+        }
+        guard 1...8 ~= channels else {
+            throw ChoirError.invalidParameter(
+                parameter: "channels", reason: "Channel count must be within 1...8")
+        }
+        guard bitDepth == 16 else {
+            throw ChoirError.invalidParameter(
+                parameter: "bitDepth", reason: "The current PCM path supports 16-bit samples")
+        }
+    }
 }
 
 /// Streaming options for real-time synthesis.
@@ -183,5 +199,13 @@ public struct StreamingOptions: Sendable {
     public init(chunkSize: Int = 2400, preloadModel: Bool = true) {
         self.chunkSize = chunkSize
         self.preloadModel = preloadModel
+    }
+
+    /// Validates options before a streaming request starts.
+    public func validate() throws {
+        guard chunkSize > 0 else {
+            throw ChoirError.invalidParameter(
+                parameter: "chunkSize", reason: "Chunk size must be greater than zero")
+        }
     }
 }

@@ -1,299 +1,113 @@
-# Platform-Specific Integration Guide
+# Platform integration status
 
-CHOIR supports iOS, macOS, watchOS, visionOS, and tvOS. Each platform has unique constraints and best practices.
+CHOIR declares these Swift package targets:
 
-## iOS & iPadOS
+| Platform | Minimum | Current evidence |
+|---|---:|---|
+| iOS / iPadOS | 17 | Package and CI compile target; physical-device synthesis unverified |
+| macOS | 14 | Package and CI compile target; sandbox/model performance unverified |
+| visionOS | 1 | Package compile target; spatial module not implemented |
+| watchOS | 10 | Package compile target; memory, asset, speaker, and subset requirements unverified |
+| tvOS | 17 | Package compile target; product behavior unverified |
 
-### Setup
+Do not convert a declared deployment target into a claim that every feature has
+been tested on that platform.
+
+## Shared integration
+
 ```swift
-import AVFoundation
 import Choir
 
-// Configure audio session for playback
-let audioSession = AVAudioSession.sharedInstance()
-try audioSession.setCategory(.playback, mode: .default, options: [.duckOthers])
-try audioSession.setActive(true)
-
-let engine = ChoirEngine()
-try await engine.initialize()
-```
-
-### Background Audio
-For background playback (e.g., audio player app):
-```swift
-// In Info.plist, add:
-// <key>UIBackgroundModes</key>
-// <array>
-//   <string>audio</string>
-// </array>
-
-// Enable background mode in your app's capabilities
-```
-
-### Memory Constraints
-iOS is memory-constrained; optimize for efficiency:
-```swift
-// Use streaming for long texts (>30KB)
-try await engine.streamSynthesis(
-    text: longText,
-    voice: .narratorFeminine,
-    streamingOptions: StreamingOptions(chunkSize: 2400)  // ~50ms chunks
-)
-
-// Or batch shorter texts
-for chunk in textChunks {
-    let audio = try await engine.synthesize(text: chunk, voice: voice)
-    audioPlayer.enqueue(audio)
-}
-```
-
-### Silence/Interruption Handling
-Handle audio interruptions (phone calls, alerts):
-```swift
-let audioSession = AVAudioSession.sharedInstance()
-
-NotificationCenter.default.addObserver(
-    forName: AVAudioSession.interruptionNotification,
-    object: nil,
-    queue: .main
-) { notification in
-    if let userInfo = notification.userInfo,
-       let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt {
-        let type = AVAudioSession.InterruptionType(rawValue: typeValue)!
-        
-        switch type {
-        case .began:
-            audioPlayer.pause()
-        case .ended:
-            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionsKey] as? UInt {
-                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-                if options.contains(.shouldResume) {
-                    audioPlayer.play()
-                }
-            }
-        @unknown default: ()
-        }
-    }
-}
-```
-
-## macOS
-
-### Full Feature Set
-macOS has no memory constraints and supports all CHOIR features:
-```swift
 let engine = ChoirEngine()
 try await engine.initialize()
 
-// Use batch synthesis for best quality
 let audio = try await engine.synthesize(
-    text: "Full Shakespeare soliloquy here...",
-    voice: .narratorMasculine,
-    parameters: SynthesisParameters(rate: 1.0)  // Native speed
+    text: "Platform integration test.",
+    voice: .isla
 )
 ```
 
-### App Sandbox
-If your app is sandboxed, ensure audio output is allowed:
-```swift
-// In Entitlements.plist:
-// <key>com.apple.security.device.audio-input</key>
-// <false/>
-// Audio output doesn't require special permissions
-```
+The default pipeline is mock-backed on every platform. A consuming app can
+inject a configured `SynthesisPipeline` with its own acoustic model and vocoder.
 
-### Native Audio Engine (Future)
-Current version uses basic playback; consider integrating with:
-- AVAudioEngine for advanced mixing
-- CoreAudio for low-latency synthesis
-- AudioUnit for real-time effects
+## Apple audio-session ownership
 
-## watchOS
-
-### Memory-Constrained Environment
-Watch apps have ~25MB available; plan accordingly:
+CHOIR does not own the consuming app's `AVAudioSession`. On iOS-family
+platforms, the app should select a category, mode, routing policy, ducking
+behavior, and interruption policy appropriate to its product.
 
 ```swift
-// ✅ Recommended: Shorter texts, streaming
-try await engine.streamSynthesis(
-    text: "Weather update",  // <100 chars
-    voice: .narratorFeminine,
-    onChunk: { chunk in
-        wkAudioPlayer.enqueue(chunk.samples)
-    }
-)
+#if canImport(AVFoundation) && os(iOS)
+import AVFoundation
 
-// ❌ Avoid: Long texts, batch synthesis
-// let audio = try await engine.synthesize(text: veryLongText, voice: voice)
-```
-
-### watchOS Speaker Constraints
-Watch speakers are small; use de-esser and normalization:
-```swift
-let chain = AudioEffectChain()
-    .add(AudioEffect(name: "De-esser", kind: .deEsser(centerHz: 5000)))
-    .add(AudioEffect(name: "Normalize", kind: .normalize(targetLevel: -3.0)))
-
-let audio = try await engine.synthesize(text: "...", voice: .narratorFeminine)
-let processed = chain.process(audio.audioBuffer.samples)
-```
-
-### Recommendations
-- **Streaming**: Always preferred on watchOS
-- **Text limit**: ≤200 characters for best performance
-- **Voice choice**: Neutral or feminine voices typically sound better on small speakers
-- **Session management**: Clear session caches frequently to free memory
-
-### Sample Implementation
-```swift
-// In a watchOS complication or notification handler
-let engine = ChoirEngine()
-try await engine.initialize()
-
-let shortText = String(userInput.prefix(100))
-try await engine.streamSynthesis(text: shortText, voice: .narratorFeminine)
-```
-
-## visionOS
-
-### Spatial Audio (Beta)
-Future CHOIR versions will support spatial audio in visionOS apps:
-
-```swift
-// Currently: Standard stereo synthesis
-let audio = try await engine.synthesize(
-    text: "Welcome to visionOS",
-    voice: .narratorMasculine
-)
-
-// Future: Spatial audio with directional synthesis
-// try await engine.synthesizeSpatial(
-//     text: "...",
-//     voice: voice,
-//     position: SIMD3<Float>(0, 0.5, -1.0)  // Position in 3D space
-// )
-```
-
-### Platform-Specific Considerations
-- Works in both `.sharedSpace` and `.privateSpace` contexts
-- Audio continues properly when app enters/exits immersive space
-- Use streaming for responsive spatial experiences
-
-## tvOS
-
-### Large Screen, No Touch
-tvOS apps synthesize audio for accessibility and game narration:
-
-```swift
-let engine = ChoirEngine()
-try await engine.initialize()
-
-// Text-to-speech for menus, narration
-let audioForMenu = try await engine.synthesize(
-    text: "Select an option",
-    voice: .narratorFeminine
-)
-```
-
-### Remote Input
-Use Siri Remote or game controller callbacks:
-```swift
-// Trigger synthesis from remote events
-func handleRemoteClick() {
-    Task {
-        let audio = try await engine.synthesize(
-            text: "Button pressed",
-            voice: .characterRobotNeutral
-        )
-        tvAudioPlayer.play(audio)
-    }
-}
-```
-
-### Performance Targets
-
-| Platform | Voice Count | Batch Speed | Streaming | Memory |
-|----------|-----------|-------------|-----------|---------|
-| iOS/iPadOS | 32 | 150ms/sec | Recommended | Constrained |
-| macOS | 32 | 100ms/sec | Excellent | Unconstrained |
-| watchOS | 32 | 200ms/sec | Required | Tightly constrained |
-| visionOS | 32 | 120ms/sec | Excellent | Moderate |
-| tvOS | 32 | 110ms/sec | Excellent | Moderate |
-
-## Cross-Platform Best Practices
-
-### 1. Conditional Compilation
-```swift
-#if os(watchOS)
-let textLimit = 200
-#elseif os(iOS)
-let textLimit = 5000
-#else
-let textLimit = 50000
+let session = AVAudioSession.sharedInstance()
+try session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+try session.setActive(true)
 #endif
 ```
 
-### 2. Memory Monitoring
+Background modes and playback permissions belong to the app target, not the
+Swift package.
+
+## Chunk delivery
+
 ```swift
-import os
-
-let logger = Logger(subsystem: "com.example.choir", category: "memory")
-
-Task {
-    while true {
-        // Monitor memory pressure
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-        
-        let pressure = try os_proc_available_memory()
-        if pressure < 10_000_000 {  // <10MB free
-            logger.warning("Low memory pressure")
-            // Consider clearing caches
-        }
-    }
+try await engine.streamSynthesis(
+    text: text,
+    voice: .orion,
+    options: StreamingOptions(chunkSize: 2_400)
+) { chunk in
+    enqueue(chunk.samples)
 }
 ```
 
-### 3. Session Management
-```swift
-// Clean up sessions on all platforms
-let sessionManager = SynthesisSessionManager()
+This currently renders the whole utterance before callbacks begin. It is not a
+watchOS memory optimization and is not evidence of real-time performance.
 
-// Create and use sessions
-let session = await sessionManager.createSession(voice: .narratorFeminine)
-// ... use session ...
-await sessionManager.clearSession(session.id)  // Always clean up
-```
+## iOS and iPadOS work still required
 
-### 4. Graceful Degradation
-```swift
-func bestVoiceForPlatform() -> Voice {
-    #if os(watchOS)
-    return .narratorFeminine  // Smallest file size
-    #elseif os(iOS)
-    return .narratorFeminine  // Balanced
-    #else
-    return .audiobook  // Highest quality
-    #endif
-}
-```
+- Test calls, Siri, alarms, route changes, headphones, AirPods, Bluetooth,
+  CarPlay, backgrounding, and audio interruptions.
+- Establish memory and thermal behavior on the reference devices.
+- Implement and verify background rendering within system limits.
+- Verify VoiceOver coexistence and configurable ducking.
 
-## Troubleshooting by Platform
+## macOS work still required
 
-### iOS: "No default Bluetooth device"
-Ensure AVAudioSession is configured before synthesis.
+- Verify App Sandbox file and model-asset access.
+- Measure one-job and four-job rendering on the documented M-series devices.
+- Define and enforce the Intel Mac policy.
+- Verify output parity across supported compute units.
 
-### macOS: "Permission denied"
-Check App Sandbox entitlements for audio output.
+## visionOS work still required
 
-### watchOS: "Killed (low memory)"
-Reduce text size, use streaming, clear old sessions.
+The base package currently returns ordinary PCM. Positioned speakers,
+head-tracked motion, RealityKit binding, six-speaker rendering, and an optional
+`CHOIRSpatial` module remain unimplemented.
 
-### visionOS: Audio not spatial
-Spatial audio is in beta; use standard synthesis for now.
+## watchOS work still required
 
-### tvOS: No sound
-Verify playback is routed to correct audio output.
+The package declares watchOS 10, but the product subset is not complete. Before
+claiming watch support, select and validate the supported voices, keep assets
+within the SRS budget, return typed capability errors for unsupported features,
+test memory pressure and speaker output, and decide whether phone-assisted
+rendering remains in scope.
 
----
+## tvOS work still required
 
-See also: [Getting Started](./GETTING_STARTED.md), [Streaming Guide](./STREAMING.md), [Error Handling](./ERROR_HANDLING.md)
+tvOS is a declared compile target, not a verified product target. Either run
+the complete platform integration suite or narrow the public claim.
+
+## Release evidence
+
+For every retained platform, archive:
+
+1. exact OS and hardware versions;
+2. package, engine, model, and asset versions;
+3. build and test results;
+4. latency, real-time factor, memory, battery, and thermal measurements;
+5. interruption, routing, background, cancellation, and accessibility results;
+6. any feature limitations or automatic quality downgrade.
+
+See [STREAMING.md](./STREAMING.md) for the current chunk-delivery contract and
+[PROJECT_STATUS.md](./PROJECT_STATUS.md) for overall product truth.

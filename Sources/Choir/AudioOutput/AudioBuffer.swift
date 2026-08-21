@@ -10,7 +10,14 @@ public struct AudioBuffer: Sendable {
 
     /// Duration of the audio in seconds.
     public var duration: Double {
-        Double(samples.count) / Double(format.sampleRate * format.channels)
+        guard format.sampleRate > 0, format.channels > 0 else { return 0 }
+        return Double(samples.count) / (Double(format.sampleRate) * Double(format.channels))
+    }
+
+    /// Interleaved sample frames per channel.
+    public var frameCount: Int {
+        guard format.channels > 0 else { return 0 }
+        return samples.count / format.channels
     }
 
     /// Creates an audio buffer with PCM samples.
