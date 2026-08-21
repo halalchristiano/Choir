@@ -20,14 +20,25 @@ public struct SynthesisParameters: Sendable, Equatable, Hashable, Codable {
     /// Gender shift: negative values shift feminine, positive values shift masculine (-1.0 to +1.0). Default is 0.
     public var genderShift: Double = 0
 
+    /// Seed for reproducible synthesis (SRS SYN-002).
+    ///
+    /// With a seed, identical text, voice, parameters and package version
+    /// produce bit-identical audio, which is what makes audiobook and video
+    /// builds reproducible. Without one, controlled prosodic variation is
+    /// applied so that a repeated line does not sound mechanically identical
+    /// (SYN-003).
+    public var seed: UInt64?
+
     public init(
         pitchShift: Double = 0,
         rate: Double = 1.0,
         emotionalIntensity: Double = 0.5,
         breathiness: Double = 0.0,
         ageShift: Double = 0,
-        genderShift: Double = 0
+        genderShift: Double = 0,
+        seed: UInt64? = nil
     ) {
+        self.seed = seed
         self.pitchShift = max(-12, min(12, pitchShift))
         self.rate = max(0.5, min(2.0, rate))
         self.emotionalIntensity = max(0, min(1.0, emotionalIntensity))
