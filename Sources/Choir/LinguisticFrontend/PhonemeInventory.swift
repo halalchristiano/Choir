@@ -14,8 +14,9 @@ public enum StressLevel: Int, Sendable, Equatable, Codable, CaseIterable {
 /// pre-phonemized input path of TXT-050.
 ///
 /// The inventory is the 39 phonemes of General American English as used by
-/// CMUdict, which is also the source of the built-in lexicon. Each entry pairs
-/// the ARPAbet symbol with the IPA symbol CHOIR uses internally.
+/// CMUdict, plus schwa, which the rule-based fallback emits directly and which
+/// CMUdict writes as unstressed AH. Each entry pairs the ARPAbet symbol with
+/// the IPA symbol CHOIR uses internally.
 ///
 /// - Important: These symbols are part of the public API. Per TXT-024 they are
 ///   stable across versions: symbols may be added in a minor release, but an
@@ -45,12 +46,16 @@ public enum PhonemeInventory {
         }
     }
 
-    /// The complete inventory: 15 vowels and 24 consonants.
+    /// The complete inventory: 16 vowels and 24 consonants.
     public static let all: [Entry] = [
         // Vowels and diphthongs
         Entry(arpabet: "AA", ipa: "ɑ",  isVowel: true, example: "odd"),
         Entry(arpabet: "AE", ipa: "æ",  isVowel: true, example: "at"),
         Entry(arpabet: "AH", ipa: "ʌ",  isVowel: true, example: "hut"),
+        // Schwa is ARPAbet AH at stress 0. Listed separately because the
+        // rule-based fallback produces it directly, and TXT-024 requires every
+        // symbol the engine can emit to belong to the documented inventory.
+        Entry(arpabet: "AX", ipa: "ə",  isVowel: true, example: "about"),
         Entry(arpabet: "AO", ipa: "ɔ",  isVowel: true, example: "ought"),
         Entry(arpabet: "AW", ipa: "aʊ", isVowel: true, example: "cow"),
         Entry(arpabet: "AY", ipa: "aɪ", isVowel: true, example: "hide"),
@@ -150,6 +155,12 @@ public enum PhonemeInventory {
         line.split(whereSeparator: \.isWhitespace).compactMap { token in
             let (base, stress) = stripStress(String(token))
             guard let entry = byARPAbet[base] else { return nil }
+            // CMUdict writes unstressed AH where English has schwa. Mapping
+            // both to /ʌ/ conflates two audibly different vowels and would
+            // make "about" rhyme with "hut".
+            if base == "AH", stress == .none {
+                return Phoneme("ə", stress: 0)
+            }
             return Phoneme(entry.ipa, stress: stress.rawValue)
         }
     }

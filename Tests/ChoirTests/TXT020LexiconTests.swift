@@ -8,8 +8,10 @@ struct PhonemeInventoryTests {
 
     @Test("TXT-024: the inventory is the 39 ARPAbet phonemes")
     func testInventorySize() {
-        #expect(PhonemeInventory.all.count == 39)
-        #expect(PhonemeInventory.vowels.count == 15)
+        // 39 ARPAbet phonemes plus schwa, which the rule-based fallback
+        // emits directly and which TXT-024 therefore requires be documented.
+        #expect(PhonemeInventory.all.count == 40)
+        #expect(PhonemeInventory.vowels.count == 16)
         #expect(PhonemeInventory.consonants.count == 24)
     }
 
@@ -69,7 +71,7 @@ struct PhonemeInventoryTests {
         #expect(table.contains("AA"))
         #expect(table.contains("ZH"))
         // One header, one separator, 39 rows.
-        #expect(table.split(separator: "\n").count == 41)
+        #expect(table.split(separator: "\n").count == 42)
     }
 }
 

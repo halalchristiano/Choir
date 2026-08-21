@@ -80,6 +80,13 @@ public final class BuiltInLexicon: @unchecked Sendable {
         resolvedIndex()[word.lowercased()] != nil
     }
 
+    /// Every word form in the lexicon.
+    ///
+    /// Used by the G2P evaluation harness to draw a held-out sample.
+    public var allWords: [String] {
+        Array(resolvedIndex().keys)
+    }
+
     /// The raw ARPAbet string for `word`, for diagnostics and tooling.
     public func arpabet(for word: String) -> String? {
         resolvedIndex()[word.lowercased()]
