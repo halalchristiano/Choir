@@ -92,18 +92,40 @@ public struct BenchmarkReport: Sendable, Equatable, Codable {
     /// Measurements the harness could not take, and why.
     public let notMeasured: [String]
 
+    /// Whether the measured binary was built without optimization.
+    ///
+    /// A debug build is not a slower release build, it is a different program.
+    /// The first run of this harness reported lexicon load at 0.97 s in debug
+    /// against 0.45 s in release, and a hand-written byte loop measured four
+    /// times *slower* than the stdlib call it replaced — purely because
+    /// bounds checks and unspecialized generics were still in. Every PRF figure
+    /// from a debug build is meaningless, so the report says so rather than
+    /// letting a reader assume otherwise.
+    public let isDebugBuild: Bool
+
     public init(
         device: ReferenceDevice?,
         hostDescription: String,
         packageVersion: String,
         measurements: [BenchmarkMeasurement],
-        notMeasured: [String] = []
+        notMeasured: [String] = [],
+        isDebugBuild: Bool = BenchmarkReport.builtWithoutOptimization
     ) {
+        self.isDebugBuild = isDebugBuild
         self.device = device
         self.hostDescription = hostDescription
         self.packageVersion = packageVersion
         self.measurements = measurements
         self.notMeasured = notMeasured
+    }
+
+    /// Whether this binary was compiled without optimization.
+    public static var builtWithoutOptimization: Bool {
+        #if DEBUG
+        return true
+        #else
+        return false
+        #endif
     }
 
     /// Measurements that failed their target.
@@ -119,6 +141,12 @@ public struct BenchmarkReport: Sendable, Equatable, Codable {
         var lines: [String] = []
         lines.append("# CHOIR Benchmark Report")
         lines.append("")
+        if isDebugBuild {
+            lines.append("> **These numbers are from an unoptimized build and mean nothing.**")
+            lines.append("> Re-run with `swift run -c release choir-benchmark`. A debug build is")
+            lines.append("> not a slower release build; it is a different program.")
+            lines.append("")
+        }
         lines.append("- **Package version:** \(packageVersion)")
         lines.append("- **Host:** \(hostDescription)")
         lines.append("- **Reference device:** \(device.map { "\($0.rawValue) — \($0.displayName)" } ?? "not a reference device; targets not applied")")

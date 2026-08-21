@@ -281,36 +281,50 @@ manufacture an angle bracket the scanner then mistakes for markup.
 |---|---|---|---|
 | `PRF-001` batch RTF | MUST | **Measured** | `choir-benchmark`; R3 median 0.04 against 0.15 |
 | `PRF-010` streaming TTFA | MUST | **Partial** | Warm TTFA measured; sustained streaming RTF needs a long-running stream on-device |
-| `PRF-011` cold start | MUST | **At risk — see below** | Straddles the R3 target; lexicon load is the dominant component |
+| `PRF-011` cold start | MUST | **Measured** | R3 release: 0.02–0.05 s against a 1.50 s target, after the lexicon rewrite below |
 | `PRF-020` peak memory | MUST | **Partial** | Whole-process RSS measured; the requirement asks for memory attributable to CHOIR alone |
 | `PRF-021` battery | MUST | **Not measured** | Needs 60 minutes of streaming with playback on physical R1 |
 | `PRF-030` asset budget | MUST | **Measured** | 3.45 MB against 400 MB, but voice assets do not exist yet |
 | `PRF-032` watchOS asset subset | MUST | **Measured** | 3.45 MB against 60 MB, same caveat |
-| `PRF-040` benchmark harness | MUST | Implemented | `swift run choir-benchmark`; 11 tests in `BenchmarkHarnessTests`; report in [BENCHMARK.md](./BENCHMARK.md) |
+| `PRF-040` benchmark harness | MUST | Implemented | `swift run -c release choir-benchmark`; 11 tests in `BenchmarkHarnessTests`; report in [BENCHMARK.md](./BENCHMARK.md) |
 
-### PRF-011 is at risk, and the lexicon is why
+### PRF-011: measured in debug, corrected in release, then fixed
 
-The harness was built to establish a baseline before a model exists. It found a
-live problem instead.
+**Correction to v0.12.0.** That release reported lexicon load at 0.97 s and
+claimed it consumed two-thirds of the R3 cold-start budget. That figure came
+from a **debug build** and was wrong. Measured in release, the same
+implementation cost 0.45 s — roughly 30% of the budget. The concern was real;
+its size was overstated by more than 2x.
 
-| Measurement | R3 median | R3 target |
+A debug build is not a slower release build, it is a different program. The
+harness now detects an unoptimized build and prints a warning into the report
+and to stderr, because a number that misleads is worse than no number.
+
+**The fix, measured properly.** The lexicon now ships pre-sorted by word, is
+memory-mapped rather than read, and is searched by comparing raw bytes. Loading
+builds only an array of line offsets — one pass, no string allocation — and a
+lookup materializes exactly one string.
+
+| Measurement (R3, release, median of 9) | Text parse | Mapped + binary search |
 |---|---|---|
-| Cold start to first audio | 0.89 s (range **0.62–2.99 s** across runs) | 1.50 s |
-| Lexicon load (component) | 0.97 s | — |
+| Lexicon load | 0.42–0.52 s | **0.00–0.01 s** |
+| Cold start to first audio | 0.38–0.43 s | **0.02–0.05 s** |
+| Installed assets | 3.45 MB | 3.18 MB |
 
-Parsing 3.6 MB and 135,166 entries costs roughly **a second — two-thirds of the
-entire R3 cold-start budget** — before the acoustic model, which does not yet
-exist, has loaded anything at all. Cold start already crosses the target on
-slower runs, and R1 is an A15 rather than an M-series.
+The cost was never I/O. It was allocating a quarter of a million Swift strings
+and hashing them into a dictionary at every launch, to answer lookups for the
+few hundred words a request actually contains.
 
-`SYN-009`'s warm-up API relocates the cost to app launch but does not remove it,
-and `PRF-011` measures process launch to first audio explicitly, so relocation
-does not satisfy the requirement. The durable fix is a faster lexicon format: a
-pre-built binary index that can be memory-mapped rather than 3.6 MB of text
-parsed line by line at every launch.
+**A caution recorded with it.** The first attempt at this rewrite measured
+*four times slower* than the code it replaced — in debug, where a hand-written
+byte loop carries bounds checks while the stdlib call it replaced is already
+compiled optimized. Micro-optimizations must be measured in release or they can
+be exactly backwards.
 
-This is recorded now, while it is cheap, rather than discovered when a model is
-competing for the same budget.
+Word count: the lexicon indexes **126,052** distinct word forms. Earlier
+releases quoted 135,166, which is the source file's line count including
+pronunciation variants, not indexed words. Both figures clear the 120,000 the
+requirement asks for.
 
 ### What the harness measures, and what it cannot
 

@@ -30,7 +30,7 @@ let package = Package(
                 // Built-in pronunciation lexicon (SRS TXT-020). CMUdict,
                 // redistributed under its BSD-2-Clause licence; see
                 // Sources/Choir/Resources/CMUDICT-LICENSE.txt.
-                .copy("Resources/cmudict.dict"),
+                .copy("Resources/cmudict.lex"),
                 .copy("Resources/CMUDICT-LICENSE.txt"),
             ],
             swiftSettings: [
