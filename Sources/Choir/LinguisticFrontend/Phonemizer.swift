@@ -13,17 +13,30 @@ public struct Phonemizer: Sendable {
     /// synchronous and runs per word.
     private let userLexicon: UserLexiconSnapshot
 
+    /// The 135,000-entry built-in lexicon (SRS TXT-020), or `nil` to rely on
+    /// the compact dictionary and G2P rules alone.
+    private let builtInLexicon: BuiltInLexicon?
+
+    /// Heteronym disambiguation (SRS TXT-021).
+    private let heteronyms = HeteronymResolver()
+
     public init(
         dictionary: [String: [Phoneme]]? = nil,
-        userLexicon: UserLexiconSnapshot = .empty
+        userLexicon: UserLexiconSnapshot = .empty,
+        builtInLexicon: BuiltInLexicon? = .shared
     ) {
         self.pronunciationDictionary = dictionary ?? Phonemizer.defaultDictionary
         self.userLexicon = userLexicon
+        self.builtInLexicon = builtInLexicon
     }
 
     /// Returns a copy of this phonemizer using `lexicon` for overrides.
     public func withUserLexicon(_ lexicon: UserLexiconSnapshot) -> Phonemizer {
-        Phonemizer(dictionary: pronunciationDictionary, userLexicon: lexicon)
+        Phonemizer(
+            dictionary: pronunciationDictionary,
+            userLexicon: lexicon,
+            builtInLexicon: builtInLexicon
+        )
     }
 
     /// Converts a word to its phonetic transcription.
@@ -31,6 +44,20 @@ public struct Phonemizer: Sendable {
     /// - Parameter word: The word to phonemize (case-insensitive).
     /// - Returns: An array of phonemes representing the word.
     public func phonemize(_ word: String) -> [Phoneme] {
+        phonemize(word, partOfSpeech: .unknown)
+    }
+
+    /// Converts a word to phonemes, using part of speech to disambiguate
+    /// heteronyms (SRS TXT-021).
+    ///
+    /// Resolution order, highest precedence first:
+    ///
+    /// 1. the app's user lexicon (TXT-022),
+    /// 2. heteronym readings when the part of speech is known (TXT-021),
+    /// 3. the built-in 135,000-entry lexicon (TXT-020),
+    /// 4. the compact fallback dictionary,
+    /// 5. rule-based grapheme-to-phoneme conversion.
+    public func phonemize(_ word: String, partOfSpeech: PartOfSpeech) -> [Phoneme] {
         let normalized = word.lowercased()
             .trimmingCharacters(in: .punctuationCharacters)
 
@@ -52,7 +79,19 @@ public struct Phonemizer: Sendable {
             }
         }
 
-        // Check dictionary next
+        // TXT-021: a known part of speech settles heteronyms before any
+        // lexicon is consulted, because the lexicon holds only one reading.
+        if partOfSpeech != .unknown,
+           let disambiguated = heteronyms.phonemes(for: normalized, partOfSpeech: partOfSpeech) {
+            return disambiguated
+        }
+
+        // TXT-020: the built-in lexicon.
+        if let phonemes = builtInLexicon?.phonemes(for: normalized), !phonemes.isEmpty {
+            return phonemes
+        }
+
+        // Compact fallback dictionary
         if let phonemes = pronunciationDictionary[normalized] {
             return phonemes
         }
