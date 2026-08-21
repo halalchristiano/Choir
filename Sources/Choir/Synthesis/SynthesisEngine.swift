@@ -72,6 +72,60 @@ public actor ChoirEngine {
         return try await pipeline.synthesize(text: text, voice: voice, parameters: parameters)
     }
 
+    /// Synthesizes input whose interpretation the caller has stated (TXT-003).
+    ///
+    /// The mode is never inferred: `.plainText` speaks markup characters
+    /// literally, `.markup` parses them, `.phonemes` bypasses the front end.
+    public func synthesize(
+        input: SynthesisInput,
+        voice: Voice,
+        parameters: SynthesisParameters = SynthesisParameters()
+    ) async throws -> SynthesisResult {
+        try validateState()
+
+        guard !input.isEmpty else {
+            throw ChoirError.textProcessingFailed(reason: "Input is empty")
+        }
+        let unknown = input.unknownPhonemeSymbols
+        guard unknown.isEmpty else {
+            throw ChoirError.invalidParameter(
+                parameter: "input",
+                reason: "Phonemes outside the documented inventory: \(unknown.joined(separator: ", "))")
+        }
+
+        guard let pipeline = pipeline else { throw ChoirError.notInitialized }
+
+        switch input {
+        case .markup(let text):
+            return try await pipeline.synthesizeMultiVoice(
+                text: text, defaultVoice: voice, parameters: parameters)
+        case .plainText(let text):
+            let escaped = text
+                .replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+            return try await pipeline.synthesizeWithMetadata(
+                text: escaped, voice: voice, parameters: parameters)
+        case .phonemes:
+            throw ChoirError.synthesisError(
+                reason: "Pre-phonemized synthesis requires an acoustic model; the front-end path is available via LinguisticFrontend.process(_:)")
+        }
+    }
+
+    /// Estimates how long `text` takes to speak, without synthesizing it
+    /// (SRS SYN-010).
+    ///
+    /// Intended for layout, pagination and video planning, where a fast answer
+    /// matters more than an exact one; the requirement's tolerance is ±10%.
+    /// Does not require the engine to be initialized, since it runs no model.
+    public nonisolated func estimateDuration(
+        text: String,
+        voice: Voice,
+        rate: Double = 1.0
+    ) -> DurationEstimate {
+        DurationEstimator().estimate(text: text, voice: voice, rate: rate)
+    }
+
     /// Synthesizes `text` and returns the audio together with the timing
     /// metadata SYN-005 requires.
     ///

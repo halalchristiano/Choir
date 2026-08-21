@@ -271,12 +271,37 @@ public struct SSMLCParser: Sendable {
 
         flushText()
 
+        // Decode XML entities in the spoken text. Doing this after tag
+        // scanning rather than before is deliberate: decoding "&lt;" early
+        // would manufacture an angle bracket the tag scanner then mistakes
+        // for markup.
+        events = events.map { event in
+            if case .speech(let text, let style) = event {
+                return .speech(text: Self.decodingEntities(text), style: style)
+            }
+            return event
+        }
+
         // Unclosed containers are tolerated: their styling simply ends here.
         for open in openTags.reversed() {
             try report("Unclosed tag <\(open)>; styling applied to end of input")
         }
 
         return SSMLParseResult(events: events, diagnostics: diagnostics)
+    }
+
+    /// Decodes the XML entities SSML documents carry.
+    static func decodingEntities(_ text: String) -> String {
+        guard text.contains("&") else { return text }
+        var result = text
+        // Ampersand last, so "&amp;lt;" decodes to "&lt;" and not to "<".
+        for (entity, character) in [
+            ("&lt;", "<"), ("&gt;", ">"), ("&quot;", "\""),
+            ("&apos;", "'"), ("&#39;", "'"), ("&nbsp;", " "), ("&amp;", "&"),
+        ] {
+            result = result.replacingOccurrences(of: entity, with: character)
+        }
+        return result
     }
 
     // MARK: - Tag handling

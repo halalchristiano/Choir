@@ -20,6 +20,14 @@ public struct StressAssigner: Sendable {
     public func assignStress(to phonemes: [Phoneme], for word: String) -> [Phoneme] {
         guard !phonemes.isEmpty else { return phonemes }
 
+        // TXT-020: phonemes from the built-in lexicon already carry CMUdict's
+        // primary and secondary stress, which is more reliable than any rule
+        // here. Overwriting it discarded the very data the requirement exists
+        // to supply.
+        if phonemes.contains(where: { $0.isVowel && $0.stress > 0 }) {
+            return phonemes
+        }
+
         // Try dictionary lookup first
         let normalized = word.lowercased()
         if let stressIndices = stressPatterns[normalized] {

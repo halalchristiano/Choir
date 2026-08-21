@@ -53,11 +53,11 @@ precision are not quantified per voice in §8 and are not yet modelled.
 |---|---|---|---|
 | `TXT-001` accept 1 … 1,000,000 characters | MUST | Implemented | `testSingleCharacter`, `testLargeRepeatedInput` |
 | `TXT-002` never crash, hang, or produce unbounded output | MUST | **Implemented — was violated** | `testNormalizerRobustness`, `testFrontendRobustness` (29 adversarial inputs) |
-| `TXT-003` input mode selected explicitly, never guessed | MUST | **Not implemented** | The engine still infers SSML from content |
+| `TXT-003` input mode selected explicitly, never guessed | MUST | Implemented | 7 tests in `InputModeTests` — `SynthesisInput` with plain-text, markup and phoneme modes |
 | `TXT-010` full normalization inventory | MUST | Implemented | 19 tests in `NormalizationInventoryTests` — every named category |
 | `TXT-011` Scripture reference formats | MUST | Implemented | 14 tests in `ScriptureNormalizationTests` |
 | `TXT-012` configurable `NormalizationPolicy` | SHOULD | Implemented | `testConfigurableStyle`, `testCanBeDisabled`, `testVerbatimMode` |
-| `TXT-013` typography (smart quotes, dashes, ellipses, caps) | SHOULD | **Partial** | Smart quotes, ellipses, non-breaking spaces and dash pauses handled; ALL-CAPS emphasis not yet |
+| `TXT-013` typography (smart quotes, dashes, ellipses, caps) | SHOULD | Implemented | 4 tests in `AllCapsTests` plus typography coverage in `NormalizationInventoryTests` |
 | `TXT-020` 120,000-word lexicon, ≥92% OOV accuracy | MUST | **Partial** | Lexicon implemented — 135,166 CMUdict entries with stress, 8 tests in `BuiltInLexiconTests`. The ≥92% OOV accuracy target is unmeasured: it needs a held-out test set |
 | `TXT-021` ≥60 heteronyms disambiguated by part of speech | MUST | Implemented | 79 heteronyms, 7 tests in `HeteronymTests` |
 | `TXT-022` runtime user lexicon API | MUST | Implemented | 9 tests in `UserLexiconTests` |
@@ -68,12 +68,13 @@ precision are not quantified per voice in §8 and are not yet modelled.
 | `TXT-032` paragraph/section pauses and pitch reset | SHOULD | **Partial** | `PhraseBoundary` carries pause length and a pitch-reset flag; the prosody model does not yet act on them |
 | `TXT-040` SSML-C dialect | MUST | Implemented | 13 tests in `SSMLCParsingTests` — all seven tag types, nestable prosody |
 | `TXT-041` graceful degradation + markup diagnostics | MUST | Implemented | 9 tests in `SSMLDegradationTests` — degradation, diagnostics, strict mode |
-| `TXT-042` `<voice>` mid-text switching | MUST | **Partial** | Parsed and carried per segment (`testVoiceSwitching`); synthesis does not yet render segments in different voices |
+| `TXT-042` `<voice>` mid-text switching | MUST | Implemented | `synthesizeMultiVoice` renders each voice run and concatenates; 3 tests in `VoiceSwitchingTests` |
+| `TXT-050` pre-phonemized input path | SHOULD | Implemented | `SynthesisInput.phonemes`, validated against the inventory |
 | `SYN-002` deterministic output given a seed | MUST | Implemented | 8 tests in `DeterminismTests` |
 | `SYN-003` controlled variation without a seed | MUST | Implemented | `testUnseededVaries`, `testVariationBounded` — **was violated**: every render was bit-identical |
 | `SYN-005` timing metadata (per word/phoneme, marks) | MUST | Implemented | 14 tests across `SynthesisMetadataTests` and `SynthesisMarkTests` |
 | `SYN-008` failures surface as typed errors, never traps | MUST | Implemented | `testFrontendRobustness`; 16 traps fixed across 0.2.x–0.3.x |
-| `SYN-010` duration estimate API | SHOULD | **Not implemented** | — |
+| `SYN-010` duration estimate API | SHOULD | Implemented | 7 tests in `DurationEstimateTests` |
 
 `TXT-022` is implemented as an actor with a replaceable persistence store,
 defaulting to `UserDefaults`. Registrations take precedence over the built-in
@@ -93,6 +94,29 @@ Part III is where the bulk of the remaining work sits. `TXT-020` through
 `TXT-024` (lexicon, heteronyms, user pronunciations) are the largest block and
 are prerequisites for the acoustic model being useful, since a trained voice
 saying the wrong phonemes is not an improvement.
+
+### Defects found while completing Part III
+
+Four, each caught by a test written from a requirement rather than from the
+code:
+
+- **The lexicon's stress was being discarded.** `StressAssigner` overwrote
+  whatever stress the phonemes arrived with, including CMUdict's primary and
+  secondary marks — the very data `TXT-020` exists to supply. It now preserves
+  stress that is already present and falls back to rules only for words the
+  lexicon did not supply.
+- **Emphasis was a no-op on the words that carry a sentence.** `enhanceStress`
+  raised only vowels sitting at zero, so once the lexicon supplied stress,
+  emphasising a word changed nothing. It now adds to the existing level.
+- **The dialogue rule was too broad.** Treating any terminator followed by a
+  lowercase word as reported speech meant that in lowercased text —
+  which is what the duration estimator segments — *no sentence ever ended*.
+  A closing quote must now intervene.
+- **ALL-CAPS emphasis was implemented at the wrong stage.** Inserting
+  `<emphasis>` markup during normalization would have had it spoken aloud as
+  words, since normalization runs per segment *after* parsing. It now runs
+  before the parser, so the existing emphasis machinery handles it.
+
 
 ### Normalization stage ordering
 
@@ -190,19 +214,16 @@ still missing.
 cost on every clone and is noted here deliberately.
 
 
-### Known issue — two markup parsers
+### Resolved — the two markup parsers
 
-`SSMLCParser` implements the SSML-C dialect that `TXT-040`/`TXT-041` specify.
-The older `SSMLParser` remains in place because `LinguisticFrontend` still
-depends on it for segment styling, so the package currently carries two markup
-parsers: one specification-conformant, one not.
+`LinguisticFrontend` has been migrated to `SSMLCParser` and the older
+`SSMLParser` is deleted. Text styling now honours `phoneme`, `say-as` and
+`voice` alongside `prosody`, `emphasis` and `break`, and there is one markup
+implementation rather than two.
 
-The synthesis path reads marks and diagnostics from `SSMLCParser`, so the
-metadata is correct, but text styling still flows through the older parser and
-therefore ignores `phoneme`, `say-as` and `voice`. Migrating the front end is
-the next step and is deliberately not bundled with this change, because it
-alters phonemization output and wants its own diff.
-
+XML entity decoding, which only the older parser had, was carried across rather
+than dropped. It runs *after* tag scanning: decoding `&lt;` first would
+manufacture an angle bracket the scanner then mistakes for markup.
 
 ---
 

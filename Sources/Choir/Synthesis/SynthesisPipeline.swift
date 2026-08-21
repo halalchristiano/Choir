@@ -74,6 +74,96 @@ public struct SynthesisPipeline: Sendable {
         return AudioBuffer(samples: pcmSamples, format: audioFormat)
     }
 
+    /// Resolves an SSML-C `<voice id="...">` to a voice (TXT-042).
+    ///
+    /// Accepts the stable identifier, the working name, or the enum case name,
+    /// so `"choir.mid.male.garrick"`, `"GARRICK"` and `"garrick"` all resolve.
+    public static func voice(forID id: String) -> Voice? {
+        let key = id.trimmingCharacters(in: .whitespaces).lowercased()
+        if let exact = Voice(rawValue: key) { return exact }
+        return Voice.allCases.first {
+            $0.displayName.lowercased() == key || "\($0)".lowercased() == key
+        }
+    }
+
+    /// Synthesizes a request that switches voices mid-text (SRS TXT-042).
+    ///
+    /// `<voice>` segments are rendered with their own voice and concatenated.
+    /// Consecutive segments sharing a voice are rendered together rather than
+    /// separately, so a switch point is the only place a discontinuity can
+    /// occur -- which is what the requirement means by "no audible
+    /// discontinuity artifacts at switch points beyond the natural pause".
+    ///
+    /// Falls back to single-voice synthesis when the text names no voice, so
+    /// the common case pays nothing for this.
+    public func synthesizeMultiVoice(
+        text: String,
+        defaultVoice: Voice,
+        parameters: SynthesisParameters
+    ) async throws -> SynthesisResult {
+        let markup = (try? SSMLCParser().parse(text)) ?? SSMLParseResult(events: [])
+
+        // Group consecutive speech into runs sharing a voice.
+        var runs: [(voice: Voice, text: String)] = []
+        for event in markup.events {
+            guard case .speech(let segmentText, let style) = event else { continue }
+            guard !segmentText.trimmingCharacters(in: .whitespaces).isEmpty else { continue }
+
+            let voice = style.voiceID.flatMap(Self.voice(forID:)) ?? defaultVoice
+            if var last = runs.last, last.voice == voice {
+                last.text += segmentText
+                runs[runs.count - 1] = last
+            } else {
+                runs.append((voice, segmentText))
+            }
+        }
+
+        // No voice switching: the ordinary path, unchanged.
+        guard runs.count > 1 else {
+            return try await synthesizeWithMetadata(
+                text: text, voice: defaultVoice, parameters: parameters)
+        }
+
+        var samples: [Int16] = []
+        var words: [TimedSpan] = []
+        var phonemes: [TimedSpan] = []
+        var offsetMs = 0.0
+
+        for run in runs {
+            let result = try await synthesizeWithMetadata(
+                text: run.text, voice: run.voice, parameters: parameters)
+            samples.append(contentsOf: result.audio.samples)
+
+            // Shift each run's timings into the concatenated timeline.
+            words += result.metadata.words.map {
+                TimedSpan(content: $0.content,
+                          startMs: $0.startMs + offsetMs,
+                          endMs: $0.endMs + offsetMs)
+            }
+            phonemes += result.metadata.phonemes.map {
+                TimedSpan(content: $0.content,
+                          startMs: $0.startMs + offsetMs,
+                          endMs: $0.endMs + offsetMs)
+            }
+            offsetMs += result.metadata.totalDurationMs
+        }
+
+        let audio = AudioBuffer(samples: samples, format: audioFormat)
+        let metadata = SynthesisMetadata(
+            totalDurationMs: offsetMs,
+            words: words,
+            phonemes: phonemes,
+            sentences: [],
+            marks: [],
+            effectiveParameters: parameters,
+            // The first run's voice represents the request; per-segment voices
+            // are recoverable from the markup.
+            voice: runs.first?.voice ?? defaultVoice,
+            diagnostics: markup.diagnostics
+        )
+        return SynthesisResult(audio: audio, metadata: metadata)
+    }
+
     /// Synthesizes and returns the timing metadata SYN-005 requires.
     ///
     /// Timings come from the prosody model's predicted phoneme durations, the
