@@ -369,7 +369,7 @@ extension ChoirEngine {
     public func streamDialogue(
         _ queue: DialogueQueue,
         options: StreamingOptions = StreamingOptions(),
-        onChunk: @Sendable (SynthesisStreamChunk) async throws -> Void
+        onChunk: @escaping @Sendable (SynthesisStreamChunk) async throws -> Void
     ) async throws {
         guard !queue.isEmpty else { return }
         guard queue.utterances.allSatisfy({

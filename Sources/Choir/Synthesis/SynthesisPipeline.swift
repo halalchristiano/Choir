@@ -755,7 +755,7 @@ public struct StreamingSynthesisPipeline: Sendable {
         voice: Voice,
         parameters: SynthesisParameters,
         priority: SynthesisExecutionPriority = .interactive,
-        onChunk: @Sendable (AudioChunk) async throws -> Void
+        onChunk: @escaping @Sendable (AudioChunk) async throws -> Void
     ) async throws {
         try await streamSynthesisWithMetadata(
             input: .markup(text),
@@ -779,7 +779,7 @@ public struct StreamingSynthesisPipeline: Sendable {
         voice: Voice,
         parameters: SynthesisParameters,
         priority: SynthesisExecutionPriority = .interactive,
-        onChunk: @Sendable (SynthesisStreamChunk) async throws -> Void
+        onChunk: @escaping @Sendable (SynthesisStreamChunk) async throws -> Void
     ) async throws {
         guard chunkSize > 0 else {
             throw ChoirError.invalidParameter(
@@ -802,7 +802,7 @@ public struct StreamingSynthesisPipeline: Sendable {
         voice: Voice,
         parameters: SynthesisParameters = SynthesisParameters(),
         priority: SynthesisExecutionPriority = .interactive,
-        onChunk: @Sendable (SynthesisStreamChunk) async throws -> Void
+        onChunk: @escaping @Sendable (SynthesisStreamChunk) async throws -> Void
     ) async throws {
         guard chunkSize > 0 else {
             throw ChoirError.invalidParameter(

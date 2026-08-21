@@ -363,7 +363,7 @@ public actor ChoirEngine {
         voice: Voice,
         parameters: SynthesisParameters = SynthesisParameters(),
         options: StreamingOptions = StreamingOptions(),
-        onChunk: @Sendable (AudioChunk) async throws -> Void
+        onChunk: @escaping @Sendable (AudioChunk) async throws -> Void
     ) async throws {
         try validateSynthesisState()
         try validateText(text)
@@ -400,7 +400,7 @@ public actor ChoirEngine {
         voice: Voice,
         parameters: SynthesisParameters = SynthesisParameters(),
         options: StreamingOptions = StreamingOptions(),
-        onChunk: @Sendable (SynthesisStreamChunk) async throws -> Void
+        onChunk: @escaping @Sendable (SynthesisStreamChunk) async throws -> Void
     ) async throws {
         try validateSynthesisState()
         try validateInput(input)
@@ -430,7 +430,7 @@ public actor ChoirEngine {
         voice: Voice,
         parameters: SynthesisParameters = SynthesisParameters(),
         options: StreamingOptions = StreamingOptions(),
-        onChunk: @Sendable (SynthesisStreamChunk) async throws -> Void
+        onChunk: @escaping @Sendable (SynthesisStreamChunk) async throws -> Void
     ) async throws {
         try validateSynthesisState()
         try phonemeProsody.validate()
