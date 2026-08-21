@@ -20,7 +20,7 @@ paraphrasing it.
 | `VOX-G-004` immutable metadata per voice | MUST | Implemented | `testMetadataCompleteness`, `testIdentifierShape` |
 | `VOX-G-005` permanent identifiers | MUST | Implemented | `testIdentifierUniqueness`, `testRawValueIsIdentifier` |
 | `VOX-G-006` shared acoustic model via conditioning | MUST | **Not implemented** | Blocked on the acoustic model |
-| `VOX-G-007` intelligible across customization envelope | MUST | **Not verifiable yet** | Requires QUA-004 ASR harness |
+| `VOX-G-007` intelligible across customization envelope | MUST | **Harness ready** | `IntelligibilityHarness.evaluateEnvelopeCorners`; awaits a trained model |
 | `VOX-G-008` three demo passages per voice | SHOULD | **Not implemented** | — |
 | `VOX-G-009` voice designer API | MAY | Partial | `VoiceBlending` interpolates profiles |
 | `VOX-G-010` child voices are stylized characters | MUST | Satisfied by design | `testChildVillainsRemainChildlike` |
@@ -339,6 +339,49 @@ one run and 0.03 on the next, which would make any pass/fail gate flap.
 rather than omitted; an omission reads as a pass. `PRF-040` also requires the
 report on **every** reference device, and this run covers R3 only, so R1, R2,
 R4 and R5 remain outstanding and are named as such in the report.
+
+### QUA-004 intelligibility: harness built, measurement pending
+
+`QUA-004` is the objective gate on whether a trained voice is usable: word-level
+transcription accuracy ≥ 98% on Harvard sentences transcribed by an independent
+ASR system, and ≥ 96% at the envelope corners of `VOX-G-007`.
+
+The harness exists and is tested. It **cannot return a meaningful number yet**,
+and that is not a limitation of the harness: run against the current mock
+acoustic model and Griffin-Lim vocoder it will score near zero, correctly,
+because the audio is not speech. It is built now so the first trained model can
+be judged the day it lands rather than by ear.
+
+What is in place:
+
+- The IEEE Harvard sentences, the standard corpus, chosen because no sentence
+  gives a listener context to guess a word they did not actually hear.
+- Word error rate by edit distance, normalizing case and punctuation — an ASR
+  returns neither — while preserving contractions, since "it's" and "its" are
+  different words and conflating them would hide a real failure.
+- Report accuracy weighted by sentence length, so a ten-word sentence and a
+  four-word sentence do not count equally toward a word-level figure.
+- The four envelope corners as the actual parameter extremes (±12 semitones
+  against 0.5x and 2.0x rate).
+
+Two decisions worth recording:
+
+**The recognizer is not in the library.** `SEC-001` requires the runtime to make
+zero network connections, and a consuming app should not link a speech
+framework, request speech-recognition authorization, or face a privacy prompt
+because CHOIR is able to test itself. The library holds the corpus, the protocol
+and the scoring; the Apple Speech implementation lives in the benchmark tool and
+is unreachable from the shipped product.
+
+**Recognition is forced on-device.** Partly to honour `SEC-001` even in a test
+tool, and partly for the measurement itself: a server-side recognizer may apply
+language-model correction strong enough to repair speech a listener could not
+actually understand, which would flatter the score.
+
+An unavailable recognizer throws rather than scoring zero. A failure to measure
+and a measurement of total unintelligibility are different outcomes, and
+reporting the first as the second would be alarming and wrong.
+
 
 ---
 

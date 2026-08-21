@@ -109,10 +109,27 @@ struct BenchmarkHarnessTests {
         #expect(report.notMeasured.contains { $0.contains("PRF-021") })
     }
 
+    /// A synthetic report. Rendering and encoding do not depend on real
+    /// measurement, and running the whole harness to test them made the suite
+    /// spend forty seconds re-measuring what it had already measured.
+    private func sampleReport(debug: Bool = false) -> BenchmarkReport {
+        BenchmarkReport(
+            device: .r3MacBook,
+            hostDescription: "test host",
+            packageVersion: Choir.version,
+            measurements: [
+                BenchmarkMeasurement(
+                    requirement: "PRF-001", name: "Batch RTF",
+                    value: 0.04, unit: "RTF", target: 0.15,
+                    samples: 9, minimum: 0.03, maximum: 0.06),
+            ],
+            notMeasured: ["PRF-021 battery: requires a physical device."],
+            isDebugBuild: debug)
+    }
+
     @Test("PRF-040: the report renders as Markdown for shipping")
-    func testMarkdownReport() async {
-        let report = await BenchmarkHarness(iterations: 1).run(voice: .isla, device: .r3MacBook)
-        let markdown = report.markdown()
+    func testMarkdownReport() {
+        let markdown = sampleReport().markdown()
 
         #expect(markdown.contains("# CHOIR Benchmark Report"))
         #expect(markdown.contains("PRF-001"))
@@ -120,9 +137,17 @@ struct BenchmarkHarnessTests {
         #expect(markdown.contains(Choir.version))
     }
 
+    /// An unoptimized build must announce itself in the report; a debug
+    /// number that reads as a measurement is worse than no number.
+    @Test("PRF-040: a debug build is declared in the report")
+    func testDebugBuildDeclared() {
+        #expect(sampleReport(debug: true).markdown().contains("unoptimized build"))
+        #expect(!sampleReport(debug: false).markdown().contains("unoptimized build"))
+    }
+
     @Test("PRF-040: the report round-trips as JSON")
-    func testReportCodable() async throws {
-        let report = await BenchmarkHarness(iterations: 1).run(voice: .isla, device: .r3MacBook)
+    func testReportCodable() throws {
+        let report = sampleReport()
         let data = try JSONEncoder().encode(report)
         let decoded = try JSONDecoder().decode(BenchmarkReport.self, from: data)
         #expect(decoded == report)

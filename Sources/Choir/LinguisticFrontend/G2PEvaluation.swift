@@ -96,24 +96,11 @@ public struct G2PEvaluator: Sendable {
 
     /// Levenshtein distance between two phoneme sequences.
     ///
-    /// Two rows rather than a full matrix: the evaluation runs over thousands
-    /// of words and only the distance is needed, not the alignment.
+    /// Delegates to the shared implementation, which the intelligibility
+    /// harness also uses for words: the algorithm is identical and only the
+    /// token differs.
     static func editDistance(_ lhs: [String], _ rhs: [String]) -> Int {
-        if lhs.isEmpty { return rhs.count }
-        if rhs.isEmpty { return lhs.count }
-
-        var previous = Array(0...rhs.count)
-        var current = [Int](repeating: 0, count: rhs.count + 1)
-
-        for i in 1...lhs.count {
-            current[0] = i
-            for j in 1...rhs.count {
-                let substitution = previous[j - 1] + (lhs[i - 1] == rhs[j - 1] ? 0 : 1)
-                current[j] = min(substitution, previous[j] + 1, current[j - 1] + 1)
-            }
-            swap(&previous, &current)
-        }
-        return previous[rhs.count]
+        EditDistance.between(lhs, rhs)
     }
 
     /// A deterministic sample of words from the built-in lexicon.
