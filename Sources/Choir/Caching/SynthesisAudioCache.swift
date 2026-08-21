@@ -367,8 +367,8 @@ public actor SynthesisAudioCache: Sendable {
             lastAccess: accessDate,
             isPinned: targetPinned)
         do {
-            let audioURL = audioURL(for: record)
-            try encoded.write(to: audioURL, options: .atomic)
+            let destinationAudioURL = audioURL(for: record)
+            try encoded.write(to: destinationAudioURL, options: .atomic)
             try writeMetadata(record)
             if let existing, existing.isPinned != record.isPinned {
                 try? manager.removeItem(at: audioURL(for: existing))
