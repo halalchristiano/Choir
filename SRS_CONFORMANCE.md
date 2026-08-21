@@ -54,10 +54,10 @@ precision are not quantified per voice in §8 and are not yet modelled.
 | `TXT-001` accept 1 … 1,000,000 characters | MUST | Implemented | `testSingleCharacter`, `testLargeRepeatedInput` |
 | `TXT-002` never crash, hang, or produce unbounded output | MUST | **Implemented — was violated** | `testNormalizerRobustness`, `testFrontendRobustness` (29 adversarial inputs) |
 | `TXT-003` input mode selected explicitly, never guessed | MUST | **Not implemented** | The engine still infers SSML from content |
-| `TXT-010` full normalization inventory | MUST | **Partial** | Cardinals, currency and abbreviations only; ordinals, decimals, fractions, percentages, dates, times, phone numbers, years, Roman numerals, units, URLs and ranges outstanding |
+| `TXT-010` full normalization inventory | MUST | Implemented | 19 tests in `NormalizationInventoryTests` — every named category |
 | `TXT-011` Scripture reference formats | MUST | Implemented | 14 tests in `ScriptureNormalizationTests` |
 | `TXT-012` configurable `NormalizationPolicy` | SHOULD | Implemented | `testConfigurableStyle`, `testCanBeDisabled`, `testVerbatimMode` |
-| `TXT-013` typography (smart quotes, dashes, ellipses, caps) | SHOULD | **Not implemented** | — |
+| `TXT-013` typography (smart quotes, dashes, ellipses, caps) | SHOULD | **Partial** | Smart quotes, ellipses, non-breaking spaces and dash pauses handled; ALL-CAPS emphasis not yet |
 | `TXT-020` 120,000-word lexicon, ≥92% OOV accuracy | MUST | **Partial** | Lexicon implemented — 135,166 CMUdict entries with stress, 8 tests in `BuiltInLexiconTests`. The ≥92% OOV accuracy target is unmeasured: it needs a held-out test set |
 | `TXT-021` ≥60 heteronyms disambiguated by part of speech | MUST | Implemented | 79 heteronyms, 7 tests in `HeteronymTests` |
 | `TXT-022` runtime user lexicon API | MUST | Implemented | 9 tests in `UserLexiconTests` |
@@ -93,6 +93,33 @@ Part III is where the bulk of the remaining work sits. `TXT-020` through
 `TXT-024` (lexicon, heteronyms, user pronunciations) are the largest block and
 are prerequisites for the acoustic model being useful, since a trained voice
 saying the wrong phonemes is not an improvement.
+
+### Normalization stage ordering
+
+`TXT-010` is mostly an ordering problem. Each stage can destroy the pattern a
+later one needs, and two real bugs during implementation were exactly that:
+
+- Folding the em dash to a pause marker in the typography stage broke
+  `Rom. 8:28–30`, because the Scripture range pattern matches on a dash
+  character. Dash folding now runs last, after every range has expanded.
+- `1990s` matched the unit pattern as 1990 plus the seconds symbol, giving
+  "one thousand nine hundred ninety seconds". Decade expansion now runs before
+  units.
+
+Case-sensitive stages run before the text is folded to lowercase, because two
+requirements depend on capitals: Roman numerals (lowercase "i", "x" and "c" are
+ordinary words) and the `St. John` versus `Baker St.` disambiguation the
+requirement names explicitly.
+
+**Performance.** Each `replacingOccurrences` or regex call is a complete
+Unicode-aware traversal, and roughly a dozen new stages took the 200,000-character
+robustness case from 0.43 s to 5.6 s — which at the 1,000,000 characters
+`TXT-001` mandates would have been about 28 s per call. A single `ContentFlags`
+scan now records which characters are present, and every stage is gated on it,
+returning that case to 0.77 s. This is the third time in this project that
+adding correct behaviour reintroduced a performance problem; the pattern is
+always the same, and so is the fix.
+
 
 ### Determinism and variation
 
