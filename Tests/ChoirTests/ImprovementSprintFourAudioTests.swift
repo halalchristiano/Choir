@@ -81,7 +81,7 @@ struct ImprovementSprintFourAudioTests {
         let buffer = AudioBuffer(samples: [1, 10, 2, 20, 3, 30], format: stereo)
         let pieces = try buffer.split(maximumFrames: 2)
         #expect(pieces.map(\.samples) == [[1, 10, 2, 20], [3, 30]])
-        #expect(pieces.allSatisfy(\.isFrameAligned))
+        #expect(pieces.allSatisfy { $0.isFrameAligned })
     }
 
     @Test("Buffer splitting rejects invalid limits and partial frames")
