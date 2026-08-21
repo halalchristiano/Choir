@@ -29,14 +29,26 @@ public struct SentenceScore: Sendable, Equatable, Codable {
     public let hypothesis: String
     public let wordAccuracy: Double
     public let referenceWordCount: Int
+    public let hypothesisWordCount: Int
+    public let substitutions: Int
+    public let deletions: Int
+    public let insertions: Int
 
     public init(reference: String, hypothesis: String) {
         self.reference = reference
         self.hypothesis = hypothesis
-        self.wordAccuracy = TranscriptionScoring.wordAccuracy(
+        let breakdown = TranscriptionScoring.breakdown(
             reference: reference, hypothesis: hypothesis)
-        self.referenceWordCount = TranscriptionScoring.normalizedWords(reference).count
+        self.wordAccuracy = breakdown.wordAccuracy
+        self.referenceWordCount = breakdown.referenceWordCount
+        self.hypothesisWordCount = breakdown.hypothesisWordCount
+        self.substitutions = breakdown.substitutions
+        self.deletions = breakdown.deletions
+        self.insertions = breakdown.insertions
     }
+
+    public var totalErrors: Int { substitutions + deletions + insertions }
+    public var isExactMatch: Bool { totalErrors == 0 }
 }
 
 /// The conditions a voice was measured under.
@@ -94,6 +106,23 @@ public struct IntelligibilityReport: Sendable, Equatable, Codable {
     /// Whether this run meets its target.
     public var meetsTarget: Bool { wordAccuracy >= condition.target }
 
+    public var totalReferenceWords: Int {
+        scores.reduce(0) { $0 + $1.referenceWordCount }
+    }
+
+    public var totalErrors: Int { scores.reduce(0) { $0 + $1.totalErrors } }
+
+    public var exactSentenceCount: Int { scores.filter(\.isExactMatch).count }
+
+    public var sentenceAccuracy: Double {
+        guard !scores.isEmpty else { return 0 }
+        return Double(exactSentenceCount) / Double(scores.count)
+    }
+
+    public var failedSentences: [SentenceScore] { scores.filter { !$0.isExactMatch } }
+
+    public var isEmpty: Bool { scores.isEmpty }
+
     public var summary: String {
         String(format: "%@ (%@, %@): %.1f%% word accuracy against a %.0f%% target — %@",
                voice.displayName,
@@ -123,7 +152,12 @@ public struct IntelligibilityHarness: Sendable {
     public let sentences: [String]
 
     public init(sentences: [String] = HarvardSentences.standard) {
-        self.sentences = sentences
+        var seen: Set<String> = []
+        self.sentences = sentences.compactMap { raw in
+            let sentence = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !sentence.isEmpty, seen.insert(sentence).inserted else { return nil }
+            return sentence
+        }
     }
 
     /// The four corners of the customization envelope (VOX-G-007).
@@ -160,7 +194,7 @@ public struct IntelligibilityHarness: Sendable {
         for sentence in sentences {
             let audio = try await engine.synthesize(
                 text: sentence, voice: voice, parameters: parameters)
-            let hypothesis = (try? await transcriber.transcribe(audio)) ?? ""
+            let hypothesis = try await transcriber.transcribe(audio)
             scores.append(SentenceScore(reference: sentence, hypothesis: hypothesis))
         }
 

@@ -149,7 +149,26 @@ extension TextNormalizer {
                 previous = value
             }
         }
-        return total > 0 ? total : nil
+        guard total > 0, total <= 3999,
+              romanNumeral(for: total) == numeral.uppercased() else { return nil }
+        return total
+    }
+
+    private static func romanNumeral(for value: Int) -> String {
+        let table: [(Int, String)] = [
+            (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
+            (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
+            (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I"),
+        ]
+        var remaining = value
+        var result = ""
+        for (amount, symbol) in table {
+            while remaining >= amount {
+                result += symbol
+                remaining -= amount
+            }
+        }
+        return result
     }
 
     // MARK: - TXT-010 Abbreviation disambiguation
@@ -178,6 +197,10 @@ extension TextNormalizer {
                   let minute = groups[2].flatMap({ Int64($0) }),
                   hour <= 23, minute <= 59 else { return nil }
 
+            if let suffix = groups[3], !suffix.isEmpty, !(1...12).contains(hour) {
+                return nil
+            }
+
             let hourWords = NumberSpelling.words(for: hour == 0 ? 12 : hour)
             var spoken: String
             if minute == 0 {
@@ -200,7 +223,7 @@ extension TextNormalizer {
             guard let year = groups[1].flatMap({ Int64($0) }),
                   let month = groups[2].flatMap({ Int($0) }),
                   let day = groups[3].flatMap({ Int64($0) }),
-                  (1...12).contains(month), (1...31).contains(Int(day)) else { return nil }
+                  Self.isValidDate(year: year, month: month, day: Int(day)) else { return nil }
             return "\(Self.monthNames[month - 1]) \(NumberSpelling.ordinal(for: day)) \(Self.spokenYear(year))"
         }
 
@@ -208,7 +231,7 @@ extension TextNormalizer {
             guard let month = groups[1].flatMap({ Int($0) }),
                   let day = groups[2].flatMap({ Int64($0) }),
                   let year = groups[3].flatMap({ Int64($0) }),
-                  (1...12).contains(month), (1...31).contains(Int(day)) else { return nil }
+                  Self.isValidDate(year: year, month: month, day: Int(day)) else { return nil }
             return "\(Self.monthNames[month - 1]) \(NumberSpelling.ordinal(for: day)) \(Self.spokenYear(year))"
         }
         return result
@@ -216,6 +239,13 @@ extension TextNormalizer {
 
     static let monthNames = ["january", "february", "march", "april", "may", "june",
                              "july", "august", "september", "october", "november", "december"]
+
+    static func isValidDate(year: Int64, month: Int, day: Int) -> Bool {
+        guard (1...12).contains(month), day > 0 else { return false }
+        let leap = year.isMultiple(of: 400) || (year.isMultiple(of: 4) && !year.isMultiple(of: 100))
+        let days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        return day <= days[month - 1]
+    }
 
     /// Speaks a year in the conventional paired form: 1990 as "nineteen ninety".
     static func spokenYear(_ year: Int64) -> String {
@@ -355,7 +385,7 @@ extension TextNormalizer {
             guard let value = groups[1], let symbol = groups[2] else { return nil }
             guard let unit = Self.units[symbol] else { return nil }
             let spokenValue = Self.spokenDecimal(value)
-            let plural = (Double(value) ?? 0) == 1 ? unit.singular : unit.plural
+            let plural = abs(Double(value) ?? 0) == 1 ? unit.singular : unit.plural
             return "\(spokenValue) \(plural)"
         }
     }

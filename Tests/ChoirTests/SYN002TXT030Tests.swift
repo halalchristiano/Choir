@@ -291,8 +291,8 @@ struct BreathGroupTests {
         #expect(BreathGroup(text: "make", boundary: .minor).estimatedSyllables == 1)
         #expect(BreathGroup(text: "beautiful", boundary: .minor).estimatedSyllables >= 3)
         // Never zero, whatever the input.
-        #expect(BreathGroup(text: "", boundary: .minor).estimatedSyllables >= 1)
-        #expect(BreathGroup(text: "!!!", boundary: .minor).estimatedSyllables >= 1)
+        #expect(BreathGroup(text: "", boundary: .minor).estimatedSyllables == 0)
+        #expect(BreathGroup(text: "!!!", boundary: .minor).estimatedSyllables == 0)
     }
 
     @Test("TXT-030 + TXT-031: full segmentation of a passage")

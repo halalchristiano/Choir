@@ -21,7 +21,9 @@ enum NumberSpelling {
     ]
 
     /// Scale words for large numbers.
-    static let scales: [(Int64, String)] = [
+    static let scales: [(UInt64, String)] = [
+        (1_000_000_000_000_000_000, "quintillion"),
+        (1_000_000_000_000_000, "quadrillion"),
         (1_000_000_000_000, "trillion"),
         (1_000_000_000, "billion"),
         (1_000_000, "million"),
@@ -38,12 +40,19 @@ enum NumberSpelling {
 
     /// Spells a numeric string, returning it unchanged if it is not an integer.
     static func words(for numString: String) -> String {
-        guard let value = Int64(numString), value >= 0 else { return numString }
+        guard let value = Int64(numString.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return numString
+        }
         return words(for: value)
     }
 
-    /// Spells a non-negative integer, e.g. 316 -> "three hundred sixteen".
+    /// Spells an integer, e.g. 316 -> "three hundred sixteen".
     static func words(for value: Int64) -> String {
+        if value < 0 { return "minus \(words(forMagnitude: value.magnitude))" }
+        return words(forMagnitude: UInt64(value))
+    }
+
+    private static func words(forMagnitude value: UInt64) -> String {
         guard value > 0 else { return units[0] }
 
         var parts: [String] = []
@@ -54,14 +63,14 @@ enum NumberSpelling {
             remaining %= scale
 
             if scale == 100 {
-                parts.append("\(belowHundred(quotient)) \(scaleWord)")
+                parts.append("\(belowHundredMagnitude(quotient)) \(scaleWord)")
             } else {
-                parts.append("\(words(for: quotient)) \(scaleWord)")
+                parts.append("\(words(forMagnitude: quotient)) \(scaleWord)")
             }
         }
 
         if remaining > 0 {
-            parts.append(belowHundred(remaining))
+            parts.append(belowHundredMagnitude(remaining))
         }
 
         return parts.joined(separator: " ")
@@ -69,8 +78,13 @@ enum NumberSpelling {
 
     /// Spells a value in 0..<100, e.g. 42 -> "forty two".
     static func belowHundred(_ n: Int64) -> String {
+        guard n >= 0 else { return words(for: n) }
+        return belowHundredMagnitude(UInt64(n))
+    }
+
+    private static func belowHundredMagnitude(_ n: UInt64) -> String {
         guard n > 0 else { return units[0] }
-        if n < Int64(units.count) { return units[Int(n)] }
+        if n < UInt64(units.count) { return units[Int(n)] }
 
         let tensPlace = Int(n / 10)
         let onesPlace = Int(n % 10)

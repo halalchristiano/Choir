@@ -32,6 +32,10 @@ public enum PhraseBoundary: String, Sendable, Equatable, Codable, CaseIterable, 
         self >= .paragraph
     }
 
+    public var nominalPauseSeconds: Double { nominalPauseMs / 1000 }
+
+    public var isDocumentBoundary: Bool { self >= .paragraph }
+
     private var rank: Int {
         switch self {
         case .minor: return 0
@@ -59,14 +63,18 @@ public struct BreathGroup: Sendable, Equatable {
         text.split(whereSeparator: \.isWhitespace).count
     }
 
+    public var isEmpty: Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     public init(text: String, boundary: PhraseBoundary) {
-        self.text = text
+        self.text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         self.boundary = boundary
     }
 
     /// Estimated spoken duration in seconds at a voice's base tempo.
     public func estimatedDurationSeconds(syllablesPerSecond: Double) -> Double {
-        guard syllablesPerSecond > 0 else { return 0 }
+        guard syllablesPerSecond.isFinite, syllablesPerSecond > 0 else { return 0 }
         return Double(estimatedSyllables) / syllablesPerSecond
     }
 
@@ -89,7 +97,7 @@ public struct BreathGroup: Sendable, Equatable {
             if word.hasSuffix("e"), count > 1 { count -= 1 }
             total += max(1, count)
         }
-        return max(1, total)
+        return total
     }
 }
 
@@ -141,8 +149,9 @@ public struct SentenceSegmenter: Sendable {
     public let maxBreathGroupSeconds: Double
 
     public init(maxWordsPerBreathGroup: Int = 30, maxBreathGroupSeconds: Double = 9.0) {
-        self.maxWordsPerBreathGroup = maxWordsPerBreathGroup
-        self.maxBreathGroupSeconds = maxBreathGroupSeconds
+        self.maxWordsPerBreathGroup = max(1, maxWordsPerBreathGroup)
+        self.maxBreathGroupSeconds = maxBreathGroupSeconds.isFinite && maxBreathGroupSeconds > 0
+            ? maxBreathGroupSeconds : 9
     }
 
     // MARK: - Sentences
@@ -184,8 +193,15 @@ public struct SentenceSegmenter: Sendable {
             }
 
             if ".!?".contains(character), Self.isSentenceEnd(text, at: index) {
+                // Keep ellipses and combined dialogue punctuation attached to
+                // the sentence rather than emitting punctuation-only groups.
+                var punctuationEnd = text.index(after: index)
+                while punctuationEnd < text.endIndex, ".!?".contains(text[punctuationEnd]) {
+                    current.append(text[punctuationEnd])
+                    punctuationEnd = text.index(after: punctuationEnd)
+                }
                 // Absorb trailing quotes and brackets belonging to the sentence.
-                var end = text.index(after: index)
+                var end = punctuationEnd
                 while end < text.endIndex, "\"'”’)]".contains(text[end]) {
                     current.append(text[end])
                     end = text.index(after: end)
@@ -267,10 +283,17 @@ public struct SentenceSegmenter: Sendable {
                 lookahead = text.index(after: lookahead)
             }
             guard lookahead < text.endIndex else { return true }
-            // "Dr. Smith" continues; "etc. The" starts anew only weakly, so
-            // abbreviations are treated as non-terminal, which is the safer
-            // error: a missed break shortens a pause, a false one truncates.
-            return false
+            let neverTerminal: Set<String> = [
+                "mr", "mrs", "ms", "dr", "prof", "rev", "fr", "sr", "jr", "st",
+                "gen", "exod", "lev", "num", "deut", "josh", "judg", "ps", "prov",
+                "eccl", "isa", "jer", "lam", "ezek", "dan", "hos", "obad", "jon",
+                "mic", "nah", "hab", "zeph", "hag", "zech", "mal", "matt", "rom",
+                "cor", "gal", "eph", "phil", "col", "thess", "tim", "tit", "philem",
+                "heb", "jas", "pet", "jan", "feb", "mar", "apr", "jun", "jul", "aug",
+                "sep", "sept", "oct", "nov", "dec",
+            ]
+            if neverTerminal.contains(bare) { return false }
+            return text[lookahead].isUppercase
         }
 
         return true
@@ -289,8 +312,11 @@ public struct SentenceSegmenter: Sendable {
         syllablesPerSecond: Double = 4.5,
         finalBoundary: PhraseBoundary = .major
     ) -> [BreathGroup] {
+        let effectiveRate = syllablesPerSecond.isFinite && syllablesPerSecond > 0
+            ? syllablesPerSecond : 4.5
         let whole = BreathGroup(text: sentence, boundary: finalBoundary)
-        guard needsDivision(whole, syllablesPerSecond: syllablesPerSecond) else {
+        guard !whole.isEmpty else { return [] }
+        guard needsDivision(whole, syllablesPerSecond: effectiveRate) else {
             return [whole]
         }
 
@@ -301,7 +327,7 @@ public struct SentenceSegmenter: Sendable {
         var refined: [String] = []
         for chunk in chunks {
             let candidate = BreathGroup(text: chunk, boundary: .minor)
-            if needsDivision(candidate, syllablesPerSecond: syllablesPerSecond) {
+            if needsDivision(candidate, syllablesPerSecond: effectiveRate) {
                 refined.append(contentsOf: splitOnConjunctions(chunk))
             } else {
                 refined.append(chunk)
@@ -310,7 +336,7 @@ public struct SentenceSegmenter: Sendable {
         // Pass 3: the word cap alone does not bound duration -- thirty
         // polysyllabic words last far longer than thirty short ones -- so any
         // chunk still over the ceiling is divided by estimated syllables.
-        chunks = refined.flatMap { enforceDuration($0, syllablesPerSecond: syllablesPerSecond) }
+        chunks = refined.flatMap { enforceDuration($0, syllablesPerSecond: effectiveRate) }
         chunks = chunks.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         guard !chunks.isEmpty else { return [whole] }
 
