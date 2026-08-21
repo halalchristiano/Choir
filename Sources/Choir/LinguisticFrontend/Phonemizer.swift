@@ -125,7 +125,7 @@ public struct Phonemizer: Sendable {
                     phonemes.append(Phoneme(isVowelLong(chars, at: i) ? "eɪ" : "æ"))
                 } else if char == "e" {
                     if nextChar == "y" {
-                        phonemes.append(Phoneme("i"))
+                        phonemes.append(Phoneme("iː"))
                         i += 2
                         continue
                     }
@@ -222,7 +222,9 @@ public struct Phonemizer: Sendable {
         case "c": return "k"
         case "d": return "d"
         case "f": return "f"
-        case "g": return "g"
+        // U+0261 script g, the inventory's symbol. ASCII "g" is a different
+        // character and is not part of the documented inventory (TXT-024).
+        case "g": return "\u{0261}"
         case "h": return "h"
         case "j": return "dʒ"
         case "k": return "k"
@@ -232,11 +234,17 @@ public struct Phonemizer: Sendable {
         case "p": return "p"
         case "q": return "k"
         case "r": return "r"
-        case "s": return "z"
+        // English "s" is /s/ in the great majority of positions. This
+        // previously returned /z/, so every word beginning with "s" was
+        // mispronounced by the fallback.
+        case "s": return "s"
         case "t": return "t"
         case "v": return "v"
         case "w": return "w"
-        case "x": return "ks"
+        // "x" is two phonemes; the single-symbol path cannot express it, so
+        // the nearer single symbol is used rather than emitting "ks", which is
+        // not an inventory symbol at all.
+        case "x": return "k"
         case "z": return "z"
         default: return nil
         }

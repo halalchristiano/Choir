@@ -58,7 +58,7 @@ precision are not quantified per voice in §8 and are not yet modelled.
 | `TXT-011` Scripture reference formats | MUST | Implemented | 14 tests in `ScriptureNormalizationTests` |
 | `TXT-012` configurable `NormalizationPolicy` | SHOULD | Implemented | `testConfigurableStyle`, `testCanBeDisabled`, `testVerbatimMode` |
 | `TXT-013` typography (smart quotes, dashes, ellipses, caps) | SHOULD | Implemented | 4 tests in `AllCapsTests` plus typography coverage in `NormalizationInventoryTests` |
-| `TXT-020` 120,000-word lexicon, ≥92% OOV accuracy | MUST | **Partial** | Lexicon implemented — 135,166 CMUdict entries with stress, 8 tests in `BuiltInLexiconTests`. The ≥92% OOV accuracy target is unmeasured: it needs a held-out test set |
+| `TXT-020` 120,000-word lexicon, ≥92% OOV accuracy | MUST | **Partial — now measured** | Lexicon implemented (135,166 entries). OOV accuracy **measured at 54.2%** against a 92% target; see below |
 | `TXT-021` ≥60 heteronyms disambiguated by part of speech | MUST | Implemented | 79 heteronyms, 7 tests in `HeteronymTests` |
 | `TXT-022` runtime user lexicon API | MUST | Implemented | 9 tests in `UserLexiconTests` |
 | `TXT-023` biblical/theological proper-noun supplement (≥2,500) | SHOULD | **Partial** | 111 curated entries against a target of 2,500; 6 tests in `TheologicalLexiconTests` |
@@ -178,6 +178,54 @@ asks for.
 Dialogue punctuation is handled by treating a terminator followed by a
 lowercase continuation as reported speech, so `"Stop there!" she cried.` is one
 sentence rather than two.
+
+
+### TXT-020 measured: G2P accuracy is 54.2% against a 92% target
+
+The lexicon half of `TXT-020` shipped in v0.7.0. The other half — "≥ 92%
+phoneme accuracy on a held-out OOV test set" — was recorded as unmeasured
+rather than claimed. It has now been measured, and it is not close.
+
+`G2PEvaluator` holds 2,000 words out of the built-in lexicon and phonemizes
+them by rule alone, which reproduces exactly what an out-of-vocabulary word
+encounters. Accuracy is the complement of phoneme error rate, computed by edit
+distance against CMUdict.
+
+| Metric | Measured | Target |
+|---|---|---|
+| Phoneme accuracy | **54.2%** | ≥ 92% |
+| Word accuracy (exact) | **4.2%** | — |
+
+Four percent of out-of-vocabulary words are pronounced exactly right.
+
+**Three defects were found by building the harness**, and the first measurement
+(50.1%) was partly an artefact of them:
+
+- **`s` was mapped to /z/.** Every word beginning with "s" was mispronounced by
+  the fallback — "simple" came out as *zimple*.
+- **ASCII `g` versus script `ɡ`.** The inventory uses U+0261; the fallback
+  emitted U+0067. Two different characters, so phonemes from the lexicon and
+  from the rules were not comparable, and `isValidIPA` rejected rule output.
+- **The fallback emitted symbols outside the documented inventory** — bare `i`
+  and `ə` — which contradicts `TXT-024`'s premise that the inventory is *the*
+  set the engine can produce. Schwa is now a documented entry, since CMUdict
+  writes it as unstressed AH and conflating the two makes "about" rhyme with
+  "hut".
+
+Fixing these raised the figure from 50.1% to 54.2%. The remaining 38-point gap
+is genuine G2P quality, not measurement error.
+
+**What this means.** English orthography is not tractable by the kind of
+letter-to-sound rules currently implemented; reaching 92% needs either a
+substantially larger rule set with morphological analysis, or the trained
+neural G2P the requirement also permits. Until then the 135,166-entry lexicon
+is doing nearly all the real work, and `TXT-022`'s user lexicon is not a
+convenience but the practical escape hatch for any proper noun outside it.
+
+The test asserts a regression floor rather than the target, because a
+permanently red build teaches a team to ignore it. A second test asserts that
+the target is *not* met and instructs whoever makes it pass to delete the test
+and assert the requirement directly.
 
 
 ### The lexicon block
