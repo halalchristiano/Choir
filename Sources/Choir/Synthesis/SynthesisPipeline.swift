@@ -94,13 +94,20 @@ public struct SynthesisPipeline: Sendable {
             sampleRate: audioFormat.sampleRate
         )
 
+        // TXT-040/041: marks and markup diagnostics come from the SSML-C
+        // stream. Parsing is non-strict here so malformed markup degrades
+        // rather than failing the request; the warnings ride along in the
+        // metadata instead.
+        let markup = try? SSMLCParser().parse(text)
+
         let audio = AudioBuffer(samples: pcmSamples, format: audioFormat)
         let metadata = Self.buildMetadata(
             transcript: transcript,
             durationsMs: prosody.phonemes.map(\.prosody.duration),
             audio: audio,
             voice: voice,
-            parameters: parameters
+            parameters: parameters,
+            markup: markup
         )
         return SynthesisResult(audio: audio, metadata: metadata)
     }
@@ -115,7 +122,8 @@ public struct SynthesisPipeline: Sendable {
         durationsMs: [Double],
         audio: AudioBuffer,
         voice: Voice,
-        parameters: SynthesisParameters
+        parameters: SynthesisParameters,
+        markup: SSMLParseResult? = nil
     ) -> SynthesisMetadata {
         var phonemeSpans: [TimedSpan] = []
         phonemeSpans.reserveCapacity(transcript.phonemes.count)
@@ -172,14 +180,36 @@ public struct SynthesisPipeline: Sendable {
         let audioDurationMs = audio.duration * 1000
         let totalMs = audioDurationMs > 0 ? audioDurationMs : cursor
 
+        // SYN-005 mark positions. A mark sits between words in the SSML-C
+        // stream, so its time is the start of the next word, or the end of the
+        // audio when it trails the final word.
+        var marks: [MarkPosition] = []
+        if let markup {
+            var wordsSeen = 0
+            for event in markup.events {
+                switch event {
+                case .speech(let text, _):
+                    wordsSeen += text.split(whereSeparator: \.isWhitespace).count
+                case .mark(let name):
+                    let timeMs = wordsSeen < wordSpans.count
+                        ? wordSpans[wordsSeen].startMs
+                        : (wordSpans.last?.endMs ?? totalMs)
+                    marks.append(MarkPosition(name: name, timeMs: timeMs))
+                case .pause:
+                    break
+                }
+            }
+        }
+
         return SynthesisMetadata(
             totalDurationMs: totalMs,
             words: wordSpans,
             phonemes: phonemeSpans,
             sentences: sentences,
-            marks: [],
+            marks: marks,
             effectiveParameters: parameters,
-            voice: voice
+            voice: voice,
+            diagnostics: markup?.diagnostics ?? []
         )
     }
 
