@@ -6,12 +6,23 @@ public actor SimpleSynthesizer {
     private let phonemizer: Phonemizer
     private let textNormalizer: TextNormalizer
     private let synthesizer: SampleBasedSynthesizer
+    private let outputSampleRate: Int
 
-    public init(library: VoiceSampleLibrary) {
+    public init(
+        library: VoiceSampleLibrary,
+        sampleRate: Int = 48000,
+        fadeDurationMs: Double = 5.0
+    ) {
+        let safeSampleRate = (8_000...384_000).contains(sampleRate) ? sampleRate : 48000
         self.library = library
         self.phonemizer = Phonemizer()
         self.textNormalizer = TextNormalizer()
-        self.synthesizer = SampleBasedSynthesizer(library: library)
+        self.synthesizer = SampleBasedSynthesizer(
+            library: library,
+            sampleRate: safeSampleRate,
+            fadeDurationMs: fadeDurationMs
+        )
+        self.outputSampleRate = safeSampleRate
     }
 
     /// Synthesizes speech from text.
@@ -32,7 +43,7 @@ public actor SimpleSynthesizer {
         // Step 4: Return as audio buffer
         return AudioBuffer(
             samples: audioSamples,
-            format: AudioFormat(sampleRate: 48000, channels: 1, bitDepth: 16)
+            format: AudioFormat(sampleRate: outputSampleRate, channels: 1, bitDepth: 16)
         )
     }
 

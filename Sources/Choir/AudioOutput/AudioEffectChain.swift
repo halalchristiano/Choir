@@ -1,9 +1,9 @@
 import Foundation
 
 /// Effect configuration for the chain.
-public struct AudioEffect: Sendable {
+public struct AudioEffect: Sendable, Equatable {
     /// Effect type and parameters.
-    public enum Kind: Sendable {
+    public enum Kind: Sendable, Equatable {
         case highPass(cutoffHz: Double)
         case lowPass(cutoffHz: Double)
         case normalize(targetLevel: Double)
@@ -11,6 +11,59 @@ public struct AudioEffect: Sendable {
         case deEsser(centerHz: Double)
         case softClip(threshold: Double)
         case reverb(wetLevel: Double)
+
+        /// Validates effect parameters against the processing sample rate.
+        public func validate(sampleRate: Int) throws {
+            guard 8_000...384_000 ~= sampleRate else {
+                throw ChoirError.invalidParameter(
+                    parameter: "sampleRate",
+                    reason: "Effect sample rate must be within 8,000...384,000 Hz")
+            }
+            let nyquist = Double(sampleRate) / 2
+            switch self {
+            case .highPass(let cutoff), .lowPass(let cutoff):
+                guard cutoff.isFinite, cutoff > 0, cutoff < nyquist else {
+                    throw ChoirError.invalidParameter(
+                        parameter: "cutoffHz",
+                        reason: "Filter cutoff must be finite and below the Nyquist frequency")
+                }
+            case .normalize(let target):
+                guard target.isFinite, -20...0 ~= target else {
+                    throw ChoirError.invalidParameter(
+                        parameter: "targetLevel",
+                        reason: "Normalization target must be within -20...0 dB")
+                }
+            case .compress(let threshold, let ratio):
+                guard threshold.isFinite, -120...0 ~= threshold else {
+                    throw ChoirError.invalidParameter(
+                        parameter: "threshold",
+                        reason: "Compression threshold must be within -120...0 dB")
+                }
+                guard ratio.isFinite, 1...100 ~= ratio else {
+                    throw ChoirError.invalidParameter(
+                        parameter: "ratio",
+                        reason: "Compression ratio must be within 1...100")
+                }
+            case .deEsser(let center):
+                guard center.isFinite, center > 0, center < nyquist else {
+                    throw ChoirError.invalidParameter(
+                        parameter: "centerHz",
+                        reason: "De-esser center must be finite and below the Nyquist frequency")
+                }
+            case .softClip(let threshold):
+                guard threshold.isFinite, threshold > 0, threshold <= 1 else {
+                    throw ChoirError.invalidParameter(
+                        parameter: "threshold",
+                        reason: "Soft-clip threshold must be within (0, 1]")
+                }
+            case .reverb(let wetLevel):
+                guard wetLevel.isFinite, 0...1 ~= wetLevel else {
+                    throw ChoirError.invalidParameter(
+                        parameter: "wetLevel",
+                        reason: "Reverb wet level must be within 0...1")
+                }
+            }
+        }
     }
 
     public let name: String
@@ -19,6 +72,15 @@ public struct AudioEffect: Sendable {
     public init(name: String, kind: Kind) {
         self.name = name
         self.kind = kind
+    }
+
+    /// Validates the display name and the effect's signal-processing parameters.
+    public func validate(sampleRate: Int) throws {
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ChoirError.invalidParameter(
+                parameter: "name", reason: "Effect name must not be empty")
+        }
+        try kind.validate(sampleRate: sampleRate)
     }
 }
 
@@ -75,6 +137,30 @@ public struct AudioEffectChain: Sendable {
         }
 
         return processed
+    }
+
+    /// Validates the chain's sample rate and every configured effect.
+    public func validate() throws {
+        guard 8_000...384_000 ~= sampleRate else {
+            throw ChoirError.invalidParameter(
+                parameter: "sampleRate",
+                reason: "Effect-chain sample rate must be within 8,000...384,000 Hz")
+        }
+        for effect in effects {
+            try effect.validate(sampleRate: sampleRate)
+        }
+    }
+
+    /// Processes a validated buffer while preserving its PCM format metadata.
+    public func process(_ buffer: AudioBuffer) throws -> AudioBuffer {
+        try buffer.validate()
+        try validate()
+        guard buffer.format.sampleRate == sampleRate else {
+            throw ChoirError.invalidParameter(
+                parameter: "buffer",
+                reason: "Buffer and effect-chain sample rates must match")
+        }
+        return AudioBuffer(samples: process(buffer.samples), format: buffer.format)
     }
 
     /// Processes audio with a single effect.

@@ -1,7 +1,7 @@
 import Foundation
 
 /// How a Scripture reference is spoken (SRS TXT-011).
-public enum ScriptureStyle: String, Sendable, CaseIterable, Codable {
+public enum ScriptureStyle: String, Sendable, CaseIterable, Codable, Hashable {
     /// "John 3:16" -> "john three, sixteen"
     case chapterVerse
 
@@ -14,6 +14,70 @@ public enum ScriptureStyle: String, Sendable, CaseIterable, Codable {
 
     /// "John 3:16" -> "john chapter three, verse sixteen"
     case spokenFull
+}
+
+/// A validated, canonical Scripture chapter-and-verse reference.
+///
+/// `book` is always the spoken canonical name (for example, `"first john"`),
+/// even when the initializer receives an abbreviation such as `"1 Jn."`.
+public struct ScriptureReference: Sendable, Equatable, Hashable, Codable {
+    public let book: String
+    public let chapter: Int64
+    public let verse: Int64
+    public let verseEnd: Int64?
+
+    /// Creates a reference only when the book and numeric bounds are usable.
+    public init?(
+        book: String,
+        chapter: Int64,
+        verse: Int64,
+        verseEnd: Int64? = nil
+    ) {
+        guard let canonicalBook = ScriptureNormalizer.spokenBook(for: book),
+              let finalChapter = ScriptureNormalizer.chapterCounts[canonicalBook],
+              (1...finalChapter).contains(chapter),
+              (1...ScriptureNormalizer.maximumVerse).contains(verse)
+        else { return nil }
+
+        if let verseEnd {
+            guard (verse...ScriptureNormalizer.maximumVerse).contains(verseEnd) else {
+                return nil
+            }
+        }
+
+        self.book = canonicalBook
+        self.chapter = chapter
+        self.verse = verse
+        self.verseEnd = verseEnd
+    }
+
+    private enum CodingKeys: String, CodingKey { case book, chapter, verse, verseEnd }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let book = try container.decode(String.self, forKey: .book)
+        let chapter = try container.decode(Int64.self, forKey: .chapter)
+        let verse = try container.decode(Int64.self, forKey: .verse)
+        let verseEnd = try container.decodeIfPresent(Int64.self, forKey: .verseEnd)
+        guard let reference = Self(
+            book: book, chapter: chapter, verse: verse, verseEnd: verseEnd
+        ) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .verse,
+                in: container,
+                debugDescription: "Invalid Scripture reference"
+            )
+        }
+        self = reference
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(book, forKey: .book)
+        try container.encode(chapter, forKey: .chapter)
+        try container.encode(verse, forKey: .verse)
+        try container.encodeIfPresent(verseEnd, forKey: .verseEnd)
+    }
 }
 
 /// Expands Scripture references into spoken form.
@@ -405,12 +469,46 @@ public struct ScriptureNormalizer: Sendable {
     /// Matching the numeric shape first and looking backwards for a book name
     /// keeps the scan linear and the alternation out of the hot path.
     private static let numericRegex: NSRegularExpression = {
-        try! NSRegularExpression(pattern: "\\b(\\d{1,3}):(\\d{1,3})(?:\\s*[-–—]\\s*(\\d{1,3}))?")
+        try! NSRegularExpression(
+            pattern: #"(?<![\p{L}\p{N}_])(\d{1,3})\s*[:：]\s*(\d{1,3})(?:\s*[-–—]\s*(\d{1,3}))?(?![\p{L}\p{N}_])(?!\s*[-–—]\s*\d)"#
+        )
     }()
 
     /// The most whitespace-separated tokens any book surface form spans
     /// ("song of songs" is three).
     private static let maxBookTokens = 3
+
+    /// Psalm 119 has the largest verse number in the Protestant canon.
+    static let maximumVerse: Int64 = 176
+
+    /// Canonical chapter ceilings prevent a time-like token after a book name
+    /// from being accepted as a chapter that the book does not contain.
+    static let chapterCounts: [String: Int64] = [
+        "genesis": 50, "exodus": 40, "leviticus": 27, "numbers": 36,
+        "deuteronomy": 34, "joshua": 24, "judges": 21, "ruth": 4,
+        "first samuel": 31, "second samuel": 24, "first kings": 22,
+        "second kings": 25, "first chronicles": 29, "second chronicles": 36,
+        "ezra": 10, "nehemiah": 13, "esther": 10, "job": 42,
+        "psalms": 150, "proverbs": 31, "ecclesiastes": 12,
+        "song of solomon": 8, "isaiah": 66, "jeremiah": 52,
+        "lamentations": 5, "ezekiel": 48, "daniel": 12, "hosea": 14,
+        "joel": 3, "amos": 9, "obadiah": 1, "jonah": 4, "micah": 7,
+        "nahum": 3, "habakkuk": 3, "zephaniah": 3, "haggai": 2,
+        "zechariah": 14, "malachi": 4, "matthew": 28, "mark": 16,
+        "luke": 24, "john": 21, "acts": 28, "romans": 16,
+        "first corinthians": 16, "second corinthians": 13, "galatians": 6,
+        "ephesians": 6, "philippians": 4, "colossians": 4,
+        "first thessalonians": 5, "second thessalonians": 3,
+        "first timothy": 6, "second timothy": 4, "titus": 3,
+        "philemon": 1, "hebrews": 13, "james": 5, "first peter": 5,
+        "second peter": 3, "first john": 5, "second john": 1,
+        "third john": 1, "jude": 1, "revelation": 22,
+    ]
+
+    private struct LocatedReference {
+        let range: NSRange
+        let reference: ScriptureReference
+    }
 
     public let style: ScriptureStyle
 
@@ -425,32 +523,57 @@ public struct ScriptureNormalizer: Sendable {
     public func normalize(_ text: String) -> String {
         // A reference always has a colon between two numbers, so colon-free
         // text can skip all regex work.
-        guard text.contains(":") else { return text }
+        guard text.contains(":") || text.contains("\u{FF1A}") else { return text }
 
-        let matches = Self.numericRegex.matches(
-            in: text,
-            range: NSRange(text.startIndex..<text.endIndex, in: text)
-        )
-        guard !matches.isEmpty else { return text }
+        let located = Self.locatedReferences(in: text)
+        guard !located.isEmpty else { return text }
 
         var result = text
         // Rewrite back-to-front so earlier match ranges stay valid.
-        for match in matches.reversed() {
-            guard let numericRange = Range(match.range, in: result),
-                  let chapter = Self.group(match, 1, in: text).flatMap({ Int64($0) }),
-                  let verse = Self.group(match, 2, in: text).flatMap({ Int64($0) })
+        for item in located.reversed() {
+            guard let range = Range(item.range, in: result) else { continue }
+            result.replaceSubrange(range, with: spoken(item.reference))
+        }
+        return result
+    }
+
+    /// Extracts valid references in their source order without rewriting the
+    /// surrounding text.
+    public func references(in text: String) -> [ScriptureReference] {
+        Self.locatedReferences(in: text).map(\.reference)
+    }
+
+    private static func locatedReferences(in text: String) -> [LocatedReference] {
+        let matches = numericRegex.matches(
+            in: text,
+            range: NSRange(text.startIndex..<text.endIndex, in: text)
+        )
+        guard !matches.isEmpty else { return [] }
+
+        var result: [LocatedReference] = []
+        result.reserveCapacity(matches.count)
+
+        for match in matches {
+            guard let numericRange = Range(match.range, in: text),
+                  let chapter = group(match, 1, in: text).flatMap({ Int64($0) }),
+                  let verse = group(match, 2, in: text).flatMap({ Int64($0) }),
+                  let (bookStart, spokenBook) = precedingBook(
+                    in: text, before: numericRange.lowerBound
+                  )
             else { continue }
 
-            guard let (bookStart, spokenBook) =
-                    Self.precedingBook(in: result, before: numericRange.lowerBound)
-            else { continue }
+            let verseEnd = group(match, 3, in: text).flatMap { Int64($0) }
+            guard let reference = ScriptureReference(
+                book: spokenBook,
+                chapter: chapter,
+                verse: verse,
+                verseEnd: verseEnd
+            ) else { continue }
 
-            let verseEnd = Self.group(match, 3, in: text).flatMap { Int64($0) }
-
-            result.replaceSubrange(
-                bookStart..<numericRange.upperBound,
-                with: spoken(book: spokenBook, chapter: chapter, verse: verse, verseEnd: verseEnd)
-            )
+            result.append(LocatedReference(
+                range: NSRange(bookStart..<numericRange.upperBound, in: text),
+                reference: reference
+            ))
         }
         return result
     }
@@ -486,20 +609,31 @@ public struct ScriptureNormalizer: Sendable {
 
         // Longest span first: the last recorded start reaches furthest back.
         for begin in tokenStarts.reversed() where begin < index {
-            if let spoken = spokenBook(for: String(text[begin..<index])) {
-                return (begin, spoken)
+            var candidateStart = begin
+            while candidateStart < index, isLeadingWrapper(text[candidateStart]) {
+                candidateStart = text.index(after: candidateStart)
+            }
+            if let spoken = spokenBook(for: String(text[candidateStart..<index])) {
+                return (candidateStart, spoken)
             }
         }
         return nil
     }
 
+    private static func isLeadingWrapper(_ character: Character) -> Bool {
+        switch character {
+        case "(", "[", "{", "\"", "'", "“", "‘": true
+        default: false
+        }
+    }
+
     /// Renders one reference in the configured style.
-    private func spoken(book: String, chapter: Int64, verse: Int64, verseEnd: Int64?) -> String {
-        let chapterWords = NumberSpelling.words(for: chapter)
-        let verseWords = NumberSpelling.words(for: verse)
+    public func spoken(_ reference: ScriptureReference) -> String {
+        let chapterWords = NumberSpelling.words(for: reference.chapter)
+        let verseWords = NumberSpelling.words(for: reference.verse)
 
         let verses: String
-        if let verseEnd {
+        if let verseEnd = reference.verseEnd {
             let endWords = NumberSpelling.words(for: verseEnd)
             verses = "\(verseWords) through \(endWords)"
         } else {
@@ -508,19 +642,22 @@ public struct ScriptureNormalizer: Sendable {
 
         switch style {
         case .chapterVerse:
-            return "\(book) \(chapterWords), \(verses)"
+            return "\(reference.book) \(chapterWords), \(verses)"
         case .chapterColonVerse:
-            return "\(book) \(chapterWords) colon \(verses)"
+            return "\(reference.book) \(chapterWords) colon \(verses)"
         case .spokenFull:
-            let verseNoun = verseEnd == nil ? "verse" : "verses"
-            return "\(book) chapter \(chapterWords), \(verseNoun) \(verses)"
+            let verseNoun = reference.verseEnd == nil ? "verse" : "verses"
+            return "\(reference.book) chapter \(chapterWords), \(verseNoun) \(verses)"
         }
     }
 
     /// Resolves a written surface form to its spoken book name.
     static func spokenBook(for written: String) -> String? {
+        let trimCharacters = CharacterSet.whitespacesAndNewlines.union(
+            CharacterSet(charactersIn: ".()[]{}\"'“”‘’")
+        )
         let key = written
-            .trimmingCharacters(in: CharacterSet(charactersIn: ". "))
+            .trimmingCharacters(in: trimCharacters)
             .lowercased()
         // Collapse internal whitespace so "1  John" resolves like "1 John".
         let collapsed = key.split(whereSeparator: \.isWhitespace).joined(separator: " ")
@@ -533,6 +670,11 @@ public struct ScriptureNormalizer: Sendable {
         // specific form as the surviving entry for duplicate keys.
         for entry in bookForms.reversed() {
             map[entry.written] = entry.spoken
+        }
+        // Public reference values already carry spoken canonical names; make
+        // those names valid initializer input as well as output.
+        for entry in bookForms {
+            map[entry.spoken] = entry.spoken
         }
         return map
     }()

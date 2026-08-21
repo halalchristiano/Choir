@@ -2,7 +2,26 @@ import Foundation
 
 /// Encodes PCM audio to various formats.
 public struct AudioEncoder: Sendable {
+    /// Bytes in the canonical PCM WAV header emitted by this encoder.
+    public static let wavHeaderSize = 44
+
     public init() {}
+
+    /// Predicts the encoded size without allocating a WAV payload.
+    public func estimatedWAVByteCount(for buffer: AudioBuffer) throws -> Int {
+        try buffer.format.validate()
+        guard buffer.isFrameAligned else {
+            throw ChoirError.audioEncodingFailed(
+                reason: "Interleaved sample count must be divisible by the channel count")
+        }
+        let dataByteCount = buffer.samples.count.multipliedReportingOverflow(
+            by: MemoryLayout<Int16>.size)
+        guard !dataByteCount.overflow,
+              dataByteCount.partialValue <= Int(UInt32.max) - 36 else {
+            throw ChoirError.audioEncodingFailed(reason: "Audio is too large for a RIFF/WAV file")
+        }
+        return Self.wavHeaderSize + dataByteCount.partialValue
+    }
 
     /// Encodes PCM audio to WAV format.
     ///
@@ -11,17 +30,19 @@ public struct AudioEncoder: Sendable {
     /// - Returns: WAV encoded data.
     public func encodeWAV(_ buffer: AudioBuffer) throws -> Data {
         try buffer.format.validate()
-        guard buffer.samples.count % buffer.format.channels == 0 else {
+        guard buffer.isFrameAligned else {
             throw ChoirError.audioEncodingFailed(
                 reason: "Interleaved sample count must be divisible by the channel count")
         }
-        let dataByteCount = buffer.samples.count.multipliedReportingOverflow(by: 2)
+        let dataByteCount = buffer.samples.count.multipliedReportingOverflow(
+            by: MemoryLayout<Int16>.size)
         guard !dataByteCount.overflow,
               dataByteCount.partialValue <= Int(UInt32.max) - 36 else {
             throw ChoirError.audioEncodingFailed(reason: "Audio is too large for a RIFF/WAV file")
         }
 
         var wavData = Data()
+        wavData.reserveCapacity(Self.wavHeaderSize + dataByteCount.partialValue)
 
         // RIFF header
         let chunkSize = 36 + dataByteCount.partialValue
@@ -35,7 +56,11 @@ public struct AudioEncoder: Sendable {
         wavData.append(UInt16(1).littleEndianData)   // AudioFormat (1 = PCM)
         wavData.append(UInt16(buffer.format.channels).littleEndianData)
         wavData.append(UInt32(buffer.format.sampleRate).littleEndianData)
-        let byteRate = UInt32(buffer.format.sampleRate * buffer.format.channels * buffer.format.bitDepth / 8)
+        let byteRate = UInt32(
+            UInt64(buffer.format.sampleRate)
+                * UInt64(buffer.format.channels)
+                * UInt64(buffer.format.bitDepth)
+                / 8)
         wavData.append(byteRate.littleEndianData)
         let blockAlign = UInt16(buffer.format.channels * buffer.format.bitDepth / 8)
         wavData.append(blockAlign.littleEndianData)
@@ -53,6 +78,40 @@ public struct AudioEncoder: Sendable {
         return wavData
     }
 
+    /// Encodes frame-aligned streaming chunks into one WAV payload.
+    ///
+    /// A final chunk, when present, must be last. Explicit timestamps must not
+    /// move backwards or overlap the preceding timestamped chunk.
+    public func encodeWAV(chunks: [AudioChunk], format: AudioFormat) throws -> Data {
+        try format.validate()
+        var combined: [Int16] = []
+        var previousEndTimestamp: Double?
+
+        for (index, chunk) in chunks.enumerated() {
+            try chunk.validate(format: format)
+            if chunk.isFinal, index != chunks.index(before: chunks.endIndex) {
+                throw ChoirError.audioEncodingFailed(reason: "A final audio chunk must be last")
+            }
+            if let timestamp = chunk.timestamp,
+               let previousEndTimestamp,
+               timestamp < previousEndTimestamp {
+                throw ChoirError.audioEncodingFailed(
+                    reason: "Audio chunk timestamps must be monotonic and non-overlapping")
+            }
+            if let end = chunk.endTimestamp(format: format) {
+                previousEndTimestamp = end
+            }
+            let (newCount, overflow) = combined.count.addingReportingOverflow(chunk.samples.count)
+            guard !overflow else {
+                throw ChoirError.audioEncodingFailed(reason: "Combined audio is too large")
+            }
+            combined.reserveCapacity(newCount)
+            combined.append(contentsOf: chunk.samples)
+        }
+
+        return try encodeWAV(AudioBuffer(samples: combined, format: format))
+    }
+
     /// Encodes PCM audio to raw format (no header).
     ///
     /// - Parameters:
@@ -60,12 +119,19 @@ public struct AudioEncoder: Sendable {
     /// - Returns: Raw PCM data.
     public func encodeRaw(_ buffer: AudioBuffer) -> Data {
         var rawData = Data()
+        rawData.reserveCapacity(buffer.byteCount)
 
         for sample in buffer.samples {
             rawData.append(sample.littleEndianData)
         }
 
         return rawData
+    }
+
+    /// Validates the PCM format and frame alignment before raw encoding.
+    public func encodeRawValidated(_ buffer: AudioBuffer) throws -> Data {
+        try buffer.validate()
+        return encodeRaw(buffer)
     }
 
     /// Reports that MP3 encoding is unavailable in the current package.
