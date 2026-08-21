@@ -58,11 +58,11 @@ precision are not quantified per voice in §8 and are not yet modelled.
 | `TXT-011` Scripture reference formats | MUST | Implemented | 14 tests in `ScriptureNormalizationTests` |
 | `TXT-012` configurable `NormalizationPolicy` | SHOULD | Implemented | `testConfigurableStyle`, `testCanBeDisabled`, `testVerbatimMode` |
 | `TXT-013` typography (smart quotes, dashes, ellipses, caps) | SHOULD | **Not implemented** | — |
-| `TXT-020` 120,000-word lexicon, ≥92% OOV accuracy | MUST | **Not implemented** | Needs a lexicon and a held-out test set |
-| `TXT-021` ≥60 heteronyms disambiguated by part of speech | MUST | **Not implemented** | — |
+| `TXT-020` 120,000-word lexicon, ≥92% OOV accuracy | MUST | **Partial** | Lexicon implemented — 135,166 CMUdict entries with stress, 8 tests in `BuiltInLexiconTests`. The ≥92% OOV accuracy target is unmeasured: it needs a held-out test set |
+| `TXT-021` ≥60 heteronyms disambiguated by part of speech | MUST | Implemented | 79 heteronyms, 7 tests in `HeteronymTests` |
 | `TXT-022` runtime user lexicon API | MUST | Implemented | 9 tests in `UserLexiconTests` |
-| `TXT-023` biblical/theological proper-noun supplement (≥2,500) | SHOULD | **Not implemented** | Pairs naturally with `TXT-011` |
-| `TXT-024` documented, stable phoneme inventory | MUST | **Not implemented** | — |
+| `TXT-023` biblical/theological proper-noun supplement (≥2,500) | SHOULD | **Partial** | 111 curated entries against a target of 2,500; 6 tests in `TheologicalLexiconTests` |
+| `TXT-024` documented, stable phoneme inventory | MUST | Implemented | 39 phonemes, ARPAbet↔IPA, 8 tests in `PhonemeInventoryTests` |
 | `TXT-030` sentence and phrase segmentation | MUST | **Partial** | Splitting exists; phrase-boundary strength is not passed to prosody |
 | `TXT-031` breath groups for long sentences | MUST | **Not implemented** | — |
 | `TXT-040` SSML-C dialect | MUST | Implemented | 13 tests in `SSMLCParsingTests` — all seven tag types, nestable prosody |
@@ -91,6 +91,40 @@ Part III is where the bulk of the remaining work sits. `TXT-020` through
 `TXT-024` (lexicon, heteronyms, user pronunciations) are the largest block and
 are prerequisites for the acoustic model being useful, since a trained voice
 saying the wrong phonemes is not an improvement.
+
+### The lexicon block
+
+`TXT-020` is satisfied by vendoring CMUdict (135,166 entries, 15,166 above the
+required minimum) as a package resource under its BSD-2-Clause licence, which
+is attribution-only and does not encumber a commercial App Store product. It is
+stored as distributed in ARPAbet and converted to CHOIR's IPA inventory per
+lookup, with results cached: converting all 135,000 entries eagerly would cost
+time and memory for words a request never asks about. Loading is lazy; call
+`BuiltInLexicon.shared.preload()` to pay the cost at launch instead.
+
+Resolution order in `Phonemizer` is: user lexicon (`TXT-022`), then heteronym
+readings when part of speech is known (`TXT-021`), then the built-in lexicon
+(`TXT-020`), then the compact fallback dictionary, then rule-based G2P.
+
+**`TXT-020` remains partial** because the requirement has two halves. The
+lexicon exists; the "≥92% phoneme accuracy on a held-out OOV test set" is
+unmeasured, and claiming it without a test set would be dishonest.
+
+**`TXT-023` is a down-payment, not the corpus.** The requirement asks for 2,500
+entries; 111 are curated. The supplement was built after measuring rather than
+assuming: of a twenty-term theological sample, CMUdict covered six, and among
+the missing were Ecclesiastes, Deuteronomy, Thessalonians, Habakkuk and
+Zephaniah — book names `ScriptureNormalizer` itself emits under `TXT-011`.
+Expanding "Eccl. 3:1" was therefore handing the phonemizer a word it had to
+guess at, undermining the requirement the expansion served. Coverage was
+prioritized accordingly: all canonical book names first, then vocabulary the
+rule fallback handles worst. `TXT-022` remains the escape hatch for anything
+still missing.
+
+**Repository size** grows by about 4 MB for the vendored dictionary. Against
+`PRF-030`'s 400 MB installed-asset budget this is negligible, but it is a real
+cost on every clone and is noted here deliberately.
+
 
 ### Known issue — two markup parsers
 
