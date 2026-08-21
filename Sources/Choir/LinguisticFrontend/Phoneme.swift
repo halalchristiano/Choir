@@ -59,13 +59,23 @@ public struct PhoneticTranscription: Sendable {
     /// spoken, not merely when.
     public let wordTexts: [String]
 
+    /// The prosodic boundary following each word, where one falls (TXT-030).
+    ///
+    /// Keyed by word index. Carried so the prosody model can lengthen pauses
+    /// and reset pitch at structural breaks (TXT-032) — a paragraph break that
+    /// reads exactly like a comma is the difference between a chapter and a
+    /// run-on.
+    public let phraseBoundaries: [Int: PhraseBoundary]
+
     public init(
         phonemes: [Phoneme],
         originalText: String,
         wordBoundaries: [Int] = [],
         syllableBoundaries: [Int] = [],
-        wordTexts: [String] = []
+        wordTexts: [String] = [],
+        phraseBoundaries: [Int: PhraseBoundary] = [:]
     ) {
+        self.phraseBoundaries = phraseBoundaries
         self.phonemes = phonemes
         self.originalText = originalText
         self.wordBoundaries = wordBoundaries

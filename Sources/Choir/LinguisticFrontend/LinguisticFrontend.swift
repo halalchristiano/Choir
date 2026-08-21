@@ -8,6 +8,7 @@ public struct LinguisticFrontend: Sendable {
     private let phonemizer: Phonemizer
     private let stressAssigner: StressAssigner
     private let ssmlParser: SSMLCParser
+    private let segmenter = SentenceSegmenter()
 
     /// Creates a linguistic front end with default components.
     public init(
@@ -159,12 +160,44 @@ public struct LinguisticFrontend: Sendable {
             throw ChoirError.textProcessingFailed(reason: "No phonemes generated from input")
         }
 
+        // TXT-030/TXT-032: attribute a boundary to the word it follows, so the
+        // prosody model can lengthen the pause and reset pitch at structural
+        // breaks rather than treating every gap alike.
+        let boundaries = Self.phraseBoundaries(for: wordTexts, segmenter: segmenter)
+
         return PhoneticTranscription(
             phonemes: allPhonemes,
             originalText: text,
             wordBoundaries: wordBoundaries,
-            wordTexts: wordTexts
+            wordTexts: wordTexts,
+            phraseBoundaries: boundaries
         )
+    }
+
+    /// Maps each breath group's boundary onto the index of its final word.
+    ///
+    /// Word counting rather than index arithmetic, because normalization can
+    /// change how many words a segment yields and the two lists must stay in
+    /// step.
+    static func phraseBoundaries(
+        for wordTexts: [String],
+        segmenter: SentenceSegmenter
+    ) -> [Int: PhraseBoundary] {
+        guard !wordTexts.isEmpty else { return [:] }
+
+        let groups = segmenter.segment(wordTexts.joined(separator: " "))
+        var result: [Int: PhraseBoundary] = [:]
+        var index = 0
+
+        for group in groups {
+            index += group.wordCount
+            let lastWord = index - 1
+            guard lastWord >= 0, lastWord < wordTexts.count else { break }
+            // A later group must not weaken a boundary already recorded.
+            if let existing = result[lastWord], existing > group.boundary { continue }
+            result[lastWord] = group.boundary
+        }
+        return result
     }
 
     /// Applies SSML-based synthesis controls to phonemes.

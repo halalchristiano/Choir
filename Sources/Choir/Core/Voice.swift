@@ -791,6 +791,24 @@ public enum Voice: String, Sendable, CaseIterable, Codable {
         allCases.filter { $0.profile.recommendedUse.contains(tag) }
     }
 
+    /// Creates a voice from a stable string identifier (SRS API-003).
+    ///
+    /// The requirement asks for voices to be addressable "dynamically by
+    /// stable string ID (`Voice(id:)`) for data-driven use (game character
+    /// tables)". Accepts the full identifier, the working name, or the case
+    /// name, so a table written by hand resolves as readily as one generated.
+    public init?(id: String) {
+        let key = id.trimmingCharacters(in: .whitespaces).lowercased()
+        if let exact = Voice(rawValue: key) {
+            self = exact
+            return
+        }
+        guard let match = Voice.allCases.first(where: {
+            $0.displayName.lowercased() == key || "\($0)".lowercased() == key
+        }) else { return nil }
+        self = match
+    }
+
     /// Looks up a voice by its stable identifier (VOX-G-005).
     public static func voice(withIdentifier identifier: String) -> Voice? {
         allCases.first { $0.identifier == identifier }

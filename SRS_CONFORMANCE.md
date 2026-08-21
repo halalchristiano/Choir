@@ -61,11 +61,11 @@ precision are not quantified per voice in §8 and are not yet modelled.
 | `TXT-020` 120,000-word lexicon, ≥92% OOV accuracy | MUST | **Partial — now measured** | Lexicon implemented (135,166 entries). OOV accuracy **measured at 54.2%** against a 92% target; see below |
 | `TXT-021` ≥60 heteronyms disambiguated by part of speech | MUST | Implemented | 79 heteronyms, 7 tests in `HeteronymTests` |
 | `TXT-022` runtime user lexicon API | MUST | Implemented | 9 tests in `UserLexiconTests` |
-| `TXT-023` biblical/theological proper-noun supplement (≥2,500) | SHOULD | **Partial** | 111 curated entries against a target of 2,500; 6 tests in `TheologicalLexiconTests` |
+| `TXT-023` biblical/theological proper-noun supplement (≥2,500) | SHOULD | **Partial** | 196 curated entries against a target of 2,500 |
 | `TXT-024` documented, stable phoneme inventory | MUST | Implemented | 39 phonemes, ARPAbet↔IPA, 8 tests in `PhonemeInventoryTests` |
 | `TXT-030` sentence and phrase segmentation | MUST | Implemented | 10 tests in `SegmentationTests` — abbreviations, initials, decimals, dialogue punctuation, `PhraseBoundary` strength |
 | `TXT-031` breath groups for long sentences | MUST | Implemented | 9 tests in `BreathGroupTests` — word cap and duration ceiling |
-| `TXT-032` paragraph/section pauses and pitch reset | SHOULD | **Partial** | `PhraseBoundary` carries pause length and a pitch-reset flag; the prosody model does not yet act on them |
+| `TXT-032` paragraph/section pauses and pitch reset | SHOULD | Implemented | Boundaries reach the transcription and the prosody model lengthens pauses and resets pitch; 7 tests in `StructuralProsodyTests` |
 | `TXT-040` SSML-C dialect | MUST | Implemented | 13 tests in `SSMLCParsingTests` — all seven tag types, nestable prosody |
 | `TXT-041` graceful degradation + markup diagnostics | MUST | Implemented | 9 tests in `SSMLDegradationTests` — degradation, diagnostics, strict mode |
 | `TXT-042` `<voice>` mid-text switching | MUST | Implemented | `synthesizeMultiVoice` renders each voice run and concatenates; 3 tests in `VoiceSwitchingTests` |
@@ -272,6 +272,58 @@ implementation rather than two.
 XML entity decoding, which only the older parser had, was carried across rather
 than dropped. It runs *after* tag scanning: decoding `&lt;` first would
 manufacture an angle bracket the scanner then mistakes for markup.
+
+---
+
+## Part IV — The Swift Package & API
+
+| Requirement | Priority | Status | Notes |
+|---|---|---|---|
+| `PKG-001` single-import SwiftPM package, no external steps | MUST | Implemented | — |
+| `PKG-002` module layout `CHOIR`/`CHOIRCore`/`CHOIRAssets`/`CHOIRSpatial` | MUST | **Not implemented** | One `Choir` target; the public surface is not confined by module boundary |
+| `PKG-003` minimum deployment targets | MUST | **Fixed** | Was iOS 16 / macOS 13 / watchOS 9 against a required iOS 17 / macOS 14 / watchOS 10 |
+| `PKG-004` zero third-party runtime dependencies | MUST | Implemented | Apple frameworks only |
+| `PKG-005` licence-clean, NOTICE file | MUST | **Fixed** | [NOTICE](./NOTICE) added; no NOTICE existed while CMUdict was already being redistributed |
+| `PKG-006` exportable as signed XCFramework | SHOULD | **Not implemented** | — |
+| `PKG-007` App Store compliance, no private API | MUST | Believed met | No private API used; unverifiable without a submission |
+| `API-001` three concentric tiers | MUST | **Partial** | Tier 1 (`Choir.speak`) added; Tiers 2 and 3 exist; dialogue queues and contour overrides outstanding |
+| `API-002` async for long operations, `Sendable` types | MUST | Implemented | — |
+| `API-003` voices addressable type-safely and by string id | MUST | **Fixed** | `Voice(id:)` added |
+| `API-004` value type, builder, Codable, clamping reported | MUST | **Fixed** | Clamping was silent; now reported in `clampings` |
+| `API-005` DocC on every public symbol | MUST | **Partial** | Broadly documented; not enforced by a gate |
+| `API-006` semantic versioning, no source-breaking change in a major | MUST | Observed | Pre-1.0, where breaking change is permitted |
+| `API-007` SwiftUI convenience layer | SHOULD | **Not implemented** | — |
+| `CON-001` no main-thread block over 1 ms | MUST | **Not verified** | No instrumentation to prove it |
+| `CON-002` cancellation honoured every 50 ms | MUST | **Not implemented** | No cancellation checks in the synthesis loop |
+| `CON-003` actor-isolated, multiple instances | MUST | Implemented | `ChoirEngine` is an actor |
+| `CON-004` QoS discipline, caller-assignable priority | MUST | **Not implemented** | — |
+| `CON-005` shed caches under memory pressure | MUST | **Not implemented** | — |
+| `REL-001` error taxonomy with code, description, recovery | MUST | **Fixed** | Stable `CHOIR-1xxx` codes, recovery suggestions, retryability |
+| `REL-002` caller-selectable partial-failure policy | MUST | **Not implemented** | — |
+| `REL-003` `engine.verify()` self-check | MUST | **Fixed** | Lexicon, voice profiles, initialization, smoke synthesis |
+| `REL-004` zero known reproducible crashes | MUST | **Believed met** | 16 traps fixed across 0.2.x–0.3.x; no fuzzing harness yet (TST-006) |
+| `REL-005` structured logging via `os.Logger` | SHOULD | **Not implemented** | — |
+
+## Part V — Platforms
+
+| Requirement | Priority | Status | Notes |
+|---|---|---|---|
+| `PLT-001` identical API across platforms, divergence documented | MUST | **Partial** | API is identical and CI builds all five; no "Platform Differences" article |
+| `PLT-002` seeded output perceptually identical across platforms | MUST | **Not verified** | Needs a null-test harness comparing renders across devices |
+| `PLT-003` Apple silicon baseline, Intel policy documented | MUST | **Not implemented** | Neither documented nor enforced at package resolution |
+| `PLT-010` full iOS feature set incl. background rendering | MUST | **Partial** | Synthesis works; background execution untested |
+| `PLT-011` audio interruptions and route changes | MUST | **Not implemented** | No playback state machine |
+| `PLT-012` thermal step-down to the efficient path | SHOULD | **Not implemented** | Requires the two vocoder paths of ML-V-006 |
+| `PLT-020` macOS workstation batch, 4 concurrent jobs, CLI | MUST | **Partial** | `choir-benchmark` is a CLI target; concurrency untested |
+| `PLT-021` `choir-cli` render tool | SHOULD | **Not implemented** | — |
+| `SPA-001`…`SPA-005` visionOS spatial audio | MUST/SHOULD | **Not implemented** | Whole spatial layer outstanding |
+| `PLT-030` watchOS documented subset | MUST | **Partial** | Builds and runs on watchOS; no curated on-watch voice set or capability errors |
+
+These two parts were reviewed for the first time in this release. The four
+`MUST` items fixed here were straightforward; the rest are genuine outstanding
+work, and `PKG-002`'s module split and the whole `SPA` spatial layer are the
+largest.
+
 
 ---
 
