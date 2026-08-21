@@ -19,6 +19,8 @@ struct Options {
     var iterations = 5
     var outputPath: String?
     var json = false
+    var intelligibility = false
+    var voice: Voice = .isla
 }
 
 func parseOptions() -> Options {
@@ -47,6 +49,19 @@ func parseOptions() -> Options {
             options.outputPath = path
         case "--json":
             options.json = true
+        case "--intelligibility":
+            options.intelligibility = true
+        case "--voice":
+            guard let raw = arguments.first else { break }
+            arguments.removeFirst()
+            guard let match = Voice.allCases.first(where: {
+                $0.rawValue == raw || $0.displayName.lowercased() == raw.lowercased()
+                    || "\($0)".lowercased() == raw.lowercased()
+            }) else {
+                FileHandle.standardError.write(Data("Unknown voice '\(raw)'\n".utf8))
+                exit(2)
+            }
+            options.voice = match
         case "--help", "-h":
             print("""
             choir-benchmark — CHOIR performance harness (SRS PRF-040)
@@ -60,6 +75,9 @@ func parseOptions() -> Options {
               --iterations N            Timed repetitions per measurement (default 5).
               --output PATH             Write the report to PATH instead of stdout.
               --json                    Emit JSON instead of Markdown.
+              --intelligibility         Run the QUA-004 intelligibility harness
+                                        instead of the performance benchmark.
+              --voice NAME              Voice to measure (default ISLA).
               --help                    Show this message.
             """)
             exit(0)
@@ -86,6 +104,11 @@ if BenchmarkReport.builtWithoutOptimization {
     FileHandle.standardError.write(Data("WARNING: this is an unoptimized build and its numbers are meaningless.\nRe-run with: swift run -c release choir-benchmark\n\n".utf8))
 }
 
+if options.intelligibility {
+    await runIntelligibility(voice: options.voice)
+    exit(0)
+}
+
 let harness = BenchmarkHarness(iterations: options.iterations)
 let report = await harness.run(device: device)
 
@@ -108,3 +131,63 @@ if let path = options.outputPath {
 // A failed target is a non-zero exit, so CI can gate on it once the numbers
 // are meaningful. They are not yet: the acoustic model is a mock.
 exit(report.allTargetsMet ? 0 : 1)
+
+
+/// Runs the QUA-004 intelligibility harness.
+///
+/// Separated from the performance path because it needs a working recognizer
+/// and, more importantly, a working acoustic model: against the current mock
+/// it will score near zero, correctly, because the audio is not speech.
+func runIntelligibility(voice: Voice) async {
+    let transcriber = AppleSpeechTranscriber()
+
+    guard await transcriber.isAvailable else {
+        FileHandle.standardError.write(Data("""
+        Intelligibility cannot be measured here.
+
+        The recognizer '\(transcriber.identifier)' is unavailable. That usually \
+        means speech-recognition authorization has not been granted, or the \
+        on-device model for this locale is not installed.
+
+        This is a failure to measure, not a score of zero.
+
+        """.utf8))
+        exit(3)
+    }
+
+    let engine = ChoirEngine()
+    do {
+        try await engine.initialize()
+    } catch {
+        FileHandle.standardError.write(Data("Engine failed to initialize: \(error)\n".utf8))
+        exit(4)
+    }
+
+    let harness = IntelligibilityHarness()
+    do {
+        let report = try await harness.evaluate(
+            voice: voice, engine: engine, transcriber: transcriber)
+        print("# CHOIR Intelligibility Report (QUA-004)")
+        print("")
+        print("- **Voice:** \(report.voice.displayName)")
+        print("- **Recognizer:** \(report.transcriberIdentifier)")
+        print("- **Corpus:** \(harness.sentences.count) Harvard sentences")
+        print("")
+        print(report.summary)
+        print("")
+        print("| Reference | Transcribed | Accuracy |")
+        print("|---|---|---:|")
+        for score in report.scores {
+            print(String(format: "| %@ | %@ | %.0f%% |",
+                         score.reference,
+                         score.hypothesis.isEmpty ? "_(nothing)_" : score.hypothesis,
+                         score.wordAccuracy * 100))
+        }
+        print("")
+        print("> The acoustic model is currently a mock and the vocoder is Griffin-Lim.")
+        print("> A near-zero score here is the correct result: the audio is not speech.")
+    } catch {
+        FileHandle.standardError.write(Data("Intelligibility run failed: \(error)\n".utf8))
+        exit(5)
+    }
+}
