@@ -44,8 +44,61 @@ public enum HarvardSentences {
     /// The corpus used by default: twenty sentences across two lists.
     public static let standard = list1 + list2
 
+    /// The canonical lists in their published, one-based order.
+    public static let lists = [list1, list2]
+
+    /// Returns a published list by its one-based list number.
+    public static func list(number: Int) -> [String]? {
+        guard number > 0, number <= lists.count else { return nil }
+        return lists[number - 1]
+    }
+
+    /// Selects a bounded, reproducible, list-balanced subset of the corpus.
+    ///
+    /// Each list is shuffled by the local fixed algorithm and then sampled in
+    /// round-robin order. The result therefore does not depend on Swift's
+    /// randomized hashing or on the random-number implementation of a host OS.
+    public static func deterministicSelection(
+        count: Int,
+        seed: UInt64 = 0
+    ) -> [String] {
+        guard count > 0 else { return [] }
+        let requestedCount = min(count, standard.count)
+        let shuffledLists = lists.enumerated().map { index, list in
+            stableShuffle(list, seed: seed &+ UInt64(index))
+        }
+        guard !shuffledLists.isEmpty else { return [] }
+
+        let startingList = Int(seed % UInt64(shuffledLists.count))
+        return (0..<requestedCount).map { offset in
+            let listIndex = (startingList + offset) % shuffledLists.count
+            let position = offset / shuffledLists.count
+            return shuffledLists[listIndex][position]
+        }
+    }
+
     /// Total reference words in the standard corpus.
     public static var standardWordCount: Int {
         standard.reduce(0) { $0 + TranscriptionScoring.normalizedWords($1).count }
+    }
+
+    private static func stableShuffle(_ values: [String], seed: UInt64) -> [String] {
+        guard values.count > 1 else { return values }
+        var result = values
+        var state = seed
+        for upperBound in stride(from: result.count - 1, through: 1, by: -1) {
+            let index = Int(nextRandom(&state) % UInt64(upperBound + 1))
+            result.swapAt(upperBound, index)
+        }
+        return result
+    }
+
+    /// SplitMix64, embedded so corpus selection is stable across platforms.
+    private static func nextRandom(_ state: inout UInt64) -> UInt64 {
+        state &+= 0x9E3779B97F4A7C15
+        var value = state
+        value = (value ^ (value >> 30)) &* 0xBF58476D1CE4E5B9
+        value = (value ^ (value >> 27)) &* 0x94D049BB133111EB
+        return value ^ (value >> 31)
     }
 }

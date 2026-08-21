@@ -1,7 +1,7 @@
 import Foundation
 
 /// Configures normalization behaviour (SRS TXT-012).
-public struct NormalizationPolicy: Sendable, Equatable {
+public struct NormalizationPolicy: Sendable, Equatable, Hashable, Codable {
     /// Whether Scripture references are expanded as a first-class category
     /// (TXT-011). When false they fall through to ordinary number handling.
     public var expandsScriptureReferences: Bool
@@ -43,7 +43,7 @@ public struct NormalizationPolicy: Sendable, Equatable {
 /// Normalizes text for text-to-speech synthesis.
 ///
 /// Handles numbers, abbreviations, currency, acronyms, and other special text formats.
-public struct TextNormalizer: Sendable {
+public struct TextNormalizer: Sendable, Equatable, Hashable, Codable {
     /// Common abbreviations and their expansions.
     private static let abbreviations: [String: String] = [
         "mr.": "mister",
@@ -128,8 +128,10 @@ public struct TextNormalizer: Sendable {
     ]
 
     // MARK: - Cached Regex Patterns
-    private static let dollarRegex = try! NSRegularExpression(pattern: #"\$(\d+(?:\.\d{2})?)"#)
-    private static let multiSpaceRegex = try! NSRegularExpression(pattern: " +")
+    private static let dollarRegex = try! NSRegularExpression(
+        pattern: #"(?<![\p{L}\p{N}_])(-?)\$\s*(-?)(\d{1,3}(?:,\d{3})*|\d+)(?:\.(\d{1,2}))?(?![\d.,])"#)
+    private static let contractionRegex = lexicalRegex(for: contractions.keys)
+    private static let abbreviationRegex = lexicalRegex(for: abbreviations.keys)
     private static let hyphenRegex = try! NSRegularExpression(pattern: "([a-z])-([a-z])")
     private static let multiPunctuationRegex = try! NSRegularExpression(pattern: "[.!?]{2,}")
 
@@ -181,11 +183,12 @@ public struct TextNormalizer: Sendable {
 
         // --- Case-insensitive stages ---
 
-        result = expandDictionary(result, Self.contractions)
+        result = expandDictionary(result, Self.contractions, matching: Self.contractionRegex)
 
         // Scripture claims "book 3:16" before the clock-time stage can read it
         // as half past three (TXT-011).
-        if policy.expandsScriptureReferences, flags.hasColon {
+        if policy.expandsScriptureReferences,
+           flags.hasColon || result.contains("\u{FF1A}") {
             result = ScriptureNormalizer(style: policy.scriptureStyle).normalize(result)
         }
 
@@ -194,7 +197,7 @@ public struct TextNormalizer: Sendable {
         // whole input to discover the same thing -- which matters at the
         // 1,000,000 characters TXT-001 requires the engine to accept.
         guard flags.hasDigit else {
-            result = expandDictionary(result, Self.abbreviations)
+            result = expandDictionary(result, Self.abbreviations, matching: Self.abbreviationRegex)
             if flags.hasWideDash { result = foldDashPauses(result) }
             return cleanPunctuation(result).trimmingCharacters(in: .whitespaces)
         }
@@ -235,7 +238,7 @@ public struct TextNormalizer: Sendable {
         // Whatever integers remain are cardinals.
         result = expandNumbers(result)
 
-        result = expandDictionary(result, Self.abbreviations)
+        result = expandDictionary(result, Self.abbreviations, matching: Self.abbreviationRegex)
 
         // TXT-013: dashes become pauses only now that every range pattern
         // that needed the dash character has already matched.
@@ -246,16 +249,43 @@ public struct TextNormalizer: Sendable {
     }
 
     /// Expands a dictionary of text replacements.
-    private func expandDictionary(_ text: String, _ expansions: [String: String]) -> String {
+    private func expandDictionary(
+        _ text: String,
+        _ expansions: [String: String],
+        matching regex: NSRegularExpression
+    ) -> String {
         var result = text
-        for (original, replacement) in expansions {
-            result = result.replacingOccurrences(
-                of: original,
-                with: replacement,
-                options: .caseInsensitive
-            )
+        let matches = regex.matches(
+            in: text,
+            range: NSRange(text.startIndex..<text.endIndex, in: text)
+        )
+
+        // Rewriting from the end preserves every range established by the
+        // single deterministic, longest-alternative-first regex scan.
+        for match in matches.reversed() {
+            guard let sourceRange = Range(match.range, in: text),
+                  let resultRange = Range(match.range, in: result),
+                  let replacement = expansions[String(text[sourceRange]).lowercased()]
+            else { continue }
+            result.replaceSubrange(resultRange, with: replacement)
         }
         return result
+    }
+
+    /// Builds a literal, case-insensitive matcher whose alternatives have a
+    /// stable longest-first order and cannot match inside a larger word.
+    private static func lexicalRegex<S: Sequence>(for terms: S) -> NSRegularExpression
+    where S.Element == String {
+        let alternatives = terms.sorted {
+            $0.count == $1.count ? $0 < $1 : $0.count > $1.count
+        }
+        .map(NSRegularExpression.escapedPattern(for:))
+        .joined(separator: "|")
+
+        return try! NSRegularExpression(
+            pattern: "(?<![\\p{L}\\p{N}_])(?:\(alternatives))(?![\\p{L}\\p{N}_])",
+            options: [.caseInsensitive]
+        )
     }
 
     /// Expands numbers to words (e.g., "123" → "one hundred twenty three").
@@ -292,34 +322,49 @@ public struct TextNormalizer: Sendable {
 
     /// Expands currency notation (e.g., "$50" → "fifty dollars").
     private func expandCurrency(_ text: String) -> String {
-        var result = text
-        let range = NSRange(result.startIndex..<result.endIndex, in: result)
-        let matches = Self.dollarRegex.matches(in: result, range: range)
+        Self.replacing(Self.dollarRegex, in: text) { groups in
+            guard let wholeToken = groups[3] else { return nil }
 
-        for match in matches.reversed() {
-            if let matchRange = Range(match.range(at: 1), in: result) {
-                let numberStr = String(result[matchRange])
-                let expanded = numberToWords(numberStr) + " dollars"
-                if let fullRange = Range(match.range, in: result) {
-                    result.replaceSubrange(fullRange, with: expanded)
-                }
+            let signBefore = groups[1] ?? ""
+            let signAfter = groups[2] ?? ""
+            // Accept both conventional -$5 and commonly entered $-5, but do
+            // not reinterpret malformed double-sign input.
+            guard signBefore.isEmpty || signAfter.isEmpty else { return nil }
+
+            let digits = wholeToken.replacingOccurrences(of: ",", with: "")
+            guard let whole = Int64(digits) else { return nil }
+
+            let cents: Int64
+            if let fraction = groups[4] {
+                let padded = fraction.count == 1 ? fraction + "0" : fraction
+                guard let parsed = Int64(padded) else { return nil }
+                cents = parsed
+            } else {
+                cents = 0
             }
-        }
 
-        return result
+            let dollarNoun = whole == 1 ? "dollar" : "dollars"
+            let dollarPhrase = "\(NumberSpelling.words(for: whole)) \(dollarNoun)"
+            let centNoun = cents == 1 ? "cent" : "cents"
+            let centPhrase = "\(NumberSpelling.words(for: cents)) \(centNoun)"
+
+            let amount: String
+            if whole == 0, cents > 0 {
+                amount = centPhrase
+            } else if cents > 0 {
+                amount = "\(dollarPhrase) and \(centPhrase)"
+            } else {
+                amount = dollarPhrase
+            }
+
+            let isNegative = !signBefore.isEmpty || !signAfter.isEmpty
+            return isNegative && (whole > 0 || cents > 0) ? "minus \(amount)" : amount
+        }
     }
 
     /// Cleans and normalizes punctuation.
     private func cleanPunctuation(_ text: String) -> String {
-        var result = text
-        let range = NSRange(result.startIndex..<result.endIndex, in: result)
-
-        // Replace multiple spaces with single space
-        result = Self.multiSpaceRegex.stringByReplacingMatches(
-            in: result,
-            range: range,
-            withTemplate: " "
-        )
+        var result = collapseWhitespace(text)
 
         // Remove hyphens between letters (e-mail → email)
         var rangeAfterFirst = NSRange(result.startIndex..<result.endIndex, in: result)
@@ -337,6 +382,49 @@ public struct TextNormalizer: Sendable {
             withTemplate: "."
         )
 
+        return result
+    }
+
+    /// Collapses horizontal Unicode whitespace and single line breaks while
+    /// preserving paragraph structure as a canonical double newline.
+    /// Leading and trailing whitespace are removed in the same pass.
+    private func collapseWhitespace(_ text: String) -> String {
+        var result = ""
+        result.reserveCapacity(text.count)
+        var pendingSpace = false
+        var pendingLineBreaks = 0
+        var previousWasCarriageReturn = false
+
+        for character in text {
+            if character == "\r" {
+                pendingLineBreaks += 1
+                previousWasCarriageReturn = true
+            } else if character == "\n" {
+                if !previousWasCarriageReturn { pendingLineBreaks += 1 }
+                previousWasCarriageReturn = false
+            } else if character == "\u{2028}" {
+                pendingLineBreaks += 1
+                previousWasCarriageReturn = false
+            } else if character == "\u{2029}" {
+                pendingLineBreaks = max(2, pendingLineBreaks)
+                previousWasCarriageReturn = false
+            } else if character.isWhitespace {
+                pendingSpace = !result.isEmpty
+                previousWasCarriageReturn = false
+            } else {
+                if !result.isEmpty {
+                    if pendingLineBreaks >= 2 {
+                        result.append("\n\n")
+                    } else if pendingLineBreaks == 1 || pendingSpace {
+                        result.append(" ")
+                    }
+                }
+                result.append(character)
+                pendingSpace = false
+                pendingLineBreaks = 0
+                previousWasCarriageReturn = false
+            }
+        }
         return result
     }
 }

@@ -17,6 +17,18 @@ public enum ReferenceDevice: String, Sendable, Equatable, Codable, CaseIterable 
     /// Apple Vision Pro.
     case r5VisionPro = "R5"
 
+    /// Resolves a report or command-line identifier without locale-sensitive
+    /// casing. Both stable R-numbers and human-readable names are accepted.
+    public init?(identifier: String) {
+        let key = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { return nil }
+        guard let device = Self.allCases.first(where: {
+            $0.rawValue.caseInsensitiveCompare(key) == .orderedSame
+                || $0.displayName.caseInsensitiveCompare(key) == .orderedSame
+        }) else { return nil }
+        self = device
+    }
+
     public var displayName: String {
         switch self {
         case .r1iPhone13: return "iPhone 13 (A15)"

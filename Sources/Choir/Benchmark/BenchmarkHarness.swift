@@ -1,5 +1,22 @@
 import Foundation
 
+/// The outcome of judging one benchmark measurement.
+public enum BenchmarkJudgement: String, Sendable, Equatable, Codable {
+    case passed
+    case failed
+    case untargeted
+    case invalid
+
+    public var statusText: String {
+        switch self {
+        case .passed: return "PASS"
+        case .failed: return "FAIL"
+        case .untargeted: return "no target"
+        case .invalid: return "INVALID"
+        }
+    }
+}
+
 /// One measured performance number, judged against its requirement.
 public struct BenchmarkMeasurement: Sendable, Equatable, Codable {
     /// The requirement this measures, e.g. `"PRF-001"`.
@@ -46,9 +63,16 @@ public struct BenchmarkMeasurement: Sendable, Equatable, Codable {
         minimum: Double? = nil,
         maximum: Double? = nil
     ) {
-        self.samples = samples
-        self.minimum = minimum
-        self.maximum = maximum
+        self.samples = max(0, samples)
+        let finiteMinimum = minimum.flatMap { $0.isFinite ? $0 : nil }
+        let finiteMaximum = maximum.flatMap { $0.isFinite ? $0 : nil }
+        if let finiteMinimum, let finiteMaximum, finiteMinimum > finiteMaximum {
+            self.minimum = finiteMaximum
+            self.maximum = finiteMinimum
+        } else {
+            self.minimum = finiteMinimum
+            self.maximum = finiteMaximum
+        }
         self.requirement = requirement
         self.name = name
         self.value = value
@@ -58,22 +82,59 @@ public struct BenchmarkMeasurement: Sendable, Equatable, Codable {
         self.caveat = caveat
     }
 
+    /// Whether the value, target, and optional range are usable evidence.
+    ///
+    /// Empty labels, zero successful samples, half-present ranges, and ranges
+    /// that do not contain their summary are all malformed measurements. The
+    /// benchmark report keeps them visible, but never lets them pass a target.
+    public var isValid: Bool {
+        guard !requirement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !unit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              samples > 0,
+              value.isFinite,
+              target?.isFinite != false
+        else { return false }
+
+        switch (minimum, maximum) {
+        case (nil, nil):
+            return true
+        case let (minimum?, maximum?):
+            return minimum.isFinite && maximum.isFinite
+                && minimum <= maximum && minimum <= value && value <= maximum
+        default:
+            return false
+        }
+    }
+
+    /// A typed result that distinguishes missing targets from invalid data.
+    public var judgement: BenchmarkJudgement {
+        guard isValid else { return .invalid }
+        guard let target else { return .untargeted }
+        let passed = lowerIsBetter ? value <= target : value >= target
+        return passed ? .passed : .failed
+    }
+
     /// Whether the measurement meets its target.
     ///
     /// `nil` when there is no target for this device — untargeted is not the
     /// same as passing.
     public var meetsTarget: Bool? {
-        guard let target else { return nil }
-        return lowerIsBetter ? value <= target : value >= target
-    }
-
-    public var statusText: String {
-        switch meetsTarget {
-        case true: return "PASS"
-        case false: return "FAIL"
-        case nil: return "no target"
+        switch judgement {
+        case .passed: return true
+        case .failed: return false
+        case .untargeted: return nil
+        case .invalid: return target == nil ? nil : false
         }
     }
+
+    /// Signed distance from the target; non-negative means the target is met.
+    public var targetMargin: Double? {
+        guard isValid, let target else { return nil }
+        return lowerIsBetter ? target - value : value - target
+    }
+
+    public var statusText: String { judgement.statusText }
 }
 
 /// A complete benchmark run (SRS PRF-040).
@@ -130,11 +191,57 @@ public struct BenchmarkReport: Sendable, Equatable, Codable {
 
     /// Measurements that failed their target.
     public var failures: [BenchmarkMeasurement] {
-        measurements.filter { $0.meetsTarget == false }
+        measurements.filter { $0.judgement == .failed }
     }
 
-    /// Whether every targeted measurement passed.
-    public var allTargetsMet: Bool { failures.isEmpty }
+    /// Measurements that passed their target.
+    public var passedMeasurements: [BenchmarkMeasurement] {
+        measurements.filter { $0.judgement == .passed }
+    }
+
+    /// Valid measurements for which the specification sets no target.
+    public var untargetedMeasurements: [BenchmarkMeasurement] {
+        measurements.filter { $0.judgement == .untargeted }
+    }
+
+    /// Measurements that cannot safely be judged.
+    public var invalidMeasurements: [BenchmarkMeasurement] {
+        measurements.filter { $0.judgement == .invalid }
+    }
+
+    /// The fraction of valid, targeted measurements that passed.
+    public var targetPassRate: Double? {
+        let judgedCount = passedMeasurements.count + failures.count
+        guard judgedCount > 0 else { return nil }
+        return Double(passedMeasurements.count) / Double(judgedCount)
+    }
+
+    /// Whether at least one target was measured and every such result passed.
+    public var allTargetsMet: Bool {
+        let targeted = measurements.filter { $0.target != nil }
+        return !targeted.isEmpty && targeted.allSatisfy { $0.judgement == .passed }
+    }
+
+    /// Finds all measurements for a requirement, ignoring case and padding.
+    public func measurements(forRequirement requirement: String) -> [BenchmarkMeasurement] {
+        let key = Self.normalizedRequirement(requirement)
+        guard !key.isEmpty else { return [] }
+        return measurements.filter { Self.normalizedRequirement($0.requirement) == key }
+    }
+
+    /// A deterministic view suitable for reports and release-to-release diffs.
+    public var measurementsSortedByRequirement: [BenchmarkMeasurement] {
+        measurements.enumerated().sorted { lhs, rhs in
+            let lhsRequirement = Self.normalizedRequirement(lhs.element.requirement)
+            let rhsRequirement = Self.normalizedRequirement(rhs.element.requirement)
+            if lhsRequirement != rhsRequirement { return lhsRequirement < rhsRequirement }
+
+            let lhsName = lhs.element.name.lowercased()
+            let rhsName = rhs.element.name.lowercased()
+            if lhsName != rhsName { return lhsName < rhsName }
+            return lhs.offset < rhs.offset
+        }.map { $0.element }
+    }
 
     /// The report as Markdown, for shipping alongside a release (PRF-040).
     public func markdown() -> String {
@@ -147,27 +254,33 @@ public struct BenchmarkReport: Sendable, Equatable, Codable {
             lines.append("> not a slower release build; it is a different program.")
             lines.append("")
         }
-        lines.append("- **Package version:** \(packageVersion)")
-        lines.append("- **Host:** \(hostDescription)")
-        lines.append("- **Reference device:** \(device.map { "\($0.rawValue) — \($0.displayName)" } ?? "not a reference device; targets not applied")")
+        lines.append("- **Package version:** \(Self.markdownText(packageVersion))")
+        lines.append("- **Host:** \(Self.markdownText(hostDescription))")
+        let deviceDescription = device.map { "\($0.rawValue) — \($0.displayName)" }
+            ?? "not a reference device; targets not applied"
+        lines.append("- **Reference device:** \(Self.markdownText(deviceDescription))")
+        lines.append("- **Results:** \(passedMeasurements.count) passed; \(failures.count) failed; \(untargetedMeasurements.count) no target; \(invalidMeasurements.count) invalid")
         lines.append("")
         lines.append("| Requirement | Measurement | Median | Range | Samples | Target | Status |")
         lines.append("|---|---|---:|---:|---:|---:|---|")
-        for m in measurements {
-            let target = m.target.map { String(format: "%.2f %@", $0, m.unit) } ?? "—"
+        for m in measurementsSortedByRequirement {
+            let requirement = Self.markdownText(m.requirement)
+            let name = Self.markdownText(m.name)
+            let unit = Self.markdownText(m.unit)
+            let target = m.target.map { "\(Self.formattedNumber($0)) \(unit)" } ?? "—"
             let range: String
             if let low = m.minimum, let high = m.maximum, m.samples > 1 {
-                range = String(format: "%.2f–%.2f", low, high)
+                range = "\(Self.formattedNumber(low))–\(Self.formattedNumber(high))"
             } else {
                 range = "—"
             }
-            lines.append(String(
-                format: "| `%@` | %@ | %.2f %@ | %@ | %d | %@ | %@ |",
-                m.requirement, m.name, m.value, m.unit, range, m.samples, target, m.statusText))
+            lines.append("| `\(requirement)` | \(name) | \(Self.formattedNumber(m.value)) \(unit) | \(range) | \(m.samples) | \(target) | \(m.statusText) |")
         }
 
         let caveats = measurements.compactMap { m in
-            m.caveat.map { "- **\(m.requirement)** \(m.name): \($0)" }
+            m.caveat.map {
+                "- **\(Self.markdownText(m.requirement))** \(Self.markdownText(m.name)): \(Self.markdownText($0))"
+            }
         }
         if !caveats.isEmpty {
             lines.append("")
@@ -180,9 +293,38 @@ public struct BenchmarkReport: Sendable, Equatable, Codable {
             lines.append("")
             lines.append("## Not measured by this harness")
             lines.append("")
-            lines.append(contentsOf: notMeasured.map { "- \($0)" })
+            lines.append(contentsOf: notMeasured.map { "- \(Self.markdownText($0))" })
         }
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    private static func normalizedRequirement(_ requirement: String) -> String {
+        requirement.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    }
+
+    /// Fixed-locale formatting keeps release diffs independent of host locale.
+    private static func formattedNumber(_ value: Double) -> String {
+        guard value.isFinite else { return "invalid" }
+        return String(
+            format: "%.2f",
+            locale: Locale(identifier: "en_US_POSIX"),
+            arguments: [value])
+    }
+
+    /// Keeps caller-provided text on one line and out of Markdown structure.
+    private static func markdownText(_ text: String) -> String {
+        text.components(separatedBy: .newlines)
+            .joined(separator: " ")
+            .replacingOccurrences(of: "\t", with: " ")
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "|", with: "\\|")
+            .replacingOccurrences(of: "`", with: "&#96;")
+            .replacingOccurrences(of: "*", with: "\\*")
+            .replacingOccurrences(of: "_", with: "\\_")
+            .replacingOccurrences(of: "[", with: "\\[")
+            .replacingOccurrences(of: "]", with: "\\]")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
     }
 }
 
@@ -359,12 +501,70 @@ public struct BenchmarkHarness: Sendable {
     /// Median of a sample set. Chosen over the mean because a single scheduler
     /// stall on a shared machine drags a mean across a target boundary.
     static func median(_ values: [Double]) -> Double {
-        guard !values.isEmpty else { return 0 }
-        let sorted = values.sorted()
+        let sorted = values.filter(\.isFinite).sorted()
+        guard !sorted.isEmpty else { return 0 }
         let middle = sorted.count / 2
         return sorted.count % 2 == 0
-            ? (sorted[middle - 1] + sorted[middle]) / 2
+            ? safeMidpoint(sorted[middle - 1], sorted[middle])
             : sorted[middle]
+    }
+
+    /// Linearly interpolated quantile in the closed range 0...1.
+    ///
+    /// Non-finite samples are ignored. Invalid quantiles and sample sets with
+    /// no finite values return `nil`, keeping absence distinct from zero.
+    static func percentile(_ quantile: Double, of values: [Double]) -> Double? {
+        guard quantile.isFinite, (0...1).contains(quantile) else { return nil }
+        let sorted = values.filter(\.isFinite).sorted()
+        guard let first = sorted.first else { return nil }
+        guard sorted.count > 1 else { return first }
+
+        let rank = quantile * Double(sorted.count - 1)
+        let lowerIndex = Int(rank.rounded(.down))
+        let upperIndex = Int(rank.rounded(.up))
+        guard lowerIndex != upperIndex else { return sorted[lowerIndex] }
+        return interpolate(
+            from: sorted[lowerIndex],
+            to: sorted[upperIndex],
+            fraction: rank - Double(lowerIndex))
+    }
+
+    /// Unbiased sample standard deviation, calculated in one stable pass.
+    static func sampleStandardDeviation(_ values: [Double]) -> Double? {
+        let finiteValues = values.filter(\.isFinite)
+        guard finiteValues.count > 1 else { return nil }
+
+        var count = 0
+        var mean = 0.0
+        var sumOfSquaredDifferences = 0.0
+        for value in finiteValues {
+            count += 1
+            let delta = value - mean
+            mean += delta / Double(count)
+            let adjustedDelta = value - mean
+            sumOfSquaredDifferences += delta * adjustedDelta
+        }
+
+        guard sumOfSquaredDifferences.isFinite else { return nil }
+        return sqrt(max(0, sumOfSquaredDifferences / Double(count - 1)))
+    }
+
+    private static func safeMidpoint(_ lower: Double, _ upper: Double) -> Double {
+        if lower.sign == upper.sign {
+            return lower + (upper - lower) / 2
+        }
+        return (lower + upper) / 2
+    }
+
+    private static func interpolate(
+        from lower: Double,
+        to upper: Double,
+        fraction: Double
+    ) -> Double {
+        if lower.sign == upper.sign {
+            return lower + (upper - lower) * fraction
+        }
+        return lower * (1 - fraction) + upper * fraction
     }
 
     /// PRF-010: warm engine to first audio for a typical sentence.
