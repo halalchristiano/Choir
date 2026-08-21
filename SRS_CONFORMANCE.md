@@ -51,7 +51,7 @@ precision are not quantified per voice in §8 and are not yet modelled.
 
 | Requirement | Priority | Status | Verified by |
 |---|---|---|---|
-| `TXT-001` accept 1 … 1,000,000 characters | MUST | Implemented | `testSingleCharacter`, `testLargeRepeatedInput` |
+| `TXT-001` accept 1 … 1,000,000 characters | MUST | **Fixed** | The engine capped input at 5,000 characters — see below |
 | `TXT-002` never crash, hang, or produce unbounded output | MUST | **Implemented — was violated** | `testNormalizerRobustness`, `testFrontendRobustness` (29 adversarial inputs) |
 | `TXT-003` input mode selected explicitly, never guessed | MUST | Implemented | 7 tests in `InputModeTests` — `SynthesisInput` with plain-text, markup and phoneme modes |
 | `TXT-010` full normalization inventory | MUST | Implemented | 19 tests in `NormalizationInventoryTests` — every named category |
@@ -294,15 +294,65 @@ manufacture an angle bracket the scanner then mistakes for markup.
 | `API-006` semantic versioning, no source-breaking change in a major | MUST | Observed | Pre-1.0, where breaking change is permitted |
 | `API-007` SwiftUI convenience layer | SHOULD | **Not implemented** | — |
 | `CON-001` no main-thread block over 1 ms | MUST | **Not verified** | No instrumentation to prove it |
-| `CON-002` cancellation honoured every 50 ms | MUST | **Not implemented** | No cancellation checks in the synthesis loop |
+| `CON-002` cancellation honoured every 50 ms | MUST | Implemented | Checked between every pipeline stage and every 64 words while phonemizing; 6 tests |
 | `CON-003` actor-isolated, multiple instances | MUST | Implemented | `ChoirEngine` is an actor |
 | `CON-004` QoS discipline, caller-assignable priority | MUST | **Not implemented** | — |
 | `CON-005` shed caches under memory pressure | MUST | **Not implemented** | — |
 | `REL-001` error taxonomy with code, description, recovery | MUST | **Fixed** | Stable `CHOIR-1xxx` codes, recovery suggestions, retryability |
-| `REL-002` caller-selectable partial-failure policy | MUST | **Not implemented** | — |
+| `REL-002` caller-selectable partial-failure policy | MUST | Implemented | `synthesizeBatch(texts:voice:parameters:policy:)`; 6 tests in `BatchPolicyTests` |
 | `REL-003` `engine.verify()` self-check | MUST | **Fixed** | Lexicon, voice profiles, initialization, smoke synthesis |
 | `REL-004` zero known reproducible crashes | MUST | **Believed met** | 16 traps fixed across 0.2.x–0.3.x; no fuzzing harness yet (TST-006) |
 | `REL-005` structured logging via `os.Logger` | SHOULD | **Not implemented** | — |
+
+### TXT-001: the engine rejected long input
+
+`validateText` capped input at **5,000 characters**. `TXT-001` requires
+accepting "from 1 character to at least 1,000,000 characters per request" — two
+orders of magnitude more, and small enough to reject a single chapter of the
+audiobooks the specification names as a primary workload.
+
+The robustness tests never caught it because they exercise `TextNormalizer` and
+`LinguisticFrontend` directly, where no such cap exists. Only the engine's
+public entry point enforced it, and every test that went through the engine used
+a short sentence. It surfaced when a *cancellation* test needed input long
+enough to still be running when cancelled.
+
+The ceiling now sits at the documented figure. It exists to turn an unbounded
+allocation into a typed error, not to cap ordinary use.
+
+### CON-002 and SYN-007: cancellation
+
+Nothing checked cancellation before this release. A sixty-minute audiobook
+render — the workload `PRF-001` is written around — could not be stopped once
+started, and `REL-001` already declared cancellation part of the error taxonomy
+while nothing could produce it.
+
+Checks sit between every pipeline stage, and every 64 words inside the
+phonemization loop, the one unbounded loop in the front end. Both are far inside
+the 50 ms `CON-002` allows, without paying an atomic read per word.
+
+`CancellationError` is mapped to `ChoirError.cancelled` at the boundary, because
+`REL-001` requires *a single* public taxonomy covering cancellation: a caller
+catching `ChoirError` should not also have to catch a second error type for the
+one outcome the taxonomy already names.
+
+For `SYN-007`'s "model left in reusable state": the engine holds no per-request
+mutable state, so restoring `state` on every exit path — including a throw from a
+cancellation check partway through a stage — is the whole guarantee. A test
+confirms the engine still synthesizes and still passes `verify()` afterwards.
+
+### REL-002: batch failure policy
+
+The choice is not cosmetic. When items form one artifact — the chapters of an
+audiobook — half a result is worthless and `.failFast` is right. When they are
+independent, such as a table of game lines, one unpronounceable name should not
+cost the other four hundred, and `.continueAndReport` is right.
+
+Cancellation is deliberately not an item failure: it ends the whole job
+regardless of policy, or a cancelled batch would be reported as a batch of four
+hundred failures.
+
+
 
 ## Part V — Platforms
 

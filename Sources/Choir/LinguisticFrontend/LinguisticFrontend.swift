@@ -120,7 +120,14 @@ public struct LinguisticFrontend: Sendable {
             // Split into words
             let words = normalizedText.split(separator: " ", omittingEmptySubsequences: true)
 
-            for word in words {
+            for (wordIndex, word) in words.enumerated() {
+                // CON-002: phonemizing a long document is the one unbounded
+                // loop in the front end, so it is checked periodically rather
+                // than only at the stage boundary. Every 64 words is far
+                // inside the 50 ms the requirement allows, without paying an
+                // atomic read per word.
+                if wordIndex % 64 == 0 { try Cancellation.check() }
+
                 wordBoundaries.append(allPhonemes.count)
 
                 let wordStr = String(word)

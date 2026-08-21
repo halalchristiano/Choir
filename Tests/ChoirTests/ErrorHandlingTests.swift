@@ -97,12 +97,14 @@ struct ErrorHandlingTests {
 
     // MARK: - invalidParameter Tests (Text Too Long)
 
-    @Test("invalidParameter error for text exceeding 5000 characters")
+    @Test("invalidParameter error for text beyond the TXT-001 ceiling")
     func testTextTooLongThrowsInvalidParameter() async {
         let engine = ChoirEngine()
         try? await engine.initialize()
 
-        let longText = String(repeating: "a", count: 5001)
+        // TXT-001 requires at least a million characters to be accepted,
+        // so the rejection threshold is the documented ceiling, not 5,000.
+        let longText = String(repeating: "a", count: ChoirEngine.maximumInputCharacters + 1)
 
         do {
             _ = try await engine.synthesize(text: longText, voice: .isla)
@@ -123,13 +125,15 @@ struct ErrorHandlingTests {
         let engine = ChoirEngine()
         try? await engine.initialize()
 
-        let longText = String(repeating: "x", count: 5001)
+        let longText = String(repeating: "x", count: ChoirEngine.maximumInputCharacters + 1)
 
         do {
             _ = try await engine.synthesize(text: longText, voice: .garrick)
         } catch let error as ChoirError {
             let message = error.errorDescription ?? ""
-            #expect(message.contains("5000"))
+            // The message must name the documented ceiling, which TXT-001
+            // sets at a million characters rather than the old 5,000.
+            #expect(message.contains("\(ChoirEngine.maximumInputCharacters)"))
         } catch {
             #expect(Bool(false), "Wrong error type")
         }
