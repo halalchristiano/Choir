@@ -65,11 +65,69 @@ public actor ChoirEngine {
             throw ChoirError.notInitialized
         }
 
+        // SYN-007 requires cancellation to leave the model "in a reusable
+        // state". The engine holds no per-request mutable state, so restoring
+        // `state` on every exit path — including a throw from a cancellation
+        // check partway through a stage — is the whole guarantee.
         let savedState = state
         self.state = .synthesizing
         defer { self.state = savedState }
 
         return try await pipeline.synthesize(text: text, voice: voice, parameters: parameters)
+    }
+
+    /// Synthesizes many items, with a caller-selected failure policy
+    /// (SRS REL-002).
+    ///
+    /// "Partial-failure policy for batch/multi-item jobs shall be
+    /// caller-selectable: fail-fast, or continue-and-report (result carries
+    /// per-item success/error list)."
+    ///
+    /// The choice is not cosmetic. When the items form one artifact — the
+    /// chapters of an audiobook — half a result is worthless and `.failFast`
+    /// is right. When they are independent, such as a table of game lines, one
+    /// unpronounceable name should not cost the other four hundred, and
+    /// `.continueAndReport` is right.
+    ///
+    /// Cancellation is honoured between items as well as inside them
+    /// (CON-002), so a long batch stops promptly.
+    public func synthesizeBatch(
+        texts: [String],
+        voice: Voice,
+        parameters: SynthesisParameters = SynthesisParameters(),
+        policy: PartialFailurePolicy = .failFast
+    ) async throws -> BatchResult {
+        try validateState()
+        guard let pipeline = pipeline else { throw ChoirError.notInitialized }
+
+        var outcomes: [BatchItemOutcome] = []
+        outcomes.reserveCapacity(texts.count)
+
+        for (index, text) in texts.enumerated() {
+            // Checked before each item so a cancelled batch stops without
+            // starting work it will discard.
+            try Cancellation.check()
+
+            do {
+                let audio = try await pipeline.synthesize(
+                    text: text, voice: voice, parameters: parameters)
+                outcomes.append(BatchItemOutcome(index: index, text: text, audio: audio))
+            } catch let error as ChoirError {
+                // Cancellation is not an item failure: it ends the whole job
+                // regardless of policy, or a cancelled batch would be reported
+                // as a batch of failures.
+                if case .cancelled = error { throw error }
+
+                switch policy {
+                case .failFast:
+                    throw error
+                case .continueAndReport:
+                    outcomes.append(BatchItemOutcome(index: index, text: text, error: error))
+                }
+            }
+        }
+
+        return BatchResult(outcomes: outcomes, policy: policy)
     }
 
     /// The outcome of a start-up self-check (SRS REL-003).
@@ -301,12 +359,27 @@ public actor ChoirEngine {
         }
     }
 
+    /// The largest input accepted, per SRS TXT-001.
+    ///
+    /// "The engine shall accept arbitrary Unicode (UTF-8) input strings from 1
+    /// character to at least 1,000,000 characters per request, subject only to
+    /// documented memory-based limits per platform."
+    ///
+    /// This was 5,000 — two orders of magnitude below the requirement, and
+    /// small enough to reject a single chapter of the audiobooks the
+    /// specification names as a primary workload. The ceiling exists to turn
+    /// an unbounded allocation into a typed error rather than to cap ordinary
+    /// use, so it sits at the documented figure rather than below it.
+    static let maximumInputCharacters = 1_000_000
+
     private func validateText(_ text: String) throws {
         guard !text.isEmpty else {
             throw ChoirError.invalidParameter(parameter: "text", reason: "Text cannot be empty")
         }
-        guard text.count <= 5000 else {
-            throw ChoirError.invalidParameter(parameter: "text", reason: "Text exceeds maximum length of 5000 characters")
+        guard text.count <= Self.maximumInputCharacters else {
+            throw ChoirError.invalidParameter(
+                parameter: "text",
+                reason: "Text exceeds the maximum of \(Self.maximumInputCharacters) characters (TXT-001)")
         }
     }
 }

@@ -55,15 +55,23 @@ public struct SynthesisPipeline: Sendable {
         voice: Voice,
         parameters: SynthesisParameters
     ) async throws -> AudioBuffer {
+        // CON-002/SYN-007: cancellation is checked between every stage. The
+        // stages are the natural granularity — each is bounded work, and a
+        // check between them stops compute well inside SYN-007's 100 ms.
+        try Cancellation.check()
+
         // Stage 1: Text processing
         let transcript = try linguisticFrontend.process(text)
+        try Cancellation.check()
 
         // Stage 2: Prosody prediction
         let prosody = prosodyPredictor.predictProsody(for: transcript, with: parameters)
+        try Cancellation.check()
 
         // Stage 3: Acoustic modeling
         let acousticInput = createAcousticInput(from: prosody, voice: voice)
         let acousticFeatures = try await acousticModel.predict(input: acousticInput)
+        try Cancellation.check()
 
         // Stage 4: Vocoding
         let pcmSamples = try await vocoder.synthesize(
@@ -130,6 +138,7 @@ public struct SynthesisPipeline: Sendable {
         var offsetMs = 0.0
 
         for run in runs {
+            try Cancellation.check()
             let result = try await synthesizeWithMetadata(
                 text: run.text, voice: run.voice, parameters: parameters)
             samples.append(contentsOf: result.audio.samples)
@@ -174,11 +183,17 @@ public struct SynthesisPipeline: Sendable {
         voice: Voice,
         parameters: SynthesisParameters
     ) async throws -> SynthesisResult {
+        try Cancellation.check()
         let transcript = try linguisticFrontend.process(text)
+        try Cancellation.check()
+
         let prosody = prosodyPredictor.predictProsody(for: transcript, with: parameters)
+        try Cancellation.check()
 
         let acousticInput = createAcousticInput(from: prosody, voice: voice)
         let acousticFeatures = try await acousticModel.predict(input: acousticInput)
+        try Cancellation.check()
+
         let pcmSamples = try await vocoder.synthesize(
             features: acousticFeatures,
             sampleRate: audioFormat.sampleRate
