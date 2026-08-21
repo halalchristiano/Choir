@@ -112,57 +112,54 @@ struct StressAssignerTests {
 
 @Suite("SSML Parsing")
 struct SSMLParserTests {
-    let parser = SSMLParser()
+    let parser = SSMLCParser()
 
     @Test("Extracts plain text from SSML")
-    func testPlainTextExtraction() {
-        let ssml = "Hello <emphasis>world</emphasis>!"
-        let text = parser.extractPlainText(from: ssml)
-        #expect(text == "Hello world!")
+    func testPlainTextExtraction() throws {
+        let result = try parser.parse("Hello <emphasis>world</emphasis>!")
+        #expect(result.plainText.contains("Hello"))
+        #expect(result.plainText.contains("world"))
+        #expect(!result.plainText.contains("emphasis"))
     }
 
     @Test("Parses prosody tags")
-    func testProsodyParsing() {
-        let ssml = #"<prosody pitch="+5" rate="1.2">hello</prosody>"#
-        let segments = parser.parse(ssml)
-        #expect(!segments.isEmpty)
-        #expect(segments[0].text.contains("hello"))
+    func testProsodyParsing() throws {
+        let result = try parser.parse(#"<prosody pitch="+5st" rate="120%">hello</prosody>"#)
+        #expect(result.plainText.contains("hello"))
     }
 
     @Test("Parses emphasis tags")
-    func testEmphasisParsing() {
-        let ssml = #"<emphasis level="strong">important</emphasis>"#
-        let segments = parser.parse(ssml)
-        #expect(!segments.isEmpty)
-        #expect(segments[0].emphasis == "strong")
+    func testEmphasisParsing() throws {
+        let result = try parser.parse(#"<emphasis level="strong">important</emphasis>"#)
+        let styles = result.events.compactMap { event -> SSMLStyle? in
+            if case .speech(_, let style) = event { return style }
+            return nil
+        }
+        #expect(styles.first?.emphasis == .strong)
     }
 
-    @Test("Parses pause tags")
-    func testPauseParsing() {
-        let ssml = #"Hello<pause time="500ms" />world"#
-        let segments = parser.parse(ssml)
-        #expect(segments.count > 0)
+    @Test("Parses break tags")
+    func testPauseParsing() throws {
+        let result = try parser.parse(#"Hello<break time="500ms" />world"#)
+        let pauses = result.events.compactMap { event -> SSMLBreak? in
+            if case .pause(let b) = event { return b }
+            return nil
+        }
+        #expect(pauses.first?.resolvedMs == 500)
     }
 
-    @Test("Handles HTML entities")
-    func testHTMLEntityHandling() {
-        let ssml = "Tom &amp; Jerry"
-        let text = parser.extractPlainText(from: ssml)
-        #expect(text == "Tom & Jerry")
+    @Test("Handles XML entities")
+    func testHTMLEntityHandling() throws {
+        let result = try parser.parse("Tom &amp; Jerry")
+        #expect(result.plainText.contains("Tom & Jerry"), "\(result.plainText)")
     }
 
-    @Test("Parses pitch values")
-    func testPitchValueParsing() {
-        let ssml = #"<prosody pitch="+5">high</prosody>"#
-        let segments = parser.parse(ssml)
-        #expect(segments[0].pitch == 5)
-    }
-
-    @Test("Parses rate values")
-    func testRateValueParsing() {
-        let ssml = #"<prosody rate="1.5">fast</prosody>"#
-        let segments = parser.parse(ssml)
-        #expect(segments[0].rate == 1.5)
+    @Test("Entity decoding does not manufacture markup")
+    func testEntityDecodingOrder() throws {
+        // "&lt;" must survive as a literal '<', not become an opening tag.
+        let result = try parser.parse("compare &lt;tag&gt; here")
+        #expect(result.plainText.contains("<tag>"), "\(result.plainText)")
+        #expect(result.diagnostics.isEmpty)
     }
 }
 

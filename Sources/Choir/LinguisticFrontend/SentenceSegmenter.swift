@@ -217,7 +217,9 @@ public struct SentenceSegmenter: Sendable {
         // the quotation, not the sentence. A lowercase word after the
         // terminator (and any closing quotes) marks a continuation.
         var probe = text.index(after: index)
+        var sawClosingQuote = false
         while probe < text.endIndex, "\"'”’)]".contains(text[probe]) {
+            sawClosingQuote = true
             probe = text.index(after: probe)
         }
         var sawSpace = false
@@ -225,7 +227,11 @@ public struct SentenceSegmenter: Sendable {
             sawSpace = true
             probe = text.index(after: probe)
         }
-        if sawSpace, probe < text.endIndex, text[probe].isLowercase {
+        // A closing quote must intervene. Without that condition the rule
+        // swallows every boundary in lowercased text -- "one. two. three."
+        // becomes a single sentence -- because a following lowercase word is
+        // then the norm rather than the signal.
+        if sawClosingQuote, sawSpace, probe < text.endIndex, text[probe].isLowercase {
             return false
         }
 

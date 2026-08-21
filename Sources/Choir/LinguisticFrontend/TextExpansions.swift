@@ -452,3 +452,20 @@ extension TextNormalizer {
         pattern: #"\b(\d+(?:\.\d+)?)\s*(km|cm|mm|kg|mg|lb|oz|mi|ft|in|khz|mhz|ghz|hz|kb|mb|gb|tb|ms|hr|min|m|g|s)\b"#,
         options: [.caseInsensitive])
 }
+
+extension TextNormalizer {
+    /// Wraps ALL-CAPS words in emphasis markup (TXT-013).
+    ///
+    /// Runs before lowercasing, since the signal is the capitalization itself.
+    /// Words of three or more letters only: two-letter capitals are usually
+    /// abbreviations ("US", "AM") rather than shouting, and emphasising every
+    /// one of them would make ordinary prose sound frantic.
+    func markAllCapsEmphasis(_ text: String) -> String {
+        Self.replacing(Self.allCapsRegex, in: text) { groups in
+            guard let word = groups[1] else { return nil }
+            return "<emphasis level=\"strong\">\(word)</emphasis>"
+        }
+    }
+
+    static let allCapsRegex = try! NSRegularExpression(pattern: #"\b([A-Z]{3,})\b"#)
+}

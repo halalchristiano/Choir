@@ -14,14 +14,22 @@ public struct NormalizationPolicy: Sendable, Equatable {
     /// the text to be spoken as written.
     public var verbatim: Bool
 
+    /// Whether ALL-CAPS words are treated as emphasis (TXT-013).
+    ///
+    /// Configurable because the convention is not universal: prose uses caps
+    /// for shouting, but acronym-dense technical text does not.
+    public var treatsAllCapsAsEmphasis: Bool
+
     public init(
         expandsScriptureReferences: Bool = true,
         scriptureStyle: ScriptureStyle = .chapterVerse,
-        verbatim: Bool = false
+        verbatim: Bool = false,
+        treatsAllCapsAsEmphasis: Bool = true
     ) {
         self.expandsScriptureReferences = expandsScriptureReferences
         self.scriptureStyle = scriptureStyle
         self.verbatim = verbatim
+        self.treatsAllCapsAsEmphasis = treatsAllCapsAsEmphasis
     }
 
     /// Natural prose reading: everything expanded, Scripture spoken as

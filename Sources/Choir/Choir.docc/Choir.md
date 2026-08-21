@@ -85,7 +85,7 @@ finally ``AudioFilters`` and ``AudioEncoder`` for post-processing and export.
 - ``TextNormalizer``
 - ``Phonemizer``
 - ``StressAssigner``
-- ``SSMLParser``
+- ``SSMLCParser``
 - ``PronunciationDictionary``
 - ``Phoneme``
 - ``PhoneticTranscription``
