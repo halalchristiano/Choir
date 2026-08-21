@@ -8,6 +8,16 @@ public enum UserPronunciation: Sendable, Equatable, Codable {
     /// A respelling to be phonemized by the normal rules,
     /// e.g. `"mel KIZ uh dek"`.
     case respelling(String)
+
+    /// Whether this pronunciation contains no usable content.
+    public var isEmpty: Bool {
+        switch self {
+        case .phonemes(let symbols):
+            return symbols.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        case .respelling(let text):
+            return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
 }
 
 /// Where a ``UserLexicon`` keeps its entries between launches.
@@ -102,19 +112,28 @@ public actor UserLexicon {
     /// Replaces any existing registration. Lookup is case-insensitive, so
     /// "Melchizedek" and "melchizedek" resolve to the same entry.
     public func register(word: String, phonemes: [String]) {
-        setEntry(word, .phonemes(phonemes))
+        let normalized = phonemes
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        setEntry(word, .phonemes(normalized))
     }
 
     /// Registers a respelling for `word`, phonemized by the normal rules.
     public func register(word: String, respelling: String) {
-        setEntry(word, .respelling(respelling))
+        setEntry(word, .respelling(respelling.trimmingCharacters(in: .whitespacesAndNewlines)))
     }
 
     /// Registers several pronunciations at once.
     public func register(_ pronunciations: [String: UserPronunciation]) {
+        var changed = false
         for (word, pronunciation) in pronunciations {
-            setEntry(word, pronunciation)
+            guard let normalized = Self.normalizedEntry(word: word, pronunciation: pronunciation) else {
+                continue
+            }
+            entries[normalized.key] = normalized.pronunciation
+            changed = true
         }
+        if changed { store.save(entries) }
     }
 
     /// Removes any registration for `word`. Returns whether one existed.
@@ -128,6 +147,7 @@ public actor UserLexicon {
 
     /// Removes every registration.
     public func removeAll() {
+        guard !entries.isEmpty else { return }
         entries.removeAll()
         store.save(entries)
     }
@@ -156,8 +176,34 @@ public actor UserLexicon {
     }
 
     private func setEntry(_ word: String, _ pronunciation: UserPronunciation) {
-        entries[Self.key(for: word)] = pronunciation
+        guard let normalized = Self.normalizedEntry(word: word, pronunciation: pronunciation) else {
+            return
+        }
+        entries[normalized.key] = normalized.pronunciation
         store.save(entries)
+    }
+
+    private static func normalizedEntry(
+        word: String,
+        pronunciation: UserPronunciation
+    ) -> (key: String, pronunciation: UserPronunciation)? {
+        let normalizedKey = key(for: word)
+        guard !normalizedKey.isEmpty else { return nil }
+
+        let normalizedPronunciation: UserPronunciation
+        switch pronunciation {
+        case .phonemes(let symbols):
+            let cleaned = symbols
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            guard !cleaned.isEmpty else { return nil }
+            normalizedPronunciation = .phonemes(cleaned)
+        case .respelling(let text):
+            let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !cleaned.isEmpty else { return nil }
+            normalizedPronunciation = .respelling(cleaned)
+        }
+        return (normalizedKey, normalizedPronunciation)
     }
 
     private static func key(for word: String) -> String {
@@ -183,6 +229,9 @@ public struct UserLexiconSnapshot: Sendable, Equatable {
 
     public var isEmpty: Bool { entries.isEmpty }
     public var count: Int { entries.count }
+
+    /// Every registered word in deterministic order.
+    public var registeredWords: [String] { entries.keys.sorted() }
 
     /// An empty snapshot, the default on the synthesis path.
     public static let empty = UserLexiconSnapshot()

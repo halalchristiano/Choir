@@ -23,6 +23,7 @@ public struct AudioFilters: Sendable {
     /// `Int16(_:)` initializer requires the value to already be in range.
     @usableFromInline
     static func clampToPCM(_ value: Double) -> Int16 {
+        guard value.isFinite else { return 0 }
         if value <= Double(pcmMinValue) { return pcmMinValue }
         if value >= Double(pcmMaxValueInt) { return pcmMaxValueInt }
         return Int16(value)
@@ -42,8 +43,13 @@ public struct AudioFilters: Sendable {
         cutoffFrequency: Double = defaultHighPassCutoff,
         sampleRate: Int = 48000
     ) -> [Int16] {
+        guard !samples.isEmpty,
+              sampleRate > 0,
+              cutoffFrequency.isFinite,
+              cutoffFrequency > 0 else { return samples }
+        let effectiveCutoff = min(cutoffFrequency, Double(sampleRate) * 0.499)
         // Simple RC high-pass filter
-        let rc = 1.0 / (2.0 * .pi * cutoffFrequency)
+        let rc = 1.0 / (2.0 * .pi * effectiveCutoff)
         let dt = 1.0 / Double(sampleRate)
         let alpha = rc / (rc + dt)
 
@@ -76,8 +82,13 @@ public struct AudioFilters: Sendable {
         cutoffFrequency: Double = defaultLowPassCutoff,
         sampleRate: Int = 48000
     ) -> [Int16] {
+        guard !samples.isEmpty,
+              sampleRate > 0,
+              cutoffFrequency.isFinite,
+              cutoffFrequency > 0 else { return samples }
+        let effectiveCutoff = min(cutoffFrequency, Double(sampleRate) * 0.499)
         // Simple RC low-pass filter
-        let rc = 1.0 / (2.0 * .pi * cutoffFrequency)
+        let rc = 1.0 / (2.0 * .pi * effectiveCutoff)
         let dt = 1.0 / Double(sampleRate)
         let alpha = dt / (rc + dt)
 
@@ -114,7 +125,10 @@ public struct AudioFilters: Sendable {
         guard rms > 0 else { return samples }
 
         // Calculate gain to reach target level
-        let targetLinear = pow(10.0, targetLevel / 20.0)
+        let effectiveTarget = targetLevel.isFinite
+            ? max(-20, min(0, targetLevel))
+            : Self.defaultNormalizationTarget
+        let targetLinear = pow(10.0, effectiveTarget / 20.0)
         let gain = targetLinear / (rms / Self.pcmMaxValue)
 
         // Apply gain with clipping protection
@@ -134,7 +148,10 @@ public struct AudioFilters: Sendable {
         _ samples: [Int16],
         threshold: Double = defaultSoftClipThreshold
     ) -> [Int16] {
-        let thresholdValue = Int16(Self.pcmMaxValue * threshold)
+        let effectiveThreshold = threshold.isFinite
+            ? max(0, min(1, threshold))
+            : Self.defaultSoftClipThreshold
+        let thresholdValue = Int16(Self.pcmMaxValue * effectiveThreshold)
 
         return samples.map { sample in
             if sample.magnitude <= thresholdValue.magnitude {
@@ -160,6 +177,10 @@ public struct AudioFilters: Sendable {
         sibilantFrequency: Double = defaultSibilantFrequency,
         sampleRate: Int = 48000
     ) -> [Int16] {
+        guard !samples.isEmpty,
+              sampleRate > 0,
+              sibilantFrequency.isFinite,
+              sibilantFrequency > 0 else { return samples }
         // Simplified de-esser: reduce energy in sibilant frequency range
         let filtered = lowPassFilter(samples, cutoffFrequency: sibilantFrequency, sampleRate: sampleRate)
         let highpassed = highPassFilter(filtered, cutoffFrequency: sibilantFrequency * Self.sibilantFilterRatio, sampleRate: sampleRate)
@@ -183,7 +204,9 @@ public struct AudioFilters: Sendable {
         threshold: Double = -20.0,
         ratio: Double = 4.0
     ) -> [Int16] {
-        let thresholdLinear = pow(10.0, threshold / 20.0) * Self.pcmMaxValue
+        let effectiveThreshold = threshold.isFinite ? max(-120, min(0, threshold)) : -20
+        let effectiveRatio = ratio.isFinite ? max(1, ratio) : 1
+        let thresholdLinear = pow(10.0, effectiveThreshold / 20.0) * Self.pcmMaxValue
 
         return samples.map { sample in
             let absValue = abs(Double(sample))
@@ -194,7 +217,7 @@ public struct AudioFilters: Sendable {
 
             // Above threshold: reduce by ratio
             let overshoot = absValue - thresholdLinear
-            let compressed = thresholdLinear + overshoot / ratio
+            let compressed = thresholdLinear + overshoot / effectiveRatio
             let sign = sample >= 0 ? 1 : -1
 
             return Self.clampToPCM(compressed * Double(sign))
@@ -213,6 +236,8 @@ public struct AudioFilters: Sendable {
         wetLevel: Double = defaultReverbWetLevel,
         sampleRate: Int = 48000
     ) -> [Int16] {
+        guard !samples.isEmpty, sampleRate > 0 else { return samples }
+        let effectiveWetLevel = wetLevel.isFinite ? max(0, min(1, wetLevel)) : 0
         let delaySamples = (Self.defaultReverbDelay * sampleRate) / 1000
 
         var output = Array(samples)
@@ -224,7 +249,7 @@ public struct AudioFilters: Sendable {
         for i in delaySamples..<samples.count {
             let delayed = Double(samples[i - delaySamples])
             let current = Double(samples[i])
-            let mixed = current * (1.0 - wetLevel) + delayed * wetLevel
+            let mixed = current * (1.0 - effectiveWetLevel) + delayed * effectiveWetLevel
 
             output[i] = Self.clampToPCM(mixed)
         }

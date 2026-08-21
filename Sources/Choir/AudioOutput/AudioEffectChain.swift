@@ -40,6 +40,18 @@ public struct AudioEffectChain: Sendable {
         self.sampleRate = sampleRate
     }
 
+    /// Number of effects that will run.
+    public var effectCount: Int { effects.count }
+
+    /// Whether processing is a no-op because the chain has no effects.
+    public var isEmpty: Bool { effects.isEmpty }
+
+    /// Effect names in processing order.
+    public var effectNames: [String] { effects.map(\.name) }
+
+    /// Sample rate supplied to frequency-dependent effects.
+    public var sampleRateHz: Int { sampleRate }
+
     /// Adds an effect to the chain.
     public func add(_ effect: AudioEffect) -> AudioEffectChain {
         var newEffects = effects

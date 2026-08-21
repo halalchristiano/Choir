@@ -13,17 +13,29 @@ public struct TimedSpan: Sendable, Equatable, Codable {
 
     public init(content: String, startMs: Double, endMs: Double) {
         self.content = content
-        self.startMs = startMs
-        self.endMs = max(startMs, endMs)
+        let safeStart = startMs.isFinite ? max(0, startMs) : 0
+        let safeEnd = endMs.isFinite ? max(safeStart, endMs) : safeStart
+        self.startMs = safeStart
+        self.endMs = safeEnd
     }
 
     /// Duration of the span in milliseconds.
     public var durationMs: Double { endMs - startMs }
 
+    public var midpointMs: Double { startMs + durationMs / 2 }
+
+    public var isEmpty: Bool { durationMs == 0 }
+
     /// Whether `timeMs` falls inside this span, start-inclusive and
     /// end-exclusive so that adjacent spans never both match.
     public func contains(_ timeMs: Double) -> Bool {
-        timeMs >= startMs && timeMs < endMs
+        timeMs.isFinite && timeMs >= startMs && timeMs < endMs
+    }
+
+    /// Progress through the span, clamped to 0...1.
+    public func progress(at timeMs: Double) -> Double {
+        guard timeMs.isFinite, durationMs > 0 else { return 0 }
+        return max(0, min(1, (timeMs - startMs) / durationMs))
     }
 }
 
@@ -37,7 +49,7 @@ public struct MarkPosition: Sendable, Equatable, Codable {
 
     public init(name: String, timeMs: Double) {
         self.name = name
-        self.timeMs = timeMs
+        self.timeMs = timeMs.isFinite ? max(0, timeMs) : 0
     }
 }
 
@@ -105,7 +117,7 @@ public struct SynthesisMetadata: Sendable, Equatable, Codable {
         voice: Voice,
         diagnostics: [SynthesisDiagnostic] = []
     ) {
-        self.totalDurationMs = totalDurationMs
+        self.totalDurationMs = totalDurationMs.isFinite ? max(0, totalDurationMs) : 0
         self.words = words
         self.phonemes = phonemes
         self.sentences = sentences
@@ -122,16 +134,7 @@ public struct SynthesisMetadata: Sendable, Equatable, Codable {
     /// This is the primitive behind verse highlighting and karaoke-style
     /// follow-along.
     public func wordIndex(at timeMs: Double) -> Int? {
-        // Spans are ordered and non-overlapping, so binary search is safe.
-        var low = 0
-        var high = words.count - 1
-        while low <= high {
-            let mid = (low + high) / 2
-            let span = words[mid]
-            if span.contains(timeMs) { return mid }
-            if timeMs < span.startMs { high = mid - 1 } else { low = mid + 1 }
-        }
-        return nil
+        words.firstIndex { $0.contains(timeMs) }
     }
 
     /// The word being spoken at `timeMs`, if any.
@@ -144,15 +147,7 @@ public struct SynthesisMetadata: Sendable, Equatable, Codable {
     /// Used for lip-sync, where the viseme follows the phoneme rather than
     /// the word.
     public func phoneme(at timeMs: Double) -> TimedSpan? {
-        var low = 0
-        var high = phonemes.count - 1
-        while low <= high {
-            let mid = (low + high) / 2
-            let span = phonemes[mid]
-            if span.contains(timeMs) { return mid < phonemes.count ? span : nil }
-            if timeMs < span.startMs { high = mid - 1 } else { low = mid + 1 }
-        }
-        return nil
+        phonemes.first { $0.contains(timeMs) }
     }
 
     /// The index in ``sentences`` containing `wordIndex`, if any.
@@ -164,6 +159,47 @@ public struct SynthesisMetadata: Sendable, Equatable, Codable {
     public func time(ofMark name: String) -> Double? {
         marks.first { $0.name == name }?.timeMs
     }
+
+    /// Every occurrence of a mark name, preserving emission order.
+    public func times(ofMark name: String) -> [Double] {
+        marks.filter { $0.name == name }.map(\.timeMs)
+    }
+
+    public var durationSeconds: Double { totalDurationMs / 1000 }
+
+    public var warnings: [SynthesisDiagnostic] {
+        diagnostics.filter { $0.severity == .warning }
+    }
+
+    public var informationalDiagnostics: [SynthesisDiagnostic] {
+        diagnostics.filter { $0.severity == .info }
+    }
+
+    /// Structural issues that make timing metadata inconsistent.
+    public var validationIssues: [String] {
+        var issues: [String] = []
+        func inspect(_ spans: [TimedSpan], label: String) {
+            for (index, span) in spans.enumerated() {
+                if span.endMs > totalDurationMs {
+                    issues.append("\(label) \(index) ends after total duration")
+                }
+                if index > 0, span.startMs < spans[index - 1].startMs {
+                    issues.append("\(label) spans are not ordered at index \(index)")
+                }
+            }
+        }
+        inspect(words, label: "word")
+        inspect(phonemes, label: "phoneme")
+        for (index, range) in sentences.enumerated() where range.lowerBound < 0 || range.upperBound > words.count {
+            issues.append("sentence \(index) references words outside the word list")
+        }
+        for mark in marks where mark.timeMs > totalDurationMs {
+            issues.append("mark '\(mark.name)' occurs after total duration")
+        }
+        return issues
+    }
+
+    public var isStructurallyValid: Bool { validationIssues.isEmpty }
 }
 
 /// Audio together with the metadata SYN-005 requires.

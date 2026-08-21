@@ -24,6 +24,20 @@ public enum StressLevel: Int, Sendable, Equatable, Codable, CaseIterable {
 ///   version.
 public enum PhonemeInventory {
 
+    /// A conversion result that preserves unsupported input instead of
+    /// silently discarding it.
+    public struct ARPAbetConversion: Sendable, Equatable {
+        public let phonemes: [Phoneme]
+        public let unknownSymbols: [String]
+
+        public init(phonemes: [Phoneme], unknownSymbols: [String]) {
+            self.phonemes = phonemes
+            self.unknownSymbols = unknownSymbols
+        }
+
+        public var isComplete: Bool { unknownSymbols.isEmpty }
+    }
+
     /// One phoneme of the inventory.
     public struct Entry: Sendable, Equatable, Hashable, Codable {
         /// ARPAbet symbol, e.g. `"AA"`.
@@ -119,7 +133,12 @@ public enum PhonemeInventory {
 
     /// The ARPAbet symbol for an IPA symbol.
     public static func arpabet(forIPA symbol: String) -> String? {
-        byIPA[symbol]?.arpabet
+        byIPA[symbol.trimmingCharacters(in: .whitespacesAndNewlines)]?.arpabet
+    }
+
+    /// Whether an ARPAbet symbol is in the inventory, allowing a stress digit.
+    public static func isValidARPAbet(_ symbol: String) -> Bool {
+        byARPAbet[stripStress(symbol).symbol] != nil
     }
 
     /// Whether `symbol` is part of the documented inventory.
@@ -139,30 +158,44 @@ public enum PhonemeInventory {
     /// CMUdict marks stress by appending 0, 1 or 2 to a vowel: `"AA1"` is a
     /// primary-stressed `AA`.
     public static func stripStress(_ symbol: String) -> (symbol: String, stress: StressLevel) {
-        guard let last = symbol.last, last.isNumber,
+        let normalized = symbol.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard let last = normalized.last, last.isNumber,
               let raw = Int(String(last)),
               let level = StressLevel(rawValue: raw)
         else {
-            return (symbol, .none)
+            return (normalized, .none)
         }
-        return (String(symbol.dropLast()), level)
+        return (String(normalized.dropLast()), level)
     }
 
     /// Converts a whitespace-separated ARPAbet string to CHOIR phonemes.
     ///
     /// Unknown symbols are skipped rather than trapping, per TXT-002.
     public static func phonemes(fromARPAbet line: String) -> [Phoneme] {
-        line.split(whereSeparator: \.isWhitespace).compactMap { token in
-            let (base, stress) = stripStress(String(token))
-            guard let entry = byARPAbet[base] else { return nil }
+        conversion(fromARPAbet: line).phonemes
+    }
+
+    /// Converts ARPAbet while returning every unsupported token to the caller.
+    public static func conversion(fromARPAbet line: String) -> ARPAbetConversion {
+        var phonemes: [Phoneme] = []
+        var unknown: [String] = []
+        for token in line.split(whereSeparator: \.isWhitespace) {
+            let raw = String(token)
+            let (base, stress) = stripStress(raw)
+            guard let entry = byARPAbet[base] else {
+                unknown.append(raw)
+                continue
+            }
             // CMUdict writes unstressed AH where English has schwa. Mapping
             // both to /ʌ/ conflates two audibly different vowels and would
             // make "about" rhyme with "hut".
             if base == "AH", stress == .none {
-                return Phoneme("ə", stress: 0)
+                phonemes.append(Phoneme("ə", stress: 0))
+            } else {
+                phonemes.append(Phoneme(entry.ipa, stress: stress.rawValue))
             }
-            return Phoneme(entry.ipa, stress: stress.rawValue)
         }
+        return ARPAbetConversion(phonemes: phonemes, unknownSymbols: unknown)
     }
 
     /// The mapping table as documentation, one row per phoneme.

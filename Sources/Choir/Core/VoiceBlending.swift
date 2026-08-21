@@ -3,7 +3,7 @@ import Foundation
 /// Voice interpolation and blending between different voice profiles.
 public struct VoiceBlending: Sendable {
     /// A voice with its synthesis parameters.
-    public struct VoiceProfile: Sendable {
+    public struct VoiceProfile: Sendable, Equatable {
         public let voice: Voice
         public let parameters: SynthesisParameters
 
@@ -27,7 +27,7 @@ public struct VoiceBlending: Sendable {
         with profile2: VoiceProfile,
         mix: Double
     ) -> SynthesisParameters {
-        let m = max(0, min(1.0, mix))  // Clamp to [0, 1]
+        let m = mix.isFinite ? max(0, min(1.0, mix)) : 0
 
         let blended = SynthesisParameters(
             pitchShift: interpolate(profile1.parameters.pitchShift, profile2.parameters.pitchShift, mix: m),
@@ -35,7 +35,8 @@ public struct VoiceBlending: Sendable {
             emotionalIntensity: interpolate(profile1.parameters.emotionalIntensity, profile2.parameters.emotionalIntensity, mix: m),
             breathiness: interpolate(profile1.parameters.breathiness, profile2.parameters.breathiness, mix: m),
             ageShift: interpolate(profile1.parameters.ageShift, profile2.parameters.ageShift, mix: m),
-            genderShift: interpolate(profile1.parameters.genderShift, profile2.parameters.genderShift, mix: m)
+            genderShift: interpolate(profile1.parameters.genderShift, profile2.parameters.genderShift, mix: m),
+            seed: m < 0.5 ? profile1.parameters.seed : profile2.parameters.seed
         )
 
         return blended
@@ -52,17 +53,15 @@ public struct VoiceBlending: Sendable {
         to: Voice,
         steps: Int = 5
     ) -> [SynthesisParameters] {
-        var transitions: [SynthesisParameters] = []
+        let fromShift = Self.genderShift(for: from.profile.gender)
+        let toShift = Self.genderShift(for: to.profile.gender)
+        guard steps > 0 else { return [SynthesisParameters(genderShift: fromShift)] }
 
-        for step in 0...steps {
+        return (0...steps).map { step in
             let mix = Double(step) / Double(steps)
-            let genderShift = -1.0 + mix * 2.0  // -1 (feminine) to +1 (masculine)
-
-            let params = SynthesisParameters(genderShift: genderShift)
-            transitions.append(params)
+            return SynthesisParameters(
+                genderShift: interpolate(fromShift, toShift, mix: mix))
         }
-
-        return transitions
     }
 
     /// Creates an age transition (e.g., young to old).
@@ -71,25 +70,32 @@ public struct VoiceBlending: Sendable {
         to: Voice,
         steps: Int = 5
     ) -> [SynthesisParameters] {
-        var transitions: [SynthesisParameters] = []
+        let fromAge = Self.ageShift(for: from.ageBand)
+        let toAge = Self.ageShift(for: to.ageBand)
+        guard steps > 0 else { return [SynthesisParameters(ageShift: fromAge)] }
 
-        let fromAge = from.ageBand.ordinal
-        let toAge = to.ageBand.ordinal
-
-        for step in 0...steps {
+        return (0...steps).map { step in
             let mix = Double(step) / Double(steps)
-            let ageShift = Double(fromAge) + mix * Double(toAge - fromAge)
-
-            let params = SynthesisParameters(ageShift: ageShift)
-            transitions.append(params)
+            return SynthesisParameters(ageShift: interpolate(fromAge, toAge, mix: mix))
         }
+    }
 
-        return transitions
+    private static func genderShift(for gender: GenderPresentation) -> Double {
+        gender == .female ? -1 : 1
+    }
+
+    private static func ageShift(for ageBand: AgeBand) -> Double {
+        switch ageBand {
+        case .child: return -5
+        case .youngAdult: return -5.0 / 3.0
+        case .middleAged: return 5.0 / 3.0
+        case .elderly: return 5
+        }
     }
 }
 
 /// Speaking style presets with predefined parameter combinations.
-public struct SpeakingStyle: Sendable {
+public struct SpeakingStyle: Sendable, Equatable {
     /// Style identifier and display name.
     public let id: String
     public let name: String
@@ -231,4 +237,10 @@ public struct SpeakingStyle: Sendable {
         .normal, .fast, .slow, .whisper, .shout,
         .happy, .sad, .angry, .calm
     ]
+
+    /// Looks up a predefined style by stable identifier, case-insensitively.
+    public static func predefined(id: String) -> SpeakingStyle? {
+        let normalized = id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return allStyles.first { $0.id.lowercased() == normalized }
+    }
 }
