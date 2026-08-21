@@ -101,6 +101,7 @@ public actor ChoirEngine {
         parameters: SynthesisParameters = SynthesisParameters(),
         priority: SynthesisExecutionPriority = .automatic
     ) async throws -> AudioBuffer {
+        try validateText(text)
         let result = try await synthesize(
             input: .markup(text),
             voice: voice,
@@ -342,7 +343,8 @@ public actor ChoirEngine {
         parameters: SynthesisParameters = SynthesisParameters(),
         priority: SynthesisExecutionPriority = .automatic
     ) async throws -> SynthesisResult {
-        try await synthesize(
+        try validateText(text)
+        return try await synthesize(
             input: .markup(text),
             voice: voice,
             parameters: parameters,

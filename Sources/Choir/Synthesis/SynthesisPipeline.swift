@@ -407,7 +407,9 @@ public struct SynthesisPipeline: Sendable {
         var runs: [(voice: Voice, text: String)] = []
         for event in markup.events {
             guard case .speech(let segmentText, let style) = event else { continue }
-            guard !segmentText.trimmingCharacters(in: .whitespaces).isEmpty else { continue }
+            guard !segmentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                continue
+            }
 
             let voice = style.voiceID.flatMap(Self.voice(forID:)) ?? defaultVoice
             if var last = runs.last, last.voice == voice {

@@ -153,6 +153,10 @@ public struct ProsodyContour: Sendable {
         let l = points[lowerIndex]
         let u = points[upperIndex]
 
+        // A control point owns its exact timestamp for every interpolation
+        // mode. Without this check, step interpolation returned the previous
+        // value at the final point itself.
+        if u.time == time { return u.value }
         if interpolation == "step" { return l.value }
         if l.time == u.time { return l.value }
         let ratio = (time - l.time) / (u.time - l.time)
