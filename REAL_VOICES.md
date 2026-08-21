@@ -1,298 +1,84 @@
-# CHOIR: Real Voice Synthesis
+# Experimental sample-based synthesis
 
-**TL;DR:** Synthesize speech using actual human voices. Record phoneme samples once, synthesize unlimited speech on-device, free and fully programmed.
+CHOIR contains `VoiceSampleLibrary`, `PhonemeSample`,
+`SampleBasedSynthesizer`, and `SimpleSynthesizer` as an experimental
+concatenative path. It does not
+ship recorded voice libraries, and it must not be described as the production
+implementation of CHOIR's 32 synthetic profiles.
 
----
+## What exists
 
-## What This Is
+- An actor-backed in-memory library for caller-supplied phoneme samples.
+- Multiple samples per phoneme and deterministic selection when a seed is
+  supplied.
+- A simple synthesizer that requests samples from the library and returns PCM.
+- Library statistics and typed failures for missing/unusable samples.
 
-CHOIR is a **sample-based voice synthesis engine** that:
-- ✅ Uses real human voice recordings (actual phoneme samples)
-- ✅ No ML models, no cloud APIs, no synthetic voice generators
-- ✅ Fully programmed in Swift
-- ✅ Runs completely on-device
-- ✅ Free and open source
+## What does not exist
 
-**How it works:**
-1. Record a person speaking English phonemes (~300-500 samples, ~10-30 minutes total)
-2. Organize samples by phoneme
-3. To synthesize new speech:
-   - Convert text → phonemes
-   - Look up each phoneme sample
-   - Concatenate and blend them
-   - Output audio
+- No bundled human recordings or license/consent manifests.
+- No claim that a few dozen isolated phones reproduce a speaker naturally.
+- No diphone/unit-selection inventory, coarticulation model, full prosody
+  transfer, or production concatenation-quality evidence.
+- No validated latency, memory, CPU, intelligibility, naturalness, or
+  long-form stability figures.
+- No mapping from a sample library to the 32 ``Voice`` cases.
+- No permission to clone or impersonate an identifiable person.
 
----
-
-## Quick Start
-
-### 1. Create a Voice Library
-
-```swift
-import Choir
-
-// Create an empty library
-let library = VoiceSampleLibrary(voiceName: "MyVoice")
-
-// Load real phoneme samples (you provide these)
-let samples = loadPhonemeRecordings() // Your recorded samples
-
-for sample in samples {
-    await library.addSample(sample)
-}
-```
-
-### 2. Synthesize Speech
-
-```swift
-// Create synthesizer with your voice library
-let synthesizer = SimpleSynthesizer(library: library)
-
-// Synthesize text
-let audio = try await synthesizer.synthesize(text: "Hello, world!")
-
-// Use the audio
-playAudio(audio)  // Play on speaker
-saveAudio(audio)  // Save to file
-streamAudio(audio)  // Stream to network
-```
-
-### 3. That's It
-
-No models to download, no APIs to configure, no synthetic voice artifacts.
-
----
-
-## Voice Sample Recording Guide
-
-### What You Need
-
-- **Microphone**: USB or built-in (no special equipment needed)
-- **Quiet room**: Minimal background noise
-- **Recording software**: Audacity (free) or similar
-- **Time**: 20-30 minutes per voice
-
-### Phonemes to Record
-
-All English phonemes (IPA notation):
-
-**Vowels (9):**
-- ɑ, æ, ɛ, ə, ɪ, ɔ, ʊ, ʌ, ɝ
-
-**Consonants (24):**
-- p, b, t, d, k, g
-- m, n, ŋ
-- f, v, θ, ð, s, z, ʃ, ʒ
-- h
-- w, j, l, ɹ
-
-**Total: ~33 phonemes**
-
-### Recording Steps
-
-1. **Create script** listing each phoneme with carrier words:
-   ```
-   ɑ: "father"
-   æ: "cat"
-   ɛ: "dress"
-   ... (repeat for all 33 phonemes)
-   ```
-
-2. **Record** each phoneme 3-5 times:
-   - Consistent volume
-   - Clear pronunciation
-   - ~0.5 second per phoneme
-   - ~3-5 second gaps between takes
-
-3. **Export** as 48kHz mono WAV or similar
-
-4. **Segment** each phoneme sample (audio editing software)
-
-5. **Load** into CHOIR:
-   ```swift
-   let sample = PhonemeSample(
-       phoneme: "ɑ",
-       audioData: audioData,  // Int16 samples
-       sampleRate: 48000,
-       averagePitch: 110.0
-   )
-   await library.addSample(sample)
-   ```
-
----
-
-## Example: Complete Implementation
+## Exercise the API with owned test material
 
 ```swift
 import Choir
 
-// Step 1: Record phoneme samples (done once)
-let voiceRecordings = recordPhonemes()  // 30 minutes of audio
+let library = VoiceSampleLibrary(voiceName: "DevelopmentFixture")
 
-// Step 2: Load into library
-let library = VoiceSampleLibrary(voiceName: "JohnDoe")
-for (phoneme, audioSamples) in voiceRecordings {
-    let sample = PhonemeSample(
-        phoneme: phoneme,
-        audioData: audioSamples
+let accepted = await library.addSample(
+    PhonemeSample(
+        phoneme: "h",
+        audioData: ownedTestPCM,
+        sampleRate: 48_000,
+        averagePitch: 180
     )
-    await library.addSample(sample)
+)
+
+guard accepted else {
+    throw ChoirError.invalidParameter(
+        parameter: "sample",
+        reason: "The sample was empty or unusable"
+    )
 }
 
-// Step 3: Synthesize
 let synthesizer = SimpleSynthesizer(library: library)
-
-// Synthesize different texts using the SAME voice
-let greetings = [
-    "Hello there",
-    "How are you today?",
-    "Nice to meet you",
-    "See you later"
-]
-
-for text in greetings {
-    let audio = try await synthesizer.synthesize(text: text)
-    playAudio(audio)  // Sounds like the recorded person
-}
+let audio = try await synthesizer.synthesize(text: "Hello")
 ```
 
----
+Use recordings only when you have documented consent and distribution rights.
+Do not use this path to imitate a person or suggest that its output is a CHOIR
+profile. See the in-package DocC article **Responsible Use**.
 
-## Architecture
+## Recording-fixture guidance
 
-```
-Text Input
-    ↓
-[TextNormalizer] - Expand abbreviations, numbers, etc.
-    ↓
-[Phonemizer] - Convert text to phonemes
-    ↓
-[SampleBasedSynthesizer]
-    • Look up phoneme samples
-    • Concatenate samples
-    • Apply crossfades
-    • Normalize volume
-    ↓
-Audio Output (PCM 16-bit, 48kHz)
-```
+If a developer creates private test fixtures:
 
----
+1. capture written consent and an explicit license before recording;
+2. use a quiet, consistent environment and retain the raw source;
+3. record contextual units, not just one isolated example of each phoneme;
+4. preserve sample rate, channel, microphone, session, transcript, and take
+   metadata;
+5. segment nondestructively and keep checksums for source and derived clips;
+6. separate fixtures from production assets and exclude restricted material
+   from public repositories;
+7. evaluate artifacts and intelligibility before using the output for any
+   product decision.
 
-## API Reference
+The stable public phoneme inventory is documented in
+`Sources/Choir/Choir.docc/PhonemeInventoryReference.md`. It contains 40
+entries (16 vowels/diphthongs and 24 consonants), not the smaller inventory
+previous versions of this guide listed.
 
-### VoiceSampleLibrary
+## Production direction
 
-```swift
-public actor VoiceSampleLibrary {
-    // Add a phoneme sample
-    public func addSample(_ sample: PhonemeSample)
-    
-    // Get sample for a phoneme
-    public func getSample(for phoneme: String) -> PhonemeSample?
-    
-    // Check if library has phoneme
-    public func hasSample(for phoneme: String) -> Bool
-    
-    // Get all available phonemes
-    public func availablePhonemes() -> [String]
-    
-    // Library statistics
-    public func statistics() -> LibraryStats
-}
-```
-
-### SimpleSynthesizer
-
-```swift
-public actor SimpleSynthesizer {
-    // Initialize with a voice library
-    public init(library: VoiceSampleLibrary)
-    
-    // Synthesize speech from text
-    public func synthesize(text: String) async throws -> AudioBuffer
-    
-    // Get library info
-    public func libraryInfo() async -> LibraryStats
-}
-```
-
-### PhonemeSample
-
-```swift
-public struct PhonemeSample: Sendable {
-    public let phoneme: String
-    public let audioData: [Int16]  // PCM samples
-    public let sampleRate: Int     // Default: 48000
-    public let averagePitch: Float // Hz
-    public var durationMs: Double  // Calculated
-}
-```
-
----
-
-## Quality Tips
-
-- **Recording volume**: Consistent, not too loud (avoid clipping)
-- **Phoneme clarity**: Pronounce each phoneme distinctly
-- **Sample rate**: 48kHz recommended (but supports any)
-- **Number of samples**: 3-5 per phoneme recommended for robustness
-- **Post-processing**: Light normalization, no heavy compression
-
----
-
-## Performance
-
-- **Latency**: <100ms for typical sentences
-- **Memory**: ~1-5MB per voice library (depends on sample count)
-- **CPU**: Minimal (~5-10% on modern devices)
-- **Throughput**: Can synthesize multiple texts in parallel
-
----
-
-## Limitations
-
-- ❌ No emotion/expression (yet) - can be added via prosody
-- ❌ Prosody matching is basic - can be improved
-- ❌ Quality depends entirely on recording quality
-- ✅ Can be improved with better phoneme concatenation algorithms
-
----
-
-## Next Steps
-
-### For Users
-
-1. Record your phoneme samples (~30 minutes)
-2. Load into CHOIR via `VoiceSampleLibrary`
-3. Synthesize speech with `SimpleSynthesizer`
-4. Deploy to iOS, macOS, etc.
-
-### For Developers
-
-1. Improve phoneme blending (better crossfade algorithms)
-2. Add prosody control (pitch/rate adjustment)
-3. Implement duration prediction (more natural timing)
-4. Add multiple speakers (mix/blend voices)
-5. Integrate with AVFoundation for playback
-
----
-
-## Why Sample-Based?
-
-✅ **Real voices** - Actual recordings, not synthetic
-✅ **Simple** - No ML, no complex algorithms
-✅ **Fast** - Low latency, minimal compute
-✅ **Free** - No APIs, no subscriptions
-✅ **Private** - All on-device, no uploads
-✅ **Customizable** - Use YOUR voice or anyone's voice
-✅ **Programmable** - Full control, open source
-
----
-
-## License
-
-MIT - Use freely, including commercially
-
----
-
-**Ready to use real voices?** Start recording! 🎙️
+The product requirements call for a licensed, reproducible, trained
+multi-voice acoustic model and a production 48 kHz vocoder. The sample-based
+types may remain useful for experiments and fixtures, but they do not replace
+those model, quality, platform, and release gates.

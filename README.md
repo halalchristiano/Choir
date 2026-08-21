@@ -7,12 +7,12 @@
 
 An experimental on-device text-to-speech Swift package for Apple platforms.
 
-> ### ⚠️ Pre-alpha (v0.15.0) — not a speech product yet
+> ### ⚠️ Pre-alpha (v0.16.0) — not a speech product yet
 >
 > The package contains substantial API, linguistic, prosody, caching, and test
 > infrastructure. The default `SynthesisPipeline` still uses
 > `MockAcousticModel` and `MockVocoder`, producing a test sine wave rather than
-> speech. `CoreMLAcousticModel` reports that no production model is bundled.
+> speech. Core ML adapter types are injectable, but no production model is bundled.
 > The 32 voices are metadata profiles with unique conditioning IDs, not 32
 > trained or perceptually distinct voices.
 >
@@ -27,8 +27,10 @@ CHOIR is a self-contained TTS engine featuring:
 - **Offline architecture**: The runtime code has no intended network dependency; a release still requires an automated network-silence audit.
 - **Declared platform targets**: iOS, iPadOS, macOS, visionOS, watchOS, and tvOS; physical-device conformance remains outstanding.
 - **Parameter API**: Pitch, rate, emotion, breathiness, and age/gender controls exist, but the mock path does not prove their audible effect.
-- **Batch and chunked delivery**: Streaming currently renders the full utterance before emitting chunks.
-- **Audio output**: 48 kHz mono 16-bit PCM by default, with validated WAV export.
+- **Batch and progressive delivery**: Streaming prepares request-wide prosody,
+  then renders and emits natural phrase units before later units run.
+- **Audio output**: 48 kHz mono 16-bit PCM by default, plus float PCM,
+  conversion/mastering primitives, validated WAV export, and timing/caption sidecars.
 
 ## Project Structure
 
@@ -109,7 +111,7 @@ Add CHOIR to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/halalchristiano/Choir.git", from: "0.15.0")
+    .package(url: "https://github.com/halalchristiano/Choir.git", from: "0.16.0")
 ]
 ```
 
@@ -131,7 +133,7 @@ let audio = try await engine.synthesize(
     parameters: SynthesisParameters(rate: 0.95, emotionalIntensity: 0.7)
 )
 
-// Deliver the completed render in chunks (not yet progressive synthesis)
+// Render and deliver natural phrase units progressively
 try await engine.streamSynthesis(
     text: "Deliver this render in chunks...",
     voice: .orion,
@@ -164,7 +166,7 @@ Complete guides for all use cases:
 ## API Overview
 
 ### ChoirEngine
-The main synthesis actor. Supports batch synthesis and post-render chunked delivery with async/await.
+The main synthesis actor. Supports batch synthesis and phrase-progressive delivery with async/await.
 
 ```swift
 let engine = ChoirEngine()
@@ -177,7 +179,7 @@ let audio = try await engine.synthesize(
     parameters: SynthesisParameters(rate: 1.2, emotionalIntensity: 0.8)
 )
 
-// Post-render chunked delivery
+// Phrase-progressive delivery
 try await engine.streamSynthesis(
     text: "Chunked output",
     voice: .orion,
@@ -187,7 +189,7 @@ try await engine.streamSynthesis(
 
 - `initialize()` — Load models and initialize the engine
 - `synthesize(text:voice:parameters:)` — Batch synthesis, returns AudioBuffer
-- `streamSynthesis(text:voice:parameters:options:onChunk:)` — Full render followed by chunk callbacks
+- `streamSynthesis(text:voice:parameters:options:onChunk:)` — Phrase-progressive chunk callbacks
 
 ### Voice
 32 cases representing each available voice. Properties:
@@ -197,11 +199,11 @@ try await engine.streamSynthesis(
 
 ### SynthesisParameters
 Parametric control over synthesis:
-- `pitchShift` — Semitones (-12 to +12)
-- `rate` — Speed multiplier (0.5 to 2.0)
+- `pitchShift` — Semitones (-6 to +6)
+- `rate` — Speed multiplier (0.6 to 2.0)
 - `emotionalIntensity` — Emotional intensity (0.0 to 1.0)
 - `breathiness` — Breathiness amount (0.0 to 1.0)
-- `ageShift` — Age shifting (-5 to +5)
+- `ageShift` — Normalized age shifting (-1.0 to +1.0)
 - `genderShift` — Gender shift (-1.0 to +1.0)
 
 ### Error Handling

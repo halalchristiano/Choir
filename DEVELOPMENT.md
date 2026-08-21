@@ -1,5 +1,10 @@
 # CHOIR Development Guide
 
+> CHOIR 0.16 is pre-alpha infrastructure. The default acoustic model and
+> vocoder are test doubles, and no trained 32-voice asset set ships. Use the
+> in-package DocC **Maintenance Manual** for the production training,
+> conversion, benchmark, and release contract.
+
 ## Architecture Overview
 
 CHOIR is structured as a modular synthesis pipeline with clear separation of concerns:
@@ -23,10 +28,12 @@ ProsodyDescription
     ↓
 [Acoustic Models]
     ├─ PhonemeEncoder: Convert phonemes to model indices
-    ├─ AcousticModel: Neural network (Mel-spectrogram)
+    ├─ AcousticModelProtocol: injected model boundary
+    ├─ MockAcousticModel: default development fixture
     └─ AcousticFeatures (frequency-domain)
     ↓
 [Vocoder]
+    ├─ MockVocoder: default development fixture
     ├─ Experimental phase reconstruction or injected vocoder
     ├─ Inverse FFT
     ├─ Overlap-add windowing
@@ -36,7 +43,7 @@ PCM Audio
     ↓
 [Audio Output]
     ├─ AssetCache: Store computed features
-    └─ AudioEncoder: Export to WAV/MP3/AAC
+    └─ AudioEncoder: WAV and raw PCM today; other codecs fail explicitly
     ↓
 AudioBuffer (16-bit PCM)
 ```
@@ -71,7 +78,7 @@ AudioBuffer (16-bit PCM)
 
 ### Audio Output (`Sources/Choir/AudioOutput/`)
 - **AudioBuffer.swift**: PCM audio representation
-- **AudioEncoder.swift**: WAV/MP3/AAC encoding
+- **AudioEncoder.swift**: WAV/raw PCM plus explicit failures for unavailable codecs
 
 ### Caching (`Sources/Choir/Caching/`)
 - **AssetCache.swift**: LRU cache for features and models
@@ -82,7 +89,7 @@ AudioBuffer (16-bit PCM)
 
 1. Add a new case to the `Voice` enum in `Core/Voice.swift`:
 ```swift
-case customVoice = "custom_voice"
+case customVoice = "choir.ya.male.custom-voice"
 ```
 
 2. Implement voice-specific properties:
@@ -95,7 +102,11 @@ public var ageBand: Int {
 }
 ```
 
-3. Train voice-specific acoustic model weights
+3. Follow the DocC **Extending CHOIR Safely** article. In particular, append a
+   conditioning ID rather than renumbering existing voices, establish licensed
+   provenance, train the shared conditioning space, validate the complete SRS
+   envelope, and update release evidence. A metadata case is not an audible
+   production voice.
 
 ### Implementing Core ML Models
 
@@ -115,18 +126,11 @@ class CoreMLAcousticModel: AcousticModelProtocol {
 
 ### Adding Language Support
 
-1. Create localization module: `LinguisticFrontend/Languages/`
-2. Implement language-specific G2P rules:
-```swift
-protocol LanguagePhonemizer {
-    func phonemize(_ word: String) -> [Phoneme]
-}
-
-struct EnglishPhonemizer: LanguagePhonemizer { ... }
-struct SpanishPhonemizer: LanguagePhonemizer { ... }
-```
-
-3. Extend `LinguisticFrontend` with language selection
+Follow the DocC **Extending CHOIR Safely** article. Language/accent selection,
+inventory, normalization, G2P, stress, lexicon, encoding, model conditioning,
+cache inputs, mixed-language policy, and native-speaker evaluation must evolve
+together. The current English front end is not yet a pluggable multilingual
+implementation.
 
 ### Optimizing for Specific Hardware
 
@@ -150,7 +154,8 @@ Performance tuning points:
 - Different SSML markup combinations
 
 ### Performance Tests
-- Latency benchmarks (target: <100ms per utterance)
+- Cold start, warm time-to-first-audio, and batch/streaming real-time factor
+  against the SRS's device-specific targets
 - Memory usage tracking
 - Cache hit rate monitoring
 
@@ -159,7 +164,7 @@ Performance tuning points:
 ```bash
 swift test                    # Run all tests
 swift test -c release        # Release build (faster)
-swift test CachingAndAudioTests  # Specific test suite
+swift test --filter CachingAndAudioTests  # Specific test suite
 ```
 
 ## Code Style & Conventions
@@ -239,25 +244,28 @@ let adjusted = baseValue * (1.0 + synthesisParams.newParam)
 
 ### Debugging Synthesis
 
-Enable logging at key stages:
+Record stage names, durations, counts, stable error codes, and model/engine
+versions. Do not log user text at normal levels:
 
 ```swift
-// In LinguisticFrontend.process()
-print("Input: \(text)")
-print("Transcript: \(transcript.description)")
-
-// In ProsodyPredictor.predictProsody()
-print("Base F0: \(basePitch) Hz")
-
-// In SynthesisPipeline
-print("Final audio: \(audio.samples.count) samples")
+logger.debug("front-end complete: \(phonemeCount) phonemes")
+logger.debug("prosody complete: \(durationMs) ms predicted")
+logger.debug("audio complete: \(audio.frameCount) frames")
 ```
+
+Developer-only text logging must be an explicit opt-in and disabled in release
+builds. See the DocC **Responsible Use** article.
 
 ## Release Checklist
 
 Before tagging a release:
 
-- [ ] All tests passing
+- [ ] Follow every gate in the DocC **Maintenance Manual**.
+- [ ] All tests and Release builds pass from a clean checkout.
+- [ ] Production model/vocoder provenance and hashes are archived.
+- [ ] Quality and performance reports cover every reference device.
+- [ ] DocC builds without unresolved links or warnings.
+- [ ] Known limitations and waivers are explicit.
 - [ ] No warnings in build
 - [ ] Updated version number
 - [ ] Updated CHANGELOG

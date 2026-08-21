@@ -57,6 +57,17 @@ let vowelPhonemes = Set([
     "iː", "uː", "oʊ", "eɪ", "aɪ", "ɔɪ", "aʊ", "ɪə", "ɛə", "ʊə",
 ])
 
+/// A parsed `<mark>` anchored to the normalized word that follows it.
+public struct TranscriptionMarkAnchor: Sendable, Equatable {
+    public let name: String
+    public let followingWordIndex: Int
+
+    public init(name: String, followingWordIndex: Int) {
+        self.name = name
+        self.followingWordIndex = max(0, followingWordIndex)
+    }
+}
+
 /// A sequence of phonemes with timing and prosodic information.
 public struct PhoneticTranscription: Sendable {
     /// The phonemes in sequence.
@@ -85,15 +96,21 @@ public struct PhoneticTranscription: Sendable {
     /// run-on.
     public let phraseBoundaries: [Int: PhraseBoundary]
 
+    /// Mark positions expressed after normalization, so an expansion such as
+    /// `$1,250` advances by all spoken words rather than one raw token.
+    public let markAnchors: [TranscriptionMarkAnchor]
+
     public init(
         phonemes: [Phoneme],
         originalText: String,
         wordBoundaries: [Int] = [],
         syllableBoundaries: [Int] = [],
         wordTexts: [String] = [],
-        phraseBoundaries: [Int: PhraseBoundary] = [:]
+        phraseBoundaries: [Int: PhraseBoundary] = [:],
+        markAnchors: [TranscriptionMarkAnchor] = []
     ) {
         self.phraseBoundaries = phraseBoundaries
+        self.markAnchors = markAnchors
         self.phonemes = phonemes
         self.originalText = originalText
         self.wordBoundaries = wordBoundaries

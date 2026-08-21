@@ -104,11 +104,9 @@ public struct LinguisticFrontend: Sendable {
         var allPhonemes: [Phoneme] = []
         var wordBoundaries: [Int] = []
         var wordTexts: [String] = []
-        var segmentStyles: [(range: Range<Int>, style: SSMLStyle)] = []
+        var normalizedSegmentWordCounts: [Int] = []
 
         for segment in segments {
-            let startIndex = allPhonemes.count
-
             // TXT-040: <say-as> selects how the segment is read.
             let policyForSegment = Self.policy(for: segment.style, base: normalizer.policy)
             let segmentNormalizer = policyForSegment == normalizer.policy
@@ -119,6 +117,7 @@ public struct LinguisticFrontend: Sendable {
 
             // Split into words
             let words = normalizedText.split(separator: " ", omittingEmptySubsequences: true)
+            normalizedSegmentWordCounts.append(words.count)
 
             for (wordIndex, word) in words.enumerated() {
                 // CON-002: phonemizing a long document is the one unbounded
@@ -156,11 +155,6 @@ public struct LinguisticFrontend: Sendable {
 
                 allPhonemes.append(contentsOf: controlledPhonemes)
             }
-
-            let endIndex = allPhonemes.count
-            if startIndex < endIndex {
-                segmentStyles.append((startIndex..<endIndex, segment.style))
-            }
         }
 
         guard !allPhonemes.isEmpty else {
@@ -171,14 +165,46 @@ public struct LinguisticFrontend: Sendable {
         // prosody model can lengthen the pause and reset pitch at structural
         // breaks rather than treating every gap alike.
         let boundaries = Self.phraseBoundaries(for: wordTexts, segmenter: segmenter)
+        let markAnchors = Self.markAnchors(
+            in: parsed,
+            normalizedSegmentWordCounts: normalizedSegmentWordCounts)
 
         return PhoneticTranscription(
             phonemes: allPhonemes,
             originalText: text,
             wordBoundaries: wordBoundaries,
             wordTexts: wordTexts,
-            phraseBoundaries: boundaries
+            phraseBoundaries: boundaries,
+            markAnchors: markAnchors
         )
+    }
+
+    /// Uses the word counts produced by the main normalization pass to retain
+    /// mark provenance without normalizing a potentially million-character
+    /// request a second time.
+    private static func markAnchors(
+        in parsed: SSMLParseResult,
+        normalizedSegmentWordCounts: [Int]
+    ) -> [TranscriptionMarkAnchor] {
+        var result: [TranscriptionMarkAnchor] = []
+        var normalizedWordsSeen = 0
+        var speechIndex = 0
+        for event in parsed.events {
+            switch event {
+            case .speech:
+                if speechIndex < normalizedSegmentWordCounts.count {
+                    normalizedWordsSeen += normalizedSegmentWordCounts[speechIndex]
+                }
+                speechIndex += 1
+            case .mark(let name):
+                result.append(TranscriptionMarkAnchor(
+                    name: name,
+                    followingWordIndex: normalizedWordsSeen))
+            case .pause:
+                break
+            }
+        }
+        return result
     }
 
     /// Maps each breath group's boundary onto the index of its final word.

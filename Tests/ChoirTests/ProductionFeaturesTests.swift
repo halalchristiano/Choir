@@ -201,12 +201,12 @@ struct RealTimeControllerTests {
     func testValueClamping() async {
         let controller = RealTimeController()
 
-        await controller.setPitchShift(100)  // Should clamp to 12
+        await controller.setPitchShift(100)  // Should clamp to 6
         await controller.setRate(5.0)  // Should clamp to 2.0
 
         let params = await controller.getParameters()
 
-        #expect(params.pitchShift == 12)
+        #expect(params.pitchShift == 6)
         #expect(params.rate == 2.0)
     }
 

@@ -166,10 +166,10 @@ public struct IntelligibilityHarness: Sendable {
     /// the extremes a consuming app can reach through the public parameters.
     public static var envelopeCorners: [SynthesisParameters] {
         [
-            SynthesisParameters(pitchShift: -12, rate: 0.5),
-            SynthesisParameters(pitchShift: -12, rate: 2.0),
-            SynthesisParameters(pitchShift: 12, rate: 0.5),
-            SynthesisParameters(pitchShift: 12, rate: 2.0),
+            SynthesisParameters(pitchShift: -6, rate: 0.6),
+            SynthesisParameters(pitchShift: -6, rate: 2.0),
+            SynthesisParameters(pitchShift: 6, rate: 0.6),
+            SynthesisParameters(pitchShift: 6, rate: 2.0),
         ]
     }
 

@@ -1,8 +1,9 @@
 import Foundation
 
-/// Controls synthesis parameters in real-time during streaming.
+/// Records validated parameter changes for a caller-managed stream controller.
 ///
-/// Allows adjusting pitch, rate, and other parameters as audio is being generated.
+/// The current synthesis pipeline does not consume these changes mid-sentence;
+/// apply snapshots at request or sentence boundaries until STR-005 is complete.
 public actor RealTimeController {
     /// Parameter change event.
     public struct ParameterChange: Sendable {
@@ -40,7 +41,7 @@ public actor RealTimeController {
     /// Sets a new pitch shift value.
     public func setPitchShift(_ value: Double) {
         let oldValue = currentParameters.pitchShift
-        currentParameters.pitchShift = max(-12, min(12, value))
+        currentParameters.pitchShift = max(-6, min(6, value))
 
         if oldValue != currentParameters.pitchShift {
             recordChange(ParameterChange(parameter: "pitchShift", oldValue: oldValue, newValue: currentParameters.pitchShift))
@@ -50,7 +51,7 @@ public actor RealTimeController {
     /// Sets a new rate value.
     public func setRate(_ value: Double) {
         let oldValue = currentParameters.rate
-        currentParameters.rate = max(0.5, min(2.0, value))
+        currentParameters.rate = max(0.6, min(2.0, value))
 
         if oldValue != currentParameters.rate {
             recordChange(ParameterChange(parameter: "rate", oldValue: oldValue, newValue: currentParameters.rate))
@@ -80,7 +81,7 @@ public actor RealTimeController {
     /// Sets age shift.
     public func setAgeShift(_ value: Double) {
         let oldValue = currentParameters.ageShift
-        currentParameters.ageShift = max(-5, min(5, value))
+        currentParameters.ageShift = max(-1, min(1, value))
 
         if oldValue != currentParameters.ageShift {
             recordChange(ParameterChange(parameter: "ageShift", oldValue: oldValue, newValue: currentParameters.ageShift))

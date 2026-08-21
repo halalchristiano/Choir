@@ -31,11 +31,27 @@ public struct ProsodyPredictor: Sendable {
     /// - Returns: A complete prosody description.
     public func predictProsody(
         for transcript: PhoneticTranscription,
-        with synthesisParams: SynthesisParameters
+        with synthesisParams: SynthesisParameters,
+        voiceProfile: VoiceProfile? = nil
     ) -> ProsodyDescription {
         let rate = synthesisParams.rate
         let pitchShift = synthesisParams.pitchShift
         let emotionalIntensity = synthesisParams.emotionalIntensity
+        // Age and gender shifts are continuous conditioning controls rather
+        // than metadata-only values. Positive age trends older/lower; positive
+        // gender trends masculine/lower. The acoustic model receives the raw
+        // controls as well, where production formant/timbre changes belong.
+        let identityPitchRatio = pow(
+            2,
+            (-1.5 * synthesisParams.ageShift - 3 * synthesisParams.genderShift) / 12)
+        let effectiveBasePitch = (voiceProfile?.medianF0 ?? basePitch) * identityPitchRatio
+        let effectivePitchRange = voiceProfile.map {
+            (
+                min: $0.f0Range.lowerBound * identityPitchRatio,
+                max: $0.f0Range.upperBound * identityPitchRatio)
+        } ?? pitchRange
+        let articulationPrecision = voiceProfile?.articulationPrecision ?? 0.9
+        let pauseStyle = voiceProfile?.pauseStyle ?? VoicePauseStyle()
 
         // SYN-002/SYN-003: a seed makes the variation reproducible; without
         // one it differs per render, so a repeated line is not mechanically
@@ -44,7 +60,11 @@ public struct ProsodyPredictor: Sendable {
         var variation = ProsodyVariation(seed: synthesisParams.seed)
 
         // Step 1: Predict durations for each phoneme
-        var durations = predictDurations(transcript.phonemes, rate: rate)
+        var durations = predictDurations(
+            transcript.phonemes,
+            rate: rate,
+            articulationPrecision: articulationPrecision,
+            emotionalIntensity: emotionalIntensity)
         for index in durations.indices {
             durations[index] *= variation.durationScale()
         }
@@ -53,14 +73,21 @@ public struct ProsodyPredictor: Sendable {
         // pause its strength implies and scaled by the voice's rate. Without
         // this a paragraph break reads exactly like a comma, and a chapter
         // sounds like a run-on sentence.
-        Self.applyBoundaryPauses(to: &durations, transcript: transcript, rate: rate)
+        Self.applyBoundaryPauses(
+            to: &durations,
+            transcript: transcript,
+            rate: rate,
+            pauseStyle: pauseStyle,
+            emotionalIntensity: emotionalIntensity)
 
         // Step 2: Predict pitch contour
         let pitchPoints = predictPitchContour(
             transcript.phonemes,
             durations: durations,
             pitchShift: pitchShift,
-            emotionalIntensity: emotionalIntensity
+            emotionalIntensity: emotionalIntensity,
+            basePitch: effectiveBasePitch,
+            pitchRange: effectivePitchRange
         )
         var variedPitchPoints = pitchPoints.map { point in
             (time: point.time, value: point.value * variation.pitchScale())
@@ -74,14 +101,18 @@ public struct ProsodyPredictor: Sendable {
             to: &variedPitchPoints,
             transcript: transcript,
             durations: durations,
-            basePitch: basePitch)
+            // The contour has already been transposed. Reset against the
+            // equally transposed baseline or a paragraph would partially
+            // erase the caller's requested semitone interval.
+            basePitch: effectiveBasePitch * pow(2, pitchShift / 12))
         let pitchContour = ProsodyContour(points: variedPitchPoints, interpolation: "spline")
 
         // Step 3: Predict energy contour
         let energyPoints = predictEnergyContour(
             transcript.phonemes,
             durations: durations,
-            emotionalIntensity: emotionalIntensity
+            emotionalIntensity: emotionalIntensity,
+            breathiness: synthesisParams.breathiness
         )
         let energyContour = ProsodyContour(points: energyPoints, interpolation: "spline")
 
@@ -93,7 +124,7 @@ public struct ProsodyPredictor: Sendable {
             let duration = durations[i]
             let timing = TimingInfo(startTime: currentTime, endTime: currentTime + duration)
 
-            let f0 = pitchContour.valueAt(currentTime + duration / 2) ?? basePitch
+            let f0 = pitchContour.valueAt(currentTime + duration / 2) ?? effectiveBasePitch
             let energy = energyContour.valueAt(currentTime + duration / 2) ?? -20.0
 
             let prosody = ProsodyFeatures(
@@ -123,7 +154,9 @@ public struct ProsodyPredictor: Sendable {
     static func applyBoundaryPauses(
         to durations: inout [Double],
         transcript: PhoneticTranscription,
-        rate: Double
+        rate: Double,
+        pauseStyle: VoicePauseStyle = VoicePauseStyle(),
+        emotionalIntensity: Double = 0
     ) {
         guard !transcript.phraseBoundaries.isEmpty else { return }
         let wordStarts = transcript.wordBoundaries
@@ -140,7 +173,25 @@ public struct ProsodyPredictor: Sendable {
             guard last >= 0, last < durations.count else { continue }
 
             // Pauses shorten as speech speeds up, as they do in natural speech.
-            durations[last] += boundary.nominalPauseMs / max(0.1, rate)
+            let voiceMultiplier: Double
+            switch boundary {
+            case .minor:
+                voiceMultiplier = pauseStyle.comma
+            case .major:
+                voiceMultiplier = pauseStyle.period
+            case .paragraph, .section:
+                voiceMultiplier = pauseStyle.paragraph
+            }
+            // Strong emotion tightens small pauses while preserving structural
+            // paragraph/section space. This makes intensity affect phrasing,
+            // not merely pitch and gain (PRO-003).
+            let expressionMultiplier = boundary < .paragraph
+                ? 1 - min(1, max(0, emotionalIntensity)) * 0.12
+                : 1
+            durations[last] += boundary.nominalPauseMs
+                * voiceMultiplier
+                * expressionMultiplier
+                / max(0.1, rate)
         }
     }
 
@@ -178,7 +229,12 @@ public struct ProsodyPredictor: Sendable {
         }
     }
 
-    private func predictDurations(_ phonemes: [Phoneme], rate: Double) -> [Double] {
+    private func predictDurations(
+        _ phonemes: [Phoneme],
+        rate: Double,
+        articulationPrecision: Double,
+        emotionalIntensity: Double
+    ) -> [Double] {
         var durations: [Double] = []
 
         for (i, phoneme) in phonemes.enumerated() {
@@ -205,7 +261,15 @@ public struct ProsodyPredictor: Sendable {
                 if isObstruent(phoneme.symbol) {
                     duration *= 0.8
                 }
+
+                // More precise articulation preserves additional consonant
+                // closure/release time; a softer profile shortens it slightly.
+                duration *= 0.85 + min(1, max(0, articulationPrecision)) * 0.3
             }
+
+            // Expressive delivery introduces small, bounded tempo movement.
+            // The caller's explicit rate remains the dominant control.
+            duration *= 1 - min(1, max(0, emotionalIntensity)) * 0.04
 
             durations.append(max(10, min(500, duration)))
         }
@@ -218,14 +282,17 @@ public struct ProsodyPredictor: Sendable {
         _ phonemes: [Phoneme],
         durations: [Double],
         pitchShift: Double,
-        emotionalIntensity: Double
+        emotionalIntensity: Double,
+        basePitch: Double,
+        pitchRange: (min: Double, max: Double)
     ) -> [(time: Double, value: Double)] {
         var contour: [(time: Double, value: Double)] = []
         var currentTime: Double = 0
 
-        // Base pitch with shift
-        var basePitch = self.basePitch + (pitchShift * 5.0)  // ~5 Hz per semitone
-        basePitch = max(pitchRange.min, min(pitchRange.max, basePitch))
+        // A semitone is a frequency ratio, not a fixed number of hertz. Apply
+        // the ratio to the completed contour so stress, emotion, declination,
+        // and phrase-final movement transpose with the requested interval too.
+        let pitchRatio = pow(2, pitchShift / 12)
 
         for (i, phoneme) in phonemes.enumerated() {
             let duration = durations[i]
@@ -253,6 +320,7 @@ public struct ProsodyPredictor: Sendable {
                 f0 -= 15.0
             }
 
+            f0 *= pitchRatio
             f0 = max(pitchRange.min, min(pitchRange.max, f0))
 
             if phoneme.isVowel {
@@ -264,8 +332,12 @@ public struct ProsodyPredictor: Sendable {
 
         // Ensure we have at least start and end points
         if contour.isEmpty {
-            contour.append((time: 0, value: basePitch))
-            contour.append((time: currentTime, value: basePitch - 15))
+            let startPitch = max(pitchRange.min, min(pitchRange.max, basePitch * pitchRatio))
+            let endPitch = max(
+                pitchRange.min,
+                min(pitchRange.max, (basePitch - 15) * pitchRatio))
+            contour.append((time: 0, value: startPitch))
+            contour.append((time: currentTime, value: endPitch))
         }
 
         return contour
@@ -275,13 +347,15 @@ public struct ProsodyPredictor: Sendable {
     private func predictEnergyContour(
         _ phonemes: [Phoneme],
         durations: [Double],
-        emotionalIntensity: Double
+        emotionalIntensity: Double,
+        breathiness: Double
     ) -> [(time: Double, value: Double)] {
         var contour: [(time: Double, value: Double)] = []
         var currentTime: Double = 0
 
         // Base energy
-        let baseEnergy = -20.0 + emotionalIntensity * 10.0
+        let boundedBreathiness = min(1, max(0, breathiness))
+        let baseEnergy = -20.0 + emotionalIntensity * 10.0 - boundedBreathiness * 2.5
 
         for (i, phoneme) in phonemes.enumerated() {
             let duration = durations[i]

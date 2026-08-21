@@ -23,6 +23,16 @@ public struct AcousticModelInput: Sendable {
     /// Speaker/voice ID.
     public let voiceID: Int
 
+    /// Request-level conditioning values. They remain explicit model inputs
+    /// even when pitch/rate have also shaped the aligned contours, so a real
+    /// acoustic model can learn timbre and realization changes (ML-A-002).
+    public let pitchShift: Double
+    public let rate: Double
+    public let emotionalIntensity: Double
+    public let breathiness: Double
+    public let ageShift: Double
+    public let genderShift: Double
+
     public init(
         phonemeIndices: [Int],
         durations: [Double],
@@ -30,7 +40,13 @@ public struct AcousticModelInput: Sendable {
         energy: [Double],
         stress: [Int],
         voicing: [Double],
-        voiceID: Int = 0
+        voiceID: Int = 0,
+        pitchShift: Double = 0,
+        rate: Double = 1,
+        emotionalIntensity: Double = 0.5,
+        breathiness: Double = 0,
+        ageShift: Double = 0,
+        genderShift: Double = 0
     ) {
         self.phonemeIndices = phonemeIndices
         self.durations = durations
@@ -39,6 +55,12 @@ public struct AcousticModelInput: Sendable {
         self.stress = stress
         self.voicing = voicing
         self.voiceID = voiceID
+        self.pitchShift = pitchShift
+        self.rate = rate
+        self.emotionalIntensity = emotionalIntensity
+        self.breathiness = breathiness
+        self.ageShift = ageShift
+        self.genderShift = genderShift
     }
 
     /// Number of phoneme-aligned rows carried by the input.
@@ -49,6 +71,11 @@ public struct AcousticModelInput: Sendable {
         guard !phonemeIndices.isEmpty else {
             throw ChoirError.invalidParameter(
                 parameter: "phonemeIndices", reason: "At least one phoneme is required")
+        }
+        guard phonemeIndices.count <= 4_096 else {
+            throw ChoirError.invalidParameter(
+                parameter: "phonemeIndices",
+                reason: "One acoustic-model invocation may contain at most 4,096 phonemes")
         }
 
         let counts = [
@@ -67,9 +94,16 @@ public struct AcousticModelInput: Sendable {
             throw ChoirError.invalidParameter(
                 parameter: "phonemeIndices", reason: "Indices cannot be negative")
         }
-        guard durations.allSatisfy({ $0.isFinite && $0 > 0 }) else {
+        guard durations.allSatisfy({ $0.isFinite && $0 > 0 && $0 <= 10_000 }) else {
             throw ChoirError.invalidParameter(
-                parameter: "durations", reason: "Durations must be finite and greater than zero")
+                parameter: "durations",
+                reason: "Durations must be finite and within (0, 10,000] ms")
+        }
+        let totalDurationMs = durations.reduce(0, +)
+        guard totalDurationMs.isFinite, totalDurationMs <= 600_000 else {
+            throw ChoirError.invalidParameter(
+                parameter: "durations",
+                reason: "One acoustic-model invocation may describe at most 10 minutes")
         }
         guard fundamentalFrequency.allSatisfy({ $0.isFinite && $0 >= 0 }) else {
             throw ChoirError.invalidParameter(
@@ -91,6 +125,21 @@ public struct AcousticModelInput: Sendable {
         guard voiceID >= 0 else {
             throw ChoirError.invalidParameter(
                 parameter: "voiceID", reason: "Voice ID cannot be negative")
+        }
+        let controls = [
+            ("pitchShift", pitchShift, -6.0 ... 6.0),
+            ("rate", rate, 0.6 ... 2.0),
+            ("emotionalIntensity", emotionalIntensity, 0.0 ... 1.0),
+            ("breathiness", breathiness, 0.0 ... 1.0),
+            ("ageShift", ageShift, -1.0 ... 1.0),
+            ("genderShift", genderShift, -1.0 ... 1.0),
+        ]
+        for (name, value, envelope) in controls {
+            guard value.isFinite, envelope.contains(value) else {
+                throw ChoirError.invalidParameter(
+                    parameter: name,
+                    reason: "Model conditioning must be finite and within \(envelope)")
+            }
         }
     }
 }
@@ -152,8 +201,8 @@ public struct MockAcousticModel: AcousticModelProtocol {
     private let frequencyBins: Int
 
     public init(frameRate: Int = 50, frequencyBins: Int = 80) {
-        self.frameRate = max(1, frameRate)
-        self.frequencyBins = max(1, frequencyBins)
+        self.frameRate = min(1_000, max(1, frameRate))
+        self.frequencyBins = min(4_096, max(1, frequencyBins))
     }
 
     public func predict(input: AcousticModelInput) async throws -> AcousticFeatures {
@@ -165,12 +214,18 @@ public struct MockAcousticModel: AcousticModelProtocol {
 
         // Generate frame count
         let frameCount = max(1, Int(ceil(totalDurationSecs * Double(frameRate))))
+        let featureElements = frameCount.multipliedReportingOverflow(by: frequencyBins)
+        guard !featureElements.overflow, featureElements.partialValue <= 100_000_000 else {
+            throw ChoirError.outOfMemory
+        }
 
         // Deterministic test features. Random output made identical requests
         // nondeterministic and could hide regressions behind changing mocks.
         let features: [[Float]] = (0..<frameCount).map { frame in
             (0..<frequencyBins).map { bin in
-                let phase = Double((frame + 1) * (bin + 1) + input.voiceID) * 0.017
+                let phase = (
+                    Double(frame + 1) * Double(bin + 1) + Double(input.voiceID)
+                ) * 0.017
                 return Float(-2 + 2 * sin(phase))
             }
         }
@@ -179,17 +234,60 @@ public struct MockAcousticModel: AcousticModelProtocol {
     }
 }
 
-/// Placeholder for future Core ML acoustic model.
+/// Adapter for a generated Core ML acoustic model.
+///
+/// Xcode-generated model classes differ by model architecture, so CHOIR keeps
+/// their tensor spelling out of the public engine. The consuming asset target
+/// supplies a `@Sendable` inference closure that invokes its generated Core ML
+/// class and returns the normalized CHOIR feature representation. This makes a
+/// production model injectable without making the engine depend on a specific
+/// training checkpoint's generated Swift symbols.
 public struct CoreMLAcousticModel: AcousticModelProtocol {
-    // TODO: Implement when Core ML model files are available
-    // private let model: MLModel?
+    public typealias Inference = @Sendable (AcousticModelInput) async throws -> AcousticFeatures
 
-    public init() {}
+    private let inference: Inference?
+
+    /// Creates an unavailable adapter. Kept for source compatibility and for
+    /// deterministic diagnostics when no production asset is bundled.
+    public init() {
+        self.inference = nil
+    }
+
+    /// Creates an adapter around an Xcode-generated Core ML model invocation.
+    public init(inference: @escaping Inference) {
+        self.inference = inference
+    }
 
     public func predict(input: AcousticModelInput) async throws -> AcousticFeatures {
         try input.validate()
-        throw ChoirError.modelLoadFailed(
-            reason: "No production Core ML acoustic model is bundled in this build")
+        guard let inference else {
+            throw ChoirError.modelLoadFailed(
+                reason: "No production Core ML acoustic model is bundled in this build")
+        }
+
+        let result: AcousticFeatures
+        do {
+            result = try await inference(input)
+        } catch let error as ChoirError {
+            throw error
+        } catch {
+            throw ChoirError.synthesisError(
+                reason: "Core ML acoustic inference failed: \(error.localizedDescription)")
+        }
+
+        guard (1...1_000).contains(result.frameRate),
+              result.frameCount > 0,
+              result.frameCount <= 600_000,
+              result.frequencyBins > 0,
+              result.frequencyBins <= 4_096,
+              result.isRectangular,
+              result.containsOnlyFiniteValues,
+              result.duration.isFinite,
+              result.duration <= 600 else {
+            throw ChoirError.synthesisError(
+                reason: "Core ML acoustic model returned an invalid feature tensor")
+        }
+        return result
     }
 }
 

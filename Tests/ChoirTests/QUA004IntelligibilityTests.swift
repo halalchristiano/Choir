@@ -135,8 +135,8 @@ struct TranscriptionScoringTests {
 
         let pitches = Set(corners.map(\.pitchShift))
         let rates = Set(corners.map(\.rate))
-        #expect(pitches == [-12, 12])
-        #expect(rates == [0.5, 2.0])
+        #expect(pitches == [-6, 6])
+        #expect(rates == [0.6, 2.0])
     }
 
     /// An unavailable recognizer is a failure to measure, not a score of zero.
@@ -191,7 +191,7 @@ struct TranscriptionScoringTests {
             voice: .grimshaw,
             condition: .envelopeCorner,
             transcriberIdentifier: "test",
-            parameters: SynthesisParameters(pitchShift: -12, rate: 2.0),
+            parameters: SynthesisParameters(pitchShift: -6, rate: 2.0),
             scores: [SentenceScore(reference: "a b", hypothesis: "a b")])
 
         let data = try JSONEncoder().encode(report)

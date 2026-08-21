@@ -10,6 +10,9 @@ public struct AudioEffect: Sendable, Equatable {
         case compress(threshold: Double, ratio: Double)
         case deEsser(centerHz: Double)
         case softClip(threshold: Double)
+        case removeDCOffset
+        case edgeFade(durationMilliseconds: Double)
+        case softKneeLimiter(ceilingDB: Double, kneeWidthDB: Double)
         case reverb(wetLevel: Double)
 
         /// Validates effect parameters against the processing sample rate.
@@ -55,6 +58,25 @@ public struct AudioEffect: Sendable, Equatable {
                     throw ChoirError.invalidParameter(
                         parameter: "threshold",
                         reason: "Soft-clip threshold must be within (0, 1]")
+                }
+            case .removeDCOffset:
+                break
+            case .edgeFade(let duration):
+                guard duration.isFinite, 0...5 ~= duration else {
+                    throw ChoirError.invalidParameter(
+                        parameter: "durationMilliseconds",
+                        reason: "Edge-fade duration must be within 0...5 ms")
+                }
+            case .softKneeLimiter(let ceiling, let knee):
+                guard ceiling.isFinite, -24...0 ~= ceiling else {
+                    throw ChoirError.invalidParameter(
+                        parameter: "ceilingDB",
+                        reason: "Limiter ceiling must be within -24...0 dBFS")
+                }
+                guard knee.isFinite, 0...24 ~= knee else {
+                    throw ChoirError.invalidParameter(
+                        parameter: "kneeWidthDB",
+                        reason: "Limiter knee width must be within 0...24 dB")
                 }
             case .reverb(let wetLevel):
                 guard wetLevel.isFinite, 0...1 ~= wetLevel else {
@@ -160,7 +182,32 @@ public struct AudioEffectChain: Sendable {
                 parameter: "buffer",
                 reason: "Buffer and effect-chain sample rates must match")
         }
-        return AudioBuffer(samples: process(buffer.samples), format: buffer.format)
+        guard buffer.format.channels > 1 else {
+            return AudioBuffer(samples: process(buffer.samples), format: buffer.format)
+        }
+
+        // Stateful filters must never carry their previous sample from one
+        // interleaved channel into the next. Process each channel as its own
+        // signal, then restore the original interleaving.
+        let channelCount = buffer.format.channels
+        var channels = Array(repeating: [Int16](), count: channelCount)
+        for channel in channels.indices {
+            channels[channel].reserveCapacity(buffer.frameCount)
+        }
+        for frame in 0..<buffer.frameCount {
+            for channel in channels.indices {
+                channels[channel].append(buffer.samples[frame * channelCount + channel])
+            }
+        }
+        let processedChannels = channels.map { process($0) }
+        var interleaved: [Int16] = []
+        interleaved.reserveCapacity(buffer.samples.count)
+        for frame in 0..<buffer.frameCount {
+            for channel in processedChannels.indices {
+                interleaved.append(processedChannels[channel][frame])
+            }
+        }
+        return AudioBuffer(samples: interleaved, format: buffer.format)
     }
 
     /// Processes audio with a single effect.
@@ -183,6 +230,17 @@ public struct AudioEffectChain: Sendable {
 
         case .softClip(let threshold):
             return filters.softClip(samples, threshold: threshold)
+
+        case .removeDCOffset:
+            return filters.removeDCOffset(samples)
+
+        case .edgeFade(let duration):
+            return filters.fadeEdges(
+                samples, durationMilliseconds: duration, sampleRate: sampleRate)
+
+        case .softKneeLimiter(let ceiling, let knee):
+            return filters.softKneeLimiter(
+                samples, ceilingDB: ceiling, kneeWidthDB: knee)
 
         case .reverb(let wet):
             return filters.reverb(samples, wetLevel: wet, sampleRate: sampleRate)
@@ -234,5 +292,18 @@ public struct AudioEffectChain: Sendable {
             .add(AudioEffect(name: "De-esser", kind: .deEsser(centerHz: 5000)))
             .add(AudioEffect(name: "Normalize", kind: .normalize(targetLevel: -3.0)))
             .add(AudioEffect(name: "Soft Clip", kind: .softClip(threshold: 0.95)))
+    }()
+
+    /// Optional AUD-022 broadcast chain. It is deliberately opt-in rather
+    /// than applied by the default synthesis path.
+    public static let broadcast: AudioEffectChain = {
+        AudioEffectChain()
+            .add(AudioEffect(name: "DC Block", kind: .removeDCOffset))
+            .add(AudioEffect(name: "40 Hz High Pass", kind: .highPass(cutoffHz: 40)))
+            .add(AudioEffect(name: "De-esser", kind: .deEsser(centerHz: 6_000)))
+            .add(AudioEffect(
+                name: "Soft-knee Limiter",
+                kind: .softKneeLimiter(ceilingDB: -1, kneeWidthDB: 3)))
+            .add(AudioEffect(name: "Clickless Edges", kind: .edgeFade(durationMilliseconds: 5)))
     }()
 }

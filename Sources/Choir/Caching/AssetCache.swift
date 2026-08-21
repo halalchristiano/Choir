@@ -12,7 +12,7 @@ public actor AssetCache: Sendable {
     private var prosodyCache: [String: ProsodyDescription] = [:]
 
     /// Maximum cache size in bytes (100 MB default).
-    private let maxCacheSize: Int
+    private var maxCacheSize: Int
 
     /// Current cache size in bytes.
     private var currentCacheSize: Int = 0
@@ -22,8 +22,12 @@ public actor AssetCache: Sendable {
     private var transcriptionSizes: [String: Int] = [:]
     private var prosodySizes: [String: Int] = [:]
 
-    /// Creation and last-access timestamps for LRU eviction.
-    private var accessTimes: [String: Date] = [:]
+    /// Monotonic access sequence for deterministic LRU eviction.
+    private var accessOrder: [String: UInt64] = [:]
+    private var accessSequence: UInt64 = 0
+
+    /// App-critical values are never selected for automatic eviction.
+    private var pinned: Set<String> = []
 
     public init(maxCacheSize: Int = 100 * 1024 * 1024) {
         self.maxCacheSize = max(0, maxCacheSize)
@@ -32,66 +36,60 @@ public actor AssetCache: Sendable {
     /// Stores acoustic features in cache.
     public func cacheAcousticFeatures(_ features: AcousticFeatures, for key: String) {
         let size = features.frameCount * features.frequencyBins * MemoryLayout<Float>.size
+        let replacedBytes = featureSizes[key] ?? 0
+        guard ensureSpace(size, replacing: replacedBytes, preserving: key) else { return }
         removeFeature(for: key)
-        guard ensureSpace(size) else {
-            removeAccessTimeIfUnused(for: key)
-            return
-        }
 
         featureCache[key] = features
         featureSizes[key] = size
         currentCacheSize += size
-        accessTimes[key] = Date()
+        touch(key)
     }
 
     /// Retrieves cached acoustic features.
     public func getAcousticFeatures(for key: String) -> AcousticFeatures? {
         guard let value = featureCache[key] else { return nil }
-        accessTimes[key] = Date()
+        touch(key)
         return value
     }
 
     /// Stores transcription in cache.
     public func cacheTranscription(_ transcript: PhoneticTranscription, for key: String) {
         let size = transcript.phonemes.count * 64  // Rough estimate
+        let replacedBytes = transcriptionSizes[key] ?? 0
+        guard ensureSpace(size, replacing: replacedBytes, preserving: key) else { return }
         removeTranscription(for: key)
-        guard ensureSpace(size) else {
-            removeAccessTimeIfUnused(for: key)
-            return
-        }
 
         transcriptionCache[key] = transcript
         transcriptionSizes[key] = size
         currentCacheSize += size
-        accessTimes[key] = Date()
+        touch(key)
     }
 
     /// Retrieves cached transcription.
     public func getTranscription(for key: String) -> PhoneticTranscription? {
         guard let value = transcriptionCache[key] else { return nil }
-        accessTimes[key] = Date()
+        touch(key)
         return value
     }
 
     /// Stores prosody prediction in cache.
     public func cacheProsody(_ prosody: ProsodyDescription, for key: String) {
         let size = prosody.phonemes.count * 128  // Rough estimate
+        let replacedBytes = prosodySizes[key] ?? 0
+        guard ensureSpace(size, replacing: replacedBytes, preserving: key) else { return }
         removeProsody(for: key)
-        guard ensureSpace(size) else {
-            removeAccessTimeIfUnused(for: key)
-            return
-        }
 
         prosodyCache[key] = prosody
         prosodySizes[key] = size
         currentCacheSize += size
-        accessTimes[key] = Date()
+        touch(key)
     }
 
     /// Retrieves cached prosody prediction.
     public func getProsody(for key: String) -> ProsodyDescription? {
         guard let value = prosodyCache[key] else { return nil }
-        accessTimes[key] = Date()
+        touch(key)
         return value
     }
 
@@ -114,8 +112,45 @@ public actor AssetCache: Sendable {
         removeFeature(for: key)
         removeTranscription(for: key)
         removeProsody(for: key)
-        accessTimes.removeValue(forKey: key)
+        accessOrder.removeValue(forKey: key)
+        pinned.remove(key)
         return existed
+    }
+
+    /// Prevents an existing key from being selected by LRU eviction.
+    @discardableResult
+    public func pin(_ key: String) -> Bool {
+        guard isStored(key) else { return false }
+        pinned.insert(key)
+        touch(key)
+        return true
+    }
+
+    /// Makes a pinned key eligible for LRU eviction again.
+    @discardableResult
+    public func unpin(_ key: String) -> Bool {
+        pinned.remove(key) != nil
+    }
+
+    public func isPinned(_ key: String) -> Bool { pinned.contains(key) }
+
+    public var pinnedKeys: [String] { pinned.sorted() }
+
+    /// Changes the byte cap without silently discarding pinned values.
+    public func setMaximumCacheSize(_ bytes: Int) throws {
+        guard bytes >= 0 else {
+            throw ChoirError.invalidParameter(
+                parameter: "bytes", reason: "Cache size must not be negative")
+        }
+        let pinnedBytes = pinned.reduce(0) { $0 + size(for: $1) }
+        guard pinnedBytes <= bytes else {
+            throw ChoirError.invalidParameter(
+                parameter: "bytes", reason: "The new limit is smaller than pinned cache data")
+        }
+        maxCacheSize = bytes
+        while currentCacheSize > maxCacheSize {
+            guard evictLRUItem() else { break }
+        }
     }
 
     /// Keys currently represented in at least one cache, in stable order.
@@ -134,7 +169,9 @@ public actor AssetCache: Sendable {
         featureSizes.removeAll()
         transcriptionSizes.removeAll()
         prosodySizes.removeAll()
-        accessTimes.removeAll()
+        accessOrder.removeAll()
+        pinned.removeAll()
+        accessSequence = 0
         currentCacheSize = 0
     }
 
@@ -145,30 +182,39 @@ public actor AssetCache: Sendable {
             transcriptionCount: transcriptionCache.count,
             prosodyCount: prosodyCache.count,
             currentSizeBytes: currentCacheSize,
-            maxSizeBytes: maxCacheSize
+            maxSizeBytes: maxCacheSize,
+            pinnedKeyCount: pinned.count
         )
     }
 
     /// Ensures there's enough space for new data using LRU eviction.
-    private func ensureSpace(_ requiredBytes: Int) -> Bool {
+    private func ensureSpace(
+        _ requiredBytes: Int,
+        replacing replacedBytes: Int,
+        preserving key: String
+    ) -> Bool {
         guard requiredBytes >= 0, requiredBytes <= maxCacheSize else { return false }
 
-        while currentCacheSize + requiredBytes > maxCacheSize && !accessTimes.isEmpty {
-            evictLRUItem()
+        while currentCacheSize - replacedBytes + requiredBytes > maxCacheSize {
+            guard evictLRUItem(excluding: key) else { return false }
         }
-        return currentCacheSize + requiredBytes <= maxCacheSize
+        return currentCacheSize - replacedBytes + requiredBytes <= maxCacheSize
     }
 
     /// Evicts the least recently used item.
-    private func evictLRUItem() {
-        guard let lruKey = accessTimes.min(by: { $0.value < $1.value })?.key else { return }
+    @discardableResult
+    private func evictLRUItem(excluding protectedKey: String? = nil) -> Bool {
+        guard let lruKey = accessOrder
+            .filter({ !pinned.contains($0.key) && $0.key != protectedKey })
+            .min(by: { $0.value < $1.value })?.key else { return false }
 
         // Remove from all caches
         removeFeature(for: lruKey)
         removeTranscription(for: lruKey)
         removeProsody(for: lruKey)
 
-        accessTimes.removeValue(forKey: lruKey)
+        accessOrder.removeValue(forKey: lruKey)
+        return true
     }
 
     private func removeFeature(for key: String) {
@@ -189,11 +235,29 @@ public actor AssetCache: Sendable {
         currentCacheSize = max(0, currentCacheSize)
     }
 
-    private func removeAccessTimeIfUnused(for key: String) {
-        guard featureCache[key] == nil,
-              transcriptionCache[key] == nil,
-              prosodyCache[key] == nil else { return }
-        accessTimes.removeValue(forKey: key)
+    private func isStored(_ key: String) -> Bool {
+        featureCache[key] != nil || transcriptionCache[key] != nil || prosodyCache[key] != nil
+    }
+
+    private func size(for key: String) -> Int {
+        (featureSizes[key] ?? 0)
+            + (transcriptionSizes[key] ?? 0)
+            + (prosodySizes[key] ?? 0)
+    }
+
+    private func touch(_ key: String) {
+        accessSequence &+= 1
+        if accessSequence == 0 {
+            // Overflow is fantastically unlikely, but rebuilding the order is
+            // safer than allowing newly accessed values to appear oldest.
+            let ordered = accessOrder.sorted { $0.value < $1.value }.map(\.key)
+            accessOrder.removeAll(keepingCapacity: true)
+            for (index, existingKey) in ordered.enumerated() {
+                accessOrder[existingKey] = UInt64(index + 1)
+            }
+            accessSequence = UInt64(ordered.count + 1)
+        }
+        accessOrder[key] = accessSequence
     }
 }
 
@@ -213,6 +277,9 @@ public struct CacheStatistics: Sendable, Equatable {
 
     /// Maximum cache size in bytes.
     public let maxSizeBytes: Int
+
+    /// Number of logical keys protected from LRU eviction.
+    public let pinnedKeyCount: Int
 
     /// Cache utilization as percentage.
     public var utilizationPercent: Double {
