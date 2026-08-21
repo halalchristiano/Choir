@@ -74,6 +74,115 @@ public struct SynthesisPipeline: Sendable {
         return AudioBuffer(samples: pcmSamples, format: audioFormat)
     }
 
+    /// Synthesizes and returns the timing metadata SYN-005 requires.
+    ///
+    /// Timings come from the prosody model's predicted phoneme durations, the
+    /// same values that drive the acoustic model, so the metadata describes the
+    /// audio actually produced rather than an independent estimate.
+    public func synthesizeWithMetadata(
+        text: String,
+        voice: Voice,
+        parameters: SynthesisParameters
+    ) async throws -> SynthesisResult {
+        let transcript = try linguisticFrontend.process(text)
+        let prosody = prosodyPredictor.predictProsody(for: transcript, with: parameters)
+
+        let acousticInput = createAcousticInput(from: prosody, voice: voice)
+        let acousticFeatures = try await acousticModel.predict(input: acousticInput)
+        let pcmSamples = try await vocoder.synthesize(
+            features: acousticFeatures,
+            sampleRate: audioFormat.sampleRate
+        )
+
+        let audio = AudioBuffer(samples: pcmSamples, format: audioFormat)
+        let metadata = Self.buildMetadata(
+            transcript: transcript,
+            durationsMs: prosody.phonemes.map(\.prosody.duration),
+            audio: audio,
+            voice: voice,
+            parameters: parameters
+        )
+        return SynthesisResult(audio: audio, metadata: metadata)
+    }
+
+    /// Assembles SYN-005 metadata from per-phoneme durations.
+    ///
+    /// Phoneme spans are laid end to end; word spans are the union of the
+    /// phonemes between consecutive word boundaries; sentences are word-index
+    /// ranges delimited by terminal punctuation.
+    static func buildMetadata(
+        transcript: PhoneticTranscription,
+        durationsMs: [Double],
+        audio: AudioBuffer,
+        voice: Voice,
+        parameters: SynthesisParameters
+    ) -> SynthesisMetadata {
+        var phonemeSpans: [TimedSpan] = []
+        phonemeSpans.reserveCapacity(transcript.phonemes.count)
+
+        var cursor = 0.0
+        for (index, phoneme) in transcript.phonemes.enumerated() {
+            // A missing duration contributes nothing rather than trapping.
+            let duration = index < durationsMs.count ? max(0, durationsMs[index]) : 0
+            phonemeSpans.append(
+                TimedSpan(content: phoneme.symbol, startMs: cursor, endMs: cursor + duration)
+            )
+            cursor += duration
+        }
+
+        // Word spans span the phonemes between consecutive boundaries.
+        var wordSpans: [TimedSpan] = []
+        let boundaries = transcript.wordBoundaries
+        for (wordIndex, start) in boundaries.enumerated() {
+            let end = wordIndex + 1 < boundaries.count
+                ? boundaries[wordIndex + 1]
+                : transcript.phonemes.count
+
+            guard start < end, start < phonemeSpans.count else { continue }
+            let last = min(end, phonemeSpans.count) - 1
+            guard last >= start else { continue }
+
+            let text = wordIndex < transcript.wordTexts.count
+                ? transcript.wordTexts[wordIndex]
+                : ""
+            wordSpans.append(
+                TimedSpan(
+                    content: text,
+                    startMs: phonemeSpans[start].startMs,
+                    endMs: phonemeSpans[last].endMs
+                )
+            )
+        }
+
+        // Sentences are runs of words ending in terminal punctuation.
+        var sentences: [Range<Int>] = []
+        var sentenceStart = 0
+        for (index, span) in wordSpans.enumerated() {
+            if span.content.contains(where: { ".!?".contains($0) }) {
+                sentences.append(sentenceStart..<(index + 1))
+                sentenceStart = index + 1
+            }
+        }
+        if sentenceStart < wordSpans.count {
+            sentences.append(sentenceStart..<wordSpans.count)
+        }
+
+        // Prefer the audio's own duration; fall back to the prosody total when
+        // no audio was produced.
+        let audioDurationMs = audio.duration * 1000
+        let totalMs = audioDurationMs > 0 ? audioDurationMs : cursor
+
+        return SynthesisMetadata(
+            totalDurationMs: totalMs,
+            words: wordSpans,
+            phonemes: phonemeSpans,
+            sentences: sentences,
+            marks: [],
+            effectiveParameters: parameters,
+            voice: voice
+        )
+    }
+
     /// Creates acoustic model input from prosody prediction.
     private func createAcousticInput(
         from prosody: ProsodyDescription,

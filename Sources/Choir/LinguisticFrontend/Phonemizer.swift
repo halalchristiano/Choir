@@ -7,8 +7,23 @@ public struct Phonemizer: Sendable {
     /// A dictionary of known word pronunciations (simplified CMU-like format).
     private let pronunciationDictionary: [String: [Phoneme]]
 
-    public init(dictionary: [String: [Phoneme]]? = nil) {
+    /// Runtime overrides registered by the consuming app (SRS TXT-022).
+    ///
+    /// A snapshot rather than the actor itself, because phonemization is
+    /// synchronous and runs per word.
+    private let userLexicon: UserLexiconSnapshot
+
+    public init(
+        dictionary: [String: [Phoneme]]? = nil,
+        userLexicon: UserLexiconSnapshot = .empty
+    ) {
         self.pronunciationDictionary = dictionary ?? Phonemizer.defaultDictionary
+        self.userLexicon = userLexicon
+    }
+
+    /// Returns a copy of this phonemizer using `lexicon` for overrides.
+    public func withUserLexicon(_ lexicon: UserLexiconSnapshot) -> Phonemizer {
+        Phonemizer(dictionary: pronunciationDictionary, userLexicon: lexicon)
     }
 
     /// Converts a word to its phonetic transcription.
@@ -21,7 +36,23 @@ public struct Phonemizer: Sendable {
 
         guard !normalized.isEmpty else { return [] }
 
-        // Check dictionary first
+        // TXT-022: user registrations take precedence over the built-in lexicon.
+        if let override = userLexicon.pronunciation(for: normalized) {
+            switch override {
+            case .phonemes(let symbols):
+                return symbols.map { Phoneme($0) }
+            case .respelling(let respelling):
+                // Phonemize the respelling by the normal rules. Syllables are
+                // written whitespace-separated, so each is converted and the
+                // results concatenated.
+                return respelling
+                    .lowercased()
+                    .split(whereSeparator: \.isWhitespace)
+                    .flatMap { graphemeToPhonemeRules(String($0)) }
+            }
+        }
+
+        // Check dictionary next
         if let phonemes = pronunciationDictionary[normalized] {
             return phonemes
         }
