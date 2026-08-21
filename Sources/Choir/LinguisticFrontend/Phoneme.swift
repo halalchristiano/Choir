@@ -1,7 +1,7 @@
 import Foundation
 
 /// A phoneme representing a distinct sound in English.
-public struct Phoneme: Equatable, Hashable, Sendable {
+public struct Phoneme: Equatable, Hashable, Sendable, Codable {
     /// The phoneme symbol (e.g., "ə", "ɪ", "s", "t").
     public let symbol: String
 
@@ -19,6 +19,21 @@ public struct Phoneme: Equatable, Hashable, Sendable {
         // allow the two representations to split the model vocabulary.
         self.symbol = symbol == "g" ? "\u{0261}" : symbol
         self.stress = min(2, max(0, stress))
+    }
+
+    private enum CodingKeys: String, CodingKey { case symbol, stress }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            try container.decode(String.self, forKey: .symbol),
+            stress: try container.decodeIfPresent(Int.self, forKey: .stress) ?? 0)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(symbol, forKey: .symbol)
+        try container.encode(stress, forKey: .stress)
     }
 
     public var description: String {

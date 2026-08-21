@@ -26,6 +26,28 @@ public struct G2PEvaluator: Sendable {
         /// Words predicted exactly, with no substitutions or omissions.
         public let exactMatches: Int
 
+        /// Requested words skipped because no reference was available.
+        public let missingReferences: Int
+
+        /// References skipped because they contained unsupported ARPAbet.
+        public let invalidReferences: Int
+
+        public init(
+            wordCount: Int,
+            referencePhonemeCount: Int,
+            totalEditDistance: Int,
+            exactMatches: Int,
+            missingReferences: Int = 0,
+            invalidReferences: Int = 0
+        ) {
+            self.wordCount = max(0, wordCount)
+            self.referencePhonemeCount = max(0, referencePhonemeCount)
+            self.totalEditDistance = max(0, totalEditDistance)
+            self.exactMatches = min(max(0, exactMatches), max(0, wordCount))
+            self.missingReferences = max(0, missingReferences)
+            self.invalidReferences = max(0, invalidReferences)
+        }
+
         /// Phoneme accuracy: 1 - (edit distance / reference length).
         ///
         /// This is the standard phoneme-error-rate complement, and is what
@@ -40,6 +62,17 @@ public struct G2PEvaluator: Sendable {
             guard wordCount > 0 else { return 0 }
             return Double(exactMatches) / Double(wordCount)
         }
+
+        public var phonemeErrorRate: Double {
+            guard referencePhonemeCount > 0 else { return 0 }
+            return Double(totalEditDistance) / Double(referencePhonemeCount)
+        }
+
+        public var inexactMatches: Int { max(0, wordCount - exactMatches) }
+
+        public var skippedWords: Int { missingReferences + invalidReferences }
+
+        public var hasUsableSample: Bool { wordCount > 0 && referencePhonemeCount > 0 }
 
         /// Whether the TXT-020 target is met.
         public var meetsTarget: Bool { phonemeAccuracy >= 0.92 }
@@ -71,11 +104,25 @@ public struct G2PEvaluator: Sendable {
         var distance = 0
         var exact = 0
         var evaluated = 0
+        var missing = 0
+        var invalid = 0
 
-        for word in words {
-            guard let arpabet = reference(word) else { continue }
-            let expected = PhonemeInventory.phonemes(fromARPAbet: arpabet).map(\.symbol)
-            guard !expected.isEmpty else { continue }
+        for rawWord in words {
+            let word = rawWord.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !word.isEmpty else {
+                missing += 1
+                continue
+            }
+            guard let arpabet = reference(word) else {
+                missing += 1
+                continue
+            }
+            let conversion = PhonemeInventory.conversion(fromARPAbet: arpabet)
+            guard conversion.isComplete, !conversion.phonemes.isEmpty else {
+                invalid += 1
+                continue
+            }
+            let expected = conversion.phonemes.map(\.symbol)
 
             let predicted = phonemizer.phonemize(word).map(\.symbol)
 
@@ -90,7 +137,9 @@ public struct G2PEvaluator: Sendable {
             wordCount: evaluated,
             referencePhonemeCount: referenceCount,
             totalEditDistance: distance,
-            exactMatches: exact
+            exactMatches: exact,
+            missingReferences: missing,
+            invalidReferences: invalid
         )
     }
 
@@ -110,10 +159,10 @@ public struct G2PEvaluator: Sendable {
     /// changed and not the sample.
     public static func sampleWords(from lexicon: BuiltInLexicon, count: Int) -> [String] {
         let all = lexicon.allWords.sorted()
-        guard all.count > count, count > 0 else { return all }
-        let stride = all.count / count
+        guard count > 0 else { return [] }
+        guard all.count > count else { return all }
         return (0..<count).compactMap { index in
-            let position = index * stride
+            let position = Int(Double(index) * Double(all.count) / Double(count))
             return position < all.count ? all[position] : nil
         }
     }

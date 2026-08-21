@@ -1,7 +1,7 @@
 import Foundation
 
 /// Prosodic features for a phoneme or segment.
-public struct ProsodyFeatures: Sendable {
+public struct ProsodyFeatures: Sendable, Equatable, Codable {
     /// Fundamental frequency (F0) in Hz.
     public var fundamentalFrequency: Double
 
@@ -32,18 +32,28 @@ public struct ProsodyFeatures: Sendable {
         accentType: String = "none",
         boundaryTone: String = "none"
     ) {
-        self.fundamentalFrequency = max(50, min(400, fundamentalFrequency))
-        self.duration = max(10, min(500, duration))
-        self.energy = max(-60, min(0, energy))
-        self.voicing = max(0, min(1.0, voicing))
+        self.fundamentalFrequency = Self.bounded(fundamentalFrequency, 50...400, fallback: 120)
+        self.duration = Self.bounded(duration, 10...500, fallback: 100)
+        self.energy = Self.bounded(energy, -60...0, fallback: -20)
+        self.voicing = Self.bounded(voicing, 0...1, fallback: 1)
         self.isVoiced = isVoiced
-        self.accentType = accentType
-        self.boundaryTone = boundaryTone
+        self.accentType = Self.validAccents.contains(accentType) ? accentType : "none"
+        self.boundaryTone = Self.validBoundaryTones.contains(boundaryTone) ? boundaryTone : "none"
+    }
+
+    private static let validAccents: Set<String> = ["H*", "L*", "L+H*", "H+L*", "none"]
+    private static let validBoundaryTones: Set<String> = ["H%", "L%", "none"]
+
+    private static func bounded(
+        _ value: Double, _ range: ClosedRange<Double>, fallback: Double
+    ) -> Double {
+        guard value.isFinite else { return fallback }
+        return min(range.upperBound, max(range.lowerBound, value))
     }
 }
 
 /// A phoneme with its prosodic annotation.
-public struct AnnotatedPhoneme: Sendable {
+public struct AnnotatedPhoneme: Sendable, Equatable, Codable {
     /// The phoneme itself.
     public let phoneme: Phoneme
 
@@ -61,7 +71,7 @@ public struct AnnotatedPhoneme: Sendable {
 }
 
 /// Timing information for a phoneme.
-public struct TimingInfo: Sendable {
+public struct TimingInfo: Sendable, Equatable, Codable {
     /// Absolute start time in milliseconds.
     public var startTime: Double = 0
 
@@ -73,9 +83,26 @@ public struct TimingInfo: Sendable {
         endTime - startTime
     }
 
+    public var midpoint: Double { startTime + duration / 2 }
+
+    public var isEmpty: Bool { duration == 0 }
+
     public init(startTime: Double = 0, endTime: Double = 100) {
-        self.startTime = startTime
-        self.endTime = endTime
+        let safeStart = startTime.isFinite ? max(0, startTime) : 0
+        self.startTime = safeStart
+        self.endTime = endTime.isFinite ? max(safeStart, endTime) : safeStart
+    }
+
+    public func contains(_ time: Double) -> Bool {
+        time.isFinite && time >= startTime && time < endTime
+    }
+
+    public func shifted(by milliseconds: Double) -> TimingInfo {
+        guard milliseconds.isFinite else { return self }
+        let effectiveShift = max(milliseconds, -startTime)
+        return TimingInfo(
+            startTime: startTime + effectiveShift,
+            endTime: endTime + effectiveShift)
     }
 }
 
@@ -88,13 +115,30 @@ public struct ProsodyContour: Sendable {
     public let interpolation: String
 
     public init(points: [(time: Double, value: Double)], interpolation: String = "spline") {
-        self.points = points
-        self.interpolation = interpolation
+        var normalized: [(time: Double, value: Double)] = []
+        for point in points where point.time.isFinite && point.value.isFinite {
+            if let existing = normalized.firstIndex(where: { $0.time == point.time }) {
+                normalized[existing] = point
+            } else {
+                normalized.append(point)
+            }
+        }
+        self.points = normalized.sorted { $0.time < $1.time }
+        self.interpolation = ["linear", "spline", "step"].contains(interpolation.lowercased())
+            ? interpolation.lowercased()
+            : "linear"
     }
+
+    public var isEmpty: Bool { points.isEmpty }
+    public var startTime: Double? { points.first?.time }
+    public var endTime: Double? { points.last?.time }
+    public var duration: Double { max(0, (endTime ?? 0) - (startTime ?? 0)) }
+    public var minimumValue: Double? { points.map { $0.value }.min() }
+    public var maximumValue: Double? { points.map { $0.value }.max() }
 
     /// Evaluates the contour at a given time using interpolation.
     public func valueAt(_ time: Double) -> Double? {
-        guard !points.isEmpty else { return nil }
+        guard time.isFinite, !points.isEmpty else { return nil }
 
         // Clamp to range
         if time < points.first!.time { return points.first!.value }
@@ -115,7 +159,10 @@ public struct ProsodyContour: Sendable {
 
         guard let l = lower, let u = upper else { return nil }
 
-        // Linear interpolation (simplified; spline would be more sophisticated)
+        if interpolation == "step" { return l.value }
+
+        // Spline currently uses the stable linear fallback until neighboring
+        // tangent estimation is added.
         if l.time == u.time { return l.value }
         let ratio = (time - l.time) / (u.time - l.time)
         return l.value + ratio * (u.value - l.value)
@@ -138,7 +185,19 @@ public struct ProsodyDescription: Sendable {
 
     /// Total duration in milliseconds.
     public var totalDuration: Double {
-        phonemes.last?.timing.endTime ?? 0
+        phonemes.map(\.timing.endTime).max() ?? 0
+    }
+
+    public var isEmpty: Bool { phonemes.isEmpty }
+
+    public var hasMatchingDurationCount: Bool { durations.count == phonemes.count }
+
+    public var invalidDurationIndices: [Int] {
+        durations.indices.filter { !durations[$0].isFinite || durations[$0] < 0 }
+    }
+
+    public var isStructurallyValid: Bool {
+        hasMatchingDurationCount && invalidDurationIndices.isEmpty
     }
 
     public init(

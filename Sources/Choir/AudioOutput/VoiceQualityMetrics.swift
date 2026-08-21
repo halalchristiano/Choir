@@ -5,7 +5,7 @@ public struct VoiceQualityAnalyzer: Sendable {
     public init() {}
 
     /// Audio quality metrics.
-    public struct QualityMetrics: Sendable {
+    public struct QualityMetrics: Sendable, Equatable, Codable {
         /// RMS (root mean square) loudness.
         public let rmsLoudness: Double
 
@@ -26,6 +26,34 @@ public struct VoiceQualityAnalyzer: Sendable {
 
         /// Zero crossings per second (for harmonic content).
         public let zeroCrossingRate: Double
+
+        public init(
+            rmsLoudness: Double,
+            peakLevel: Int16,
+            dynamicRange: Double,
+            lufs: Double,
+            snrEstimate: Double,
+            clippingPercent: Double,
+            zeroCrossingRate: Double
+        ) {
+            self.rmsLoudness = rmsLoudness.isFinite ? rmsLoudness : -60
+            self.peakLevel = max(0, peakLevel)
+            self.dynamicRange = dynamicRange.isFinite ? max(0, dynamicRange) : 0
+            self.lufs = lufs.isFinite ? lufs : -60
+            self.snrEstimate = snrEstimate.isFinite ? max(0, snrEstimate) : 0
+            self.clippingPercent = clippingPercent.isFinite
+                ? min(100, max(0, clippingPercent)) : 0
+            self.zeroCrossingRate = zeroCrossingRate.isFinite ? max(0, zeroCrossingRate) : 0
+        }
+
+        public var peakDBFS: Double {
+            guard peakLevel > 0 else { return -Double.infinity }
+            return 20 * log10(Double(peakLevel) / Double(Int16.max))
+        }
+
+        public var clippingFraction: Double { clippingPercent / 100 }
+
+        public var isSilent: Bool { peakLevel == 0 }
     }
 
     /// Analyzes audio quality.
@@ -54,14 +82,18 @@ public struct VoiceQualityAnalyzer: Sendable {
 
         // Dynamic range
         let minNonZero = samples.filter { $0 != 0 }.map { $0.magnitude }.min() ?? 1
-        let dynamicRange = 20.0 * log10(Double(peakMagnitude) / Double(minNonZero))
+        let dynamicRange = peakMagnitude == 0
+            ? 0
+            : 20.0 * log10(Double(peakMagnitude) / Double(minNonZero))
 
         // Estimate LUFS (simplified K-weighting approximation)
         let lufs = rmsDb - 4.0  // Simplified
 
         // Estimate SNR
         let quietFloor = peakMagnitude / 10
-        let snr = 20.0 * log10(max(Double(peakMagnitude) / Double(max(quietFloor, 1)), 0.00001))
+        let snr = peakMagnitude == 0
+            ? 0
+            : 20.0 * log10(Double(peakMagnitude) / Double(max(quietFloor, 1)))
 
         // Check clipping (samples above 95% of max)
         let clipThreshold = Int16(32767 * 0.95)
@@ -75,8 +107,9 @@ public struct VoiceQualityAnalyzer: Sendable {
                 zeroCrossings += 1
             }
         }
-        let duration = Double(samples.count) / Double(sampleRate)
-        let zcr = Double(zeroCrossings) / duration
+        let zcr = sampleRate > 0
+            ? Double(zeroCrossings) / (Double(samples.count) / Double(sampleRate))
+            : 0
 
         return QualityMetrics(
             rmsLoudness: rmsDb,
@@ -185,15 +218,32 @@ public struct VoiceQualityAnalyzer: Sendable {
 }
 
 /// Complete quality report.
-public struct QualityReport: Sendable {
+public struct QualityReport: Sendable, Equatable, Codable {
     public let metrics: VoiceQualityAnalyzer.QualityMetrics
     public let rating: Double
     public let issues: [String]
     public let recommendations: [String]
 
+    public init(
+        metrics: VoiceQualityAnalyzer.QualityMetrics,
+        rating: Double,
+        issues: [String],
+        recommendations: [String]
+    ) {
+        self.metrics = metrics
+        self.rating = rating.isFinite ? min(5, max(1, rating)) : 1
+        self.issues = issues
+        self.recommendations = recommendations
+    }
+
+    public var hasIssues: Bool { !issues.isEmpty }
+    public var issueCount: Int { issues.count }
+    public var isRecommendedForUse: Bool { rating >= 4 && issues.isEmpty }
+
     public var ratingStars: String {
-        let fullStars = Int(rating)
-        let hasHalf = rating.truncatingRemainder(dividingBy: 1) >= 0.5
+        let safeRating = rating.isFinite ? min(5, max(1, rating)) : 1
+        let fullStars = Int(safeRating)
+        let hasHalf = fullStars < 5 && safeRating.truncatingRemainder(dividingBy: 1) >= 0.5
         let empty = 5 - fullStars - (hasHalf ? 1 : 0)
 
         let full = String(repeating: "⭐", count: fullStars)
@@ -210,7 +260,7 @@ public struct QualityReport: Sendable {
 
         Metrics:
         • Loudness: \(String(format: "%.1f", metrics.lufs)) LUFS
-        • Peak: \(String(format: "%.1f", 20.0 * log10(Double(metrics.peakLevel) / 32767.0))) dBFS
+        • Peak: \(metrics.peakLevel == 0 ? "−∞" : String(format: "%.1f", metrics.peakDBFS)) dBFS
         • Dynamic Range: \(String(format: "%.1f", metrics.dynamicRange)) dB
         • SNR: \(String(format: "%.1f", metrics.snrEstimate)) dB
         • Clipping: \(String(format: "%.2f", metrics.clippingPercent))%
