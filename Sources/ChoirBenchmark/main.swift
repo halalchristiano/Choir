@@ -82,6 +82,10 @@ if device == nil {
     """.utf8))
 }
 
+if BenchmarkReport.builtWithoutOptimization {
+    FileHandle.standardError.write(Data("WARNING: this is an unoptimized build and its numbers are meaningless.\nRe-run with: swift run -c release choir-benchmark\n\n".utf8))
+}
+
 let harness = BenchmarkHarness(iterations: options.iterations)
 let report = await harness.run(device: device)
 
