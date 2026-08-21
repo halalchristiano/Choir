@@ -15,6 +15,12 @@ let package = Package(
             name: "Choir",
             targets: ["Choir"]
         ),
+        // PRF-040 requires the benchmark harness to be part of the repository
+        // and runnable per release on each reference device.
+        .executable(
+            name: "choir-benchmark",
+            targets: ["ChoirBenchmark"]
+        ),
     ],
     targets: [
         .target(
@@ -27,6 +33,13 @@ let package = Package(
                 .copy("Resources/cmudict.dict"),
                 .copy("Resources/CMUDICT-LICENSE.txt"),
             ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .executableTarget(
+            name: "ChoirBenchmark",
+            dependencies: ["Choir"],
             swiftSettings: [
                 .swiftLanguageMode(.v6)
             ]

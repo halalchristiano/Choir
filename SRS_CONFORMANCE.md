@@ -275,6 +275,59 @@ manufacture an angle bracket the scanner then mistakes for markup.
 
 ---
 
+## Part VII — Quality Attributes (performance)
+
+| Requirement | Priority | Status | Verified by |
+|---|---|---|---|
+| `PRF-001` batch RTF | MUST | **Measured** | `choir-benchmark`; R3 median 0.04 against 0.15 |
+| `PRF-010` streaming TTFA | MUST | **Partial** | Warm TTFA measured; sustained streaming RTF needs a long-running stream on-device |
+| `PRF-011` cold start | MUST | **At risk — see below** | Straddles the R3 target; lexicon load is the dominant component |
+| `PRF-020` peak memory | MUST | **Partial** | Whole-process RSS measured; the requirement asks for memory attributable to CHOIR alone |
+| `PRF-021` battery | MUST | **Not measured** | Needs 60 minutes of streaming with playback on physical R1 |
+| `PRF-030` asset budget | MUST | **Measured** | 3.45 MB against 400 MB, but voice assets do not exist yet |
+| `PRF-032` watchOS asset subset | MUST | **Measured** | 3.45 MB against 60 MB, same caveat |
+| `PRF-040` benchmark harness | MUST | Implemented | `swift run choir-benchmark`; 11 tests in `BenchmarkHarnessTests`; report in [BENCHMARK.md](./BENCHMARK.md) |
+
+### PRF-011 is at risk, and the lexicon is why
+
+The harness was built to establish a baseline before a model exists. It found a
+live problem instead.
+
+| Measurement | R3 median | R3 target |
+|---|---|---|
+| Cold start to first audio | 0.89 s (range **0.62–2.99 s** across runs) | 1.50 s |
+| Lexicon load (component) | 0.97 s | — |
+
+Parsing 3.6 MB and 135,166 entries costs roughly **a second — two-thirds of the
+entire R3 cold-start budget** — before the acoustic model, which does not yet
+exist, has loaded anything at all. Cold start already crosses the target on
+slower runs, and R1 is an A15 rather than an M-series.
+
+`SYN-009`'s warm-up API relocates the cost to app launch but does not remove it,
+and `PRF-011` measures process launch to first audio explicitly, so relocation
+does not satisfy the requirement. The durable fix is a faster lexicon format: a
+pre-built binary index that can be memory-mapped rather than 3.6 MB of text
+parsed line by line at every launch.
+
+This is recorded now, while it is cheap, rather than discovered when a model is
+competing for the same budget.
+
+### What the harness measures, and what it cannot
+
+Cold start is a single sample by nature: a true cold start includes process
+launch and the first lexicon load, and neither recurs in-process. Repeated
+measurement in one process would time a dictionary lookup instead. Everything
+else reports a **median** over repeated samples with the range shown, because
+single samples straddled targets — batch RTF read 0.16 against a 0.15 target on
+one run and 0.03 on the next, which would make any pass/fail gate flap.
+
+`PRF-021` (battery) and sustained streaming RTF are declared as not measured
+rather than omitted; an omission reads as a pass. `PRF-040` also requires the
+report on **every** reference device, and this run covers R3 only, so R1, R2,
+R4 and R5 remain outstanding and are named as such in the report.
+
+---
+
 ## Specification defects found
 
 Conflicts between §7's per-band realization rules and §8's binding per-voice

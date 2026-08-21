@@ -4,5 +4,9 @@
 /// streaming and batch processing, parametric control, and zero network dependency.
 public struct Choir {
     /// The current version of the Choir package.
-    public static let version = "0.1.0"
+    ///
+    /// Kept in step with the released tag. It had drifted to 0.1.0 across
+    /// eleven releases before the benchmark harness printed it into a report
+    /// and made the drift visible.
+    public static let version = "0.12.0"
 }
