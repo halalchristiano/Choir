@@ -120,7 +120,7 @@ public struct ChoirDemo {
         print("✓ SSML synthesis: \(String(format: "%.2f", audio.duration))s")
     }
 
-    /// Demonstrates streaming synthesis for real-time playback.
+    /// Demonstrates phrase-progressive chunk delivery.
     public static func streamingSynthesisDemo() async throws {
         let engine = ChoirEngine()
         try await engine.initialize()
@@ -130,7 +130,7 @@ public struct ChoirDemo {
         let streamCounter = ChunkCounter()
 
         try await engine.streamSynthesis(
-            text: "Streaming synthesis allows real-time audio generation.",
+            text: "Streaming synthesis delivers audio one phrase at a time.",
             voice: .isla,
             options: StreamingOptions(chunkSize: 2400),  // 50ms chunks
             onChunk: { chunk in

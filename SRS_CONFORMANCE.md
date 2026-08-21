@@ -4,11 +4,200 @@ Traceability between [CHOIR — Software Requirements Specification v1.0](./CHOI
 and the implementation, plus defects found in the specification itself while
 implementing Part II.
 
-Conformance is enforced by `Tests/ChoirTests/SRSConformanceTests.swift`, which
-implements each requirement's `Acceptance:` criterion literally rather than
-paraphrasing it.
+Source-level traceability is partially exercised by
+`Tests/ChoirTests/SRSConformanceTests.swift` and the requirement-focused suites.
+Those tests do not substitute for the production-model, listening, hardware,
+signing, or release gates recorded below.
 
 ---
+
+## 2026-08-21 reconciliation of the 143-item carried backlog
+
+This section is the authoritative reconciliation of the 136 items previously
+reported as remaining plus seven mandatory failures found in the subsequent
+acceptance review. It supersedes an older status anywhere below when the two
+conflict. The list is intentionally not a claim that a mock, test helper, or
+documentation page satisfies an acoustic, listening, hardware, signing, App
+Store, or production-model acceptance gate.
+
+Status meanings:
+
+- **Implemented** — the repository now contains the requested code or document
+  deliverable and regression evidence; the published CI run is still the build
+  authority because this work environment has no Swift toolchain.
+- **Partial** — a useful primitive, code path, document, or harness exists, but
+  at least one material clause or integration is still missing.
+- **Open** — the requested product capability is not implemented.
+- **External gate** — completion requires trained/licensed artifacts, listening
+  evidence, Apple hardware, signing/App Store validation, or a release process
+  that cannot truthfully be manufactured in a source-only patch.
+
+### The 100 items that lacked formal implementation/test evidence
+
+| ID | P | Status | Requirement and remaining evidence/work |
+|---|---|---|---|
+| `ACC-001` | M | Open | Make playback coexist with VoiceOver and system speech; audio-session policy and physical-device interruption tests remain. |
+| `ACC-002` | S | Implemented | Accessible highlighting and caption-export workflows are documented in the DocC accessibility guide. |
+| `AUD-001` | M | Partial | Float32 buffer, array, and little-endian `Data` conversion surfaces exist, but the native engine/vocoder result is still int16 rather than 48 kHz mono float32. |
+| `AUD-002` | M | Implemented | 44.1/24/16 kHz and dithered int16 conversion are implemented; the 385-tap converter has a regression proving at least 100 dB rejection in the 48→16 kHz alias band. |
+| `AUD-010` | M | Partial | Validated WAV exists; CAF, AAC, and ALAC export still need real container/codec implementations. |
+| `AUD-011` | M | Partial | WAV metadata, title/voice fields, and chapter cues exist; equivalent metadata for every required format remains. |
+| `AUD-012` | M | Open | Resumable, verified multi-chapter M4B audiobook assembly is not implemented. |
+| `AUD-020` | M | Partial | LUFS normalization and true-peak limiting primitives exist but are not yet the mandatory all-voice output stage or production-voice proof. |
+| `AUD-021` | M | Partial | DC removal and clickless-edge primitives exist; integration and all-voice limits remain unproved. |
+| `AUD-022` | S | Partial | An opt-in broadcast mastering chain value exists, but it is not yet integrated as a production export preset. |
+| `AUD-030` | M | Partial | One-call synthesis/playback now retains the player and propagates completion/errors; pause, resume, stop, and seek controls remain. |
+| `AUD-031` | S | Partial | Progressive synthesis carries synchronized word/phoneme/mark timing, but playback-time observation events are not exposed by `Choir.play`. |
+| `AUD-040` | S | Implemented | Per-line WAV, timing JSON, SRT, and WebVTT export uses validated word timing to derive caption cues. |
+| `CCH-001` | M | Partial | Stable SHA-256 synthesis keys and persistent audio storage exist; the cache is not yet wired into every engine synthesis path. |
+| `CCH-002` | M | Partial | Configurable limits, LRU eviction, pinning, inspection, and purge primitives exist; multiple actors sharing one directory are not yet coherently coordinated. |
+| `CCH-003` | M | Implemented | Platform cache/application-support defaults and version-independent compatible cache records are implemented. |
+| `CCH-010` | M | Open | Embedded/resumable downloaded asset packs with SHA-256 verification are not implemented. |
+| `CCH-011` | M | Partial | A coalescing lazy asset store handles unload/reload and stale-load races; production model assets and OS memory-pressure integration remain. |
+| `CCH-012` | S | Open | Persistent background batch rendering through `BGProcessingTask` is not implemented. |
+| `DOC-001` | M | Partial | The DocC catalog, quick start, API-tier guide, and integration recipes exist; every public symbol is not yet documented. |
+| `DOC-002` | M | Partial | All 32 voice profile pages exist; a complete auditionable Voice Book still needs production audio. |
+| `DOC-003` | M | Implemented | The SSML-C reference documents the dialect, examples, degradation, and unsupported syntax. |
+| `DOC-004` | M | Partial | The phoneme inventory is published; production-voice audio examples remain unavailable. |
+| `DOC-005` | M | Partial | A maintenance manual exists, but real training/conversion data, commands, and reproducible production releases do not. |
+| `DOC-006` | S | Implemented | A printable API and voice-ID cheat sheet is present. |
+| `DST-001` | M | Implemented | Semantic package version and separate engine-output version are exposed. |
+| `DST-002` | M | External gate | Seeded stability cannot be guaranteed until production weights and golden production audio exist. |
+| `DST-003` | M | Partial | Source and current resources are versioned; licensed datasets, training runs, and production models required for a full rebuild are absent. |
+| `DST-004` | S | Implemented | Non-breaking extension paths for voices, languages, and emotions are documented. |
+| `DST-005` | M | Partial | The release manual records Apple beta/deprecation checks; an annual executed and archived process remains a release gate. |
+| `INT-001` | M | Open | There is no single-call verse-addressed synthesis API returning verse timing. |
+| `INT-002` | M | Partial | Scripture normalization is substantial; the complete archaic/divine-name pronunciation policy and audit remain. |
+| `INT-003` | S | Implemented | Bible chapter pre-rendering and cache-pinning workflow is documented. |
+| `INT-004` | S | Implemented | Long-form corpus narration and footnote-handling guidance is documented with current limitations. |
+| `INT-010` | M | Open | A resumable 150,000-word document-to-audiobook job controller is not implemented. |
+| `INT-011` | S | Implemented | Heading, quotation, and footnote markup conversion is documented. |
+| `INT-020` | M | Open | Low-latency interruptible spatial NPC dialogue is not implemented. |
+| `INT-021` | S | Implemented | A reference IPA-to-viseme mapping and coarticulation guidance are published. |
+| `INT-030` | M | Partial | Deterministic seeded rendering and audio/timing/subtitle bundles exist; the complete script-to-multiple-takes workflow does not. |
+| `INT-040` | M | Open | No complete showcase app demonstrates the product solely through public API. |
+| `LOC-001` | M | Open | Selectable American and British realization for all voices requires trained accent conditioning. |
+| `LOC-002` | M | Partial | Extension points are documented, but no second language has proved the architecture end to end. |
+| `LOC-003` | S | Partial | User lexicons and phoneme markup can carry foreign names; supported embedded-language behavior is not validated. |
+| `ML-A-001` | M | External gate | The real multi-voice acoustic model must be trained and supplied. |
+| `ML-A-002` | M | External gate | Runtime controls reach the conditioning contract, but trained weights must prove every continuous control is learned. |
+| `ML-A-003` | M | External gate | Stable 32-way conditioning IDs exist; a trained structured age/gender embedding space does not. |
+| `ML-A-004` | M | External gate | Licensed training data and complete provenance must be acquired and archived. |
+| `ML-A-005` | M | External gate | A from-scratch production training pipeline and run artifacts do not exist. |
+| `ML-A-006` | S | Partial | Expert duration/pitch tensors reach inference; teacher-forced support in a real model/training pipeline remains. |
+| `ML-C-001` | M | External gate | Core ML adapter contracts exist, but no runtime network ships as a production `mlprogram`. |
+| `ML-C-002` | M | External gate | Quantized production models and an accepted quality-delta study are absent. |
+| `ML-C-003` | M | External gate | Production conversion and traceability to a real training run are absent. |
+| `ML-C-004` | S | Partial | Compute-unit selection/override can be represented by an injected implementation; automatic policy and device tests remain. |
+| `ML-V-001` | M | External gate | No real 48 kHz neural vocoder meeting the quality gates is bundled. |
+| `ML-V-002` | M | External gate | Production vocoder lookahead at or below 100 ms is unmeasured. |
+| `ML-V-003` | M | External gate | Preservation of breath, rasp, elderly, and villain texture requires the production vocoder and listening evidence. |
+| `PLT-031` | S | Open | Paired-iPhone assistance for Apple Watch full-library synthesis is not implemented. |
+| `PRO-001` | M | Partial | Semitone control now scales the entire F0 contour; artifact-free formant-preserving production audio across ±6 st is unproved. |
+| `PRO-002` | M | Partial | Duration-aware 0.6×–2.0× control reaches prosody/model inputs; natural production output is unproved. |
+| `PRO-003` | M | Partial | Emotion intensity changes prosody and reaches model conditioning; trained timbre effects are absent. |
+| `PRO-004` | M | Partial | Breathiness is continuous conditioning and optional mastering infrastructure exists; genuine breaths require a trained model. |
+| `PRO-005` | M | Partial | Gain/compression DSP exists, but independent synthesis controls and end-to-end integration remain. |
+| `PRO-006` | M | Partial | Age/gender shifts affect F0 and reach conditioning; real formant/timbre shifts require trained weights. |
+| `PRO-010` | M | External gate | Eight labels/infrastructure are insufficient; eight genuine styles for every production voice need model and listening proof. |
+| `PRO-011` | S | Open | Smooth sub-sentence emotion-style changes are not implemented. |
+| `PRO-020` | M | Partial | Emphasis changes lexical stress; genuine acoustic accenting remains a production-model gate. |
+| `PRO-021` | M | Open | Breaks parse but are not yet rendered as sample-accurate pauses in ordinary synthesis. |
+| `PRO-022` | S | Partial | Punctuation informs phrase prosody; a voice-specific production treatment and off switch remain. |
+| `PRO-030` | M | Partial | Global control envelopes are clamped and reported; voice-specific safe envelopes still need production validation and publication. |
+| `QUA-001` | M | External gate | Naturalness ≥4.2 and cleanliness ≥4.5 MOS require production audio and blinded listening. |
+| `QUA-002` | M | External gate | Zero audible artifacts on the standard corpus requires production audio and archived evaluation. |
+| `QUA-005` | M | External gate | 60-minute loudness, tempo, and timbre stability requires production voices and device runs. |
+| `QUA-006` | M | External gate | The 300-name audited pronunciation gate has not been executed with production audio. |
+| `QUA-007` | S | External gate | The structured 30-minute listener-fatigue study has not been run. |
+| `SEC-002` | M | Implemented | The package contains no analytics/identifier upload path; caller-controlled local caches are the only persistence primitive. |
+| `SEC-003` | M | Partial | SHA-256/cache integrity primitives and typed failures exist; production model manifests and load-time verification remain. |
+| `SEC-004` | M | Implemented | Normal runtime paths do not log caller text; privacy-safe diagnostics carry structural messages. |
+| `SEC-005` | M | Implemented | No speaker encoder, enrollment, adaptation, or real-person cloning path ships. |
+| `SEC-006` | S | Implemented | Responsible-use and synthetic-voice disclosure guidance is published. |
+| `SPA-002` | M | Open | Six head-tracked Vision Pro speakers with ≥30 Hz updates are not implemented. |
+| `SPA-003` | S | Open | Direct RealityKit entity binding is not implemented. |
+| `STR-001` | M | Implemented | The pipeline performs acoustic/vocoder work per natural unit and delivers PCM before rendering later units. |
+| `STR-002` | M | Partial | Batch/stream share unit rendering and seeded simple-text samples; production clickless/gapless/level joins remain unproved. |
+| `STR-003` | M | External gate | Production real-time factor and safe quality degradation require real models and device benchmarks. |
+| `STR-004` | M | Implemented | Word and phoneme timing updates stream beside channel-aligned PCM. |
+| `STR-005` | M | Partial | Cancellation is checked through the pipeline and early sequence exit cancels the producer; sentence-boundary parameter changes remain. |
+| `STR-006` | S | Partial | A bounded multi-voice dialogue queue streams one timeline with chunked gaps; production gapless switch joins remain unproved. |
+| `STR-007` | S | Open | Direct `AVAudioEngine` source-node playback is not implemented. |
+| `SYN-001` | M | External gate | The text/prosody interfaces exist, but the default acoustic model and vocoder remain mock-backed. |
+| `SYN-004` | M | Partial | Simple seeded batch/stream paths are sample-identical; full SSML and voice-switch streaming equivalence remains. |
+| `SYN-006` | M | Implemented | FIFO permits admit at least two independently cancellable jobs. |
+| `SYN-009` | S | Partial | Explicit warm-up exists; production model preload/graph warm-up awaits real assets. |
+| `TST-001` | M | Partial | Linguistic tests and a CI coverage gate exist; the authoritative published coverage result must be green. |
+| `TST-002` | M | Open | At least 200 seeded golden-audio regressions across real voices do not exist. |
+| `TST-003` | M | External gate | Every release candidate still needs all gates executed and archived. |
+| `TST-004` | M | External gate | Every reference Apple device must be benchmarked for each release. |
+| `TST-005` | M | External gate | iOS, macOS, watchOS, and visionOS integration matrices require Apple hardware/CI. |
+| `TST-007` | M | Partial | Source auditing rejects network APIs/tokens; a runtime socket-open proof in an embedded app remains. |
+| `TST-008` | S | Open | The two-hour concurrency/cancellation/memory/thermal soak has not been implemented or run. |
+| `TST-010` | M | Partial | Listening-test structures and guidance exist; the blinded MOS protocol must be frozen and executed against production audio. |
+
+### The 34 items explicitly recorded as unresolved
+
+| ID | P | Status | Requirement and remaining evidence/work |
+|---|---|---|---|
+| `API-001` | M | Partial | Tier 1 one-call synthesis/playback, Tier 2 requests/results, and Tier 3 explicit input/streaming surfaces exist; full contour/cache/asset management and multi-voice streaming behavior remain incomplete. |
+| `API-005` | M | Partial | DocC guides cover major APIs; every public symbol is not yet documented. |
+| `API-007` | S | Open | SwiftUI convenience components are not shipped. |
+| `CON-001` | M | Partial | Heavy work is async/priority-scheduled; the ≤1 ms main-thread blocking acceptance measurement remains. |
+| `CON-004` | M | Implemented | Caller-controlled QoS intent maps to structured task priorities. |
+| `CON-005` | M | Partial | Lazy unload/reload is race-safe, but `ChoirEngine` is not wired to OS pressure and production asset restoration. |
+| `PKG-002` | M | Open | The package is not split into the required public/core/asset/spatial modules. |
+| `PKG-006` | S | Open | A signed XCFramework distribution is not produced. |
+| `PLT-001` | M | External gate | Consistent iOS/iPadOS/macOS/visionOS behavior requires integration runs on all targets. |
+| `PLT-002` | M | External gate | Seeded cross-platform production-audio parity below −60 dB is unmeasured. |
+| `PLT-003` | M | External gate | A14/M-series support and a formal Intel decision require builds and benchmarks on reference hardware. |
+| `PLT-010` | M | Open | The complete iPhone/iPad application feature set is not delivered. |
+| `PLT-011` | M | Open | Interruption, route-change, and background playback handling are not implemented. |
+| `PLT-012` | S | Open | Thermal monitoring and efficient-vocoder fallback are not implemented. |
+| `PLT-020` | M | Open | Full macOS product behavior, CLI, and four-job batch proof are not delivered. |
+| `PLT-021` | S | Open | `choir-cli` is not shipped. |
+| `PLT-030` | M | Open | The documented watchOS subset with four validated voices is not delivered. |
+| `PRF-010` | M | External gate | Warm TTFA limits require production assets and reference-device measurements. |
+| `PRF-020` | M | External gate | Peak-memory limits require production assets and device measurements. |
+| `PRF-021` | M | External gate | One-hour iPhone battery use requires a production build and physical-device run. |
+| `QUA-004` | M | External gate | ≥98% default and ≥96% envelope-corner ASR accuracy requires production audio; current rule G2P also remains below target. |
+| `REL-004` | M | Partial | Fuzz/robustness tests exist and known traps were fixed; the release fuzz gate and zero-reproducible-crash archive remain. |
+| `REL-005` | S | Partial | Typed privacy-safe diagnostics exist; a complete opt-in structured logging facility does not. |
+| `SPA-001` | M | Open | The `SpatialSpeaker` playback layer is not implemented. |
+| `SPA-005` | M | Open | An optional `CHOIRSpatial` module does not exist. |
+| `TXT-020` | M | Partial | The lexicon has 126,052 indexed word forms, but measured held-out OOV phoneme accuracy is 54.2% against 92%. |
+| `TXT-023` | S | Partial | The theological/biblical supplement has 196 curated entries against 2,500. |
+| `VOX-G-003` | M | External gate | ≥90% perceptual distinctness needs 32 production voices and an ABX study. |
+| `VOX-G-006` | M | External gate | Stable conditioning IDs exist, but shared production model weights do not. |
+| `VOX-G-007` | M | External gate | Envelope usability needs trained voices and intelligibility/listening tests. |
+| `VOX-G-008` | S | Partial | Three scripts per voice are documented; production audio demonstrations are absent. |
+| `VOX-P-007` | M | Partial | Continuous age/gender values alter F0 and reach model inputs; trained formant/timbre shifting is absent. |
+| `VOX-V-003` | M | External gate | Convincing neutral/warm villain delivery requires production voices and listening evidence. |
+| `VOX-V-004` | S | Partial | Menace guidance/profile data exist; a voice-specific acoustic implementation is not proved. |
+
+### The two items that were falsely marked complete
+
+| ID | P | Status | Requirement and remaining evidence/work |
+|---|---|---|---|
+| `TXT-050` | S | Implemented | Explicit phoneme-plus-prosody input bypasses the text front end, validates aligned tensors, partitions long timing safely, and reaches model inference. |
+| `SYN-005` | M | Partial | Results provide normalized word/phoneme/sentence/mark timing aligned to rendered duration; full multi-voice/stream equivalence still needs correction. |
+
+### Seven additional mandatory failures from acceptance review
+
+| ID | P | Status | Requirement and remaining evidence/work |
+|---|---|---|---|
+| `VOX-P-001` | M | Partial | Every profile parameter is stored and pause/articulation affect timing, but all profile controls do not yet condition the production model. |
+| `PKG-007` | M | External gate | App Store compliance must be proved in a signed embedded shipping application. |
+| `PRF-001` | M | External gate | Batch RTF ≤0.35 on iPhone 13 and ≤0.15 on M2+ needs production models and hardware. |
+| `PRF-011` | M | External gate | Cold-start ≤3 s/≤1.5 s needs production assets and hardware measurements. |
+| `PRF-030` | M | Partial | A reproducible asset-size harness exists; the 400 MB product limit cannot be accepted without production model/voice/vocoder assets. |
+| `PRF-032` | M | Partial | The current source subset is below 60 MB; the real watchOS asset subset does not yet exist. |
+| `PRF-040` | M | Partial | The benchmark harness and reference-device manifest exist; complete reproducible runs on every physical reference device remain. |
+
+The actionable interpretation is deliberately strict: source work can close
+the **Implemented** rows, while **Partial**, **Open**, and **External gate** rows
+remain product backlog until every clause and its acceptance evidence exist.
 
 ## Part II — The Voice Library
 
@@ -24,7 +213,7 @@ paraphrasing it.
 | `VOX-G-008` three demo passages per voice | SHOULD | **Not implemented** | — |
 | `VOX-G-009` voice designer API | MAY | Partial | `VoiceBlending` interpolates profiles |
 | `VOX-G-010` child voices are stylized characters | MUST | Satisfied by design | `testChildVillainsRemainChildlike` |
-| `VOX-P-001` full designed parameter set stored per voice | MUST | Implemented | `testParameterRanges`, `testMedianWithinRange` |
+| `VOX-P-001` full designed parameter set stored and honored | MUST | **Partial** | Storage/pause/articulation are tested; all profile values do not yet reach model conditioning |
 | `VOX-P-002` child realization | MUST | Implemented | `testChildRealization` |
 | `VOX-P-003` young adult realization | MUST | Implemented | `testYoungAdultRealization` |
 | `VOX-P-004` middle-aged realization | MUST | Implemented | `testMiddleAgedRealization` |
@@ -43,7 +232,9 @@ paraphrasing it.
 ("dark-mellow", "bright with hollowed mids"); the descriptor is preserved
 verbatim in `spectralTiltDescription` and a numeric dB/octave mapping is
 supplied as a developer decision under §1.1. Pause style and articulation
-precision are not quantified per voice in §8 and are not yet modelled.
+precision are not quantified per voice in §8; the repository records explicit
+designer defaults and uses them in structural timing, pending production-model
+validation.
 
 ---
 
@@ -58,7 +249,7 @@ precision are not quantified per voice in §8 and are not yet modelled.
 | `TXT-011` Scripture reference formats | MUST | Implemented | 14 tests in `ScriptureNormalizationTests` |
 | `TXT-012` configurable `NormalizationPolicy` | SHOULD | Implemented | `testConfigurableStyle`, `testCanBeDisabled`, `testVerbatimMode` |
 | `TXT-013` typography (smart quotes, dashes, ellipses, caps) | SHOULD | Implemented | 4 tests in `AllCapsTests` plus typography coverage in `NormalizationInventoryTests` |
-| `TXT-020` 120,000-word lexicon, ≥92% OOV accuracy | MUST | **Partial — now measured** | Lexicon implemented (135,166 entries). OOV accuracy **measured at 54.2%** against a 92% target; see below |
+| `TXT-020` 120,000-word lexicon, ≥92% OOV accuracy | MUST | **Partial — now measured** | Lexicon indexes 126,052 distinct forms. OOV accuracy **measured at 54.2%** against a 92% target; see below |
 | `TXT-021` ≥60 heteronyms disambiguated by part of speech | MUST | Implemented | 79 heteronyms, 7 tests in `HeteronymTests` |
 | `TXT-022` runtime user lexicon API | MUST | Implemented | 9 tests in `UserLexiconTests` |
 | `TXT-023` biblical/theological proper-noun supplement (≥2,500) | SHOULD | **Partial** | 196 curated entries against a target of 2,500 |
@@ -66,13 +257,13 @@ precision are not quantified per voice in §8 and are not yet modelled.
 | `TXT-030` sentence and phrase segmentation | MUST | Implemented | 10 tests in `SegmentationTests` — abbreviations, initials, decimals, dialogue punctuation, `PhraseBoundary` strength |
 | `TXT-031` breath groups for long sentences | MUST | Implemented | 9 tests in `BreathGroupTests` — word cap and duration ceiling |
 | `TXT-032` paragraph/section pauses and pitch reset | SHOULD | Implemented | Boundaries reach the transcription and the prosody model lengthens pauses and resets pitch; 7 tests in `StructuralProsodyTests` |
-| `TXT-040` SSML-C dialect | MUST | Implemented | 13 tests in `SSMLCParsingTests` — all seven tag types, nestable prosody |
+| `TXT-040` SSML-C dialect | MUST | **Partial** | All seven tags parse, but pauses and several acoustic styles are not fully rendered |
 | `TXT-041` graceful degradation + markup diagnostics | MUST | Implemented | 9 tests in `SSMLDegradationTests` — degradation, diagnostics, strict mode |
-| `TXT-042` `<voice>` mid-text switching | MUST | Implemented | `synthesizeMultiVoice` renders each voice run and concatenates; 3 tests in `VoiceSwitchingTests` |
+| `TXT-042` `<voice>` mid-text switching | MUST | **Partial** | Batch voice runs switch IDs, but style preservation, clickless joins, and streaming parity remain |
 | `TXT-050` pre-phonemized input path | SHOULD | Implemented | `SynthesisInput.phonemes`, validated against the inventory |
 | `SYN-002` deterministic output given a seed | MUST | Implemented | 8 tests in `DeterminismTests` |
 | `SYN-003` controlled variation without a seed | MUST | Implemented | `testUnseededVaries`, `testVariationBounded` — **was violated**: every render was bit-identical |
-| `SYN-005` timing metadata (per word/phoneme, marks) | MUST | Implemented | 14 tests across `SynthesisMetadataTests` and `SynthesisMarkTests` |
+| `SYN-005` timing metadata (per word/phoneme, marks) | MUST | **Partial** | Structures, normalized mark provenance, and audio-duration alignment exist; full multi-voice/stream parity remains |
 | `SYN-008` failures surface as typed errors, never traps | MUST | Implemented | `testFrontendRobustness`; 16 traps fixed across 0.2.x–0.3.x |
 | `SYN-010` duration estimate API | SHOULD | Implemented | 7 tests in `DurationEstimateTests` |
 
@@ -81,14 +272,16 @@ defaulting to `UserDefaults`. Registrations take precedence over the built-in
 lexicon and are resolved through an immutable snapshot taken once per synthesis
 request, so the synchronous per-word phonemization path never awaits.
 
-`SYN-005` returns total duration, per-word and per-phoneme spans, sentence
+`SYN-005` currently returns total duration, per-word and per-phoneme spans, sentence
 ranges, the effective parameter set and the voice, with `word(at:)` and
 `phoneme(at:)` queries for verse highlighting and lip-sync. Timings derive from
 the prosody model's predicted phoneme durations — the same values that drive the
 acoustic model — so the metadata describes the audio produced rather than an
-independent estimate. `marks` and `diagnostics` are now populated from the SSML-C stream, so
-`SYN-005` is complete. A mark sits between words, so its time is the start of
-the following word, or the end of the audio when it trails the final word.
+independent estimate. `marks` and `diagnostics` are populated from the SSML-C
+stream, including normalized source-event provenance. Full multi-voice/stream
+parity still needs correction. A mark sits at
+the start of the following spoken word, or at audio end when it trails the
+final word.
 
 Part III is where the bulk of the remaining work sits. `TXT-020` through
 `TXT-024` (lexicon, heteronyms, user pronunciations) are the largest block and
@@ -218,7 +411,7 @@ is genuine G2P quality, not measurement error.
 **What this means.** English orthography is not tractable by the kind of
 letter-to-sound rules currently implemented; reaching 92% needs either a
 substantially larger rule set with morphological analysis, or the trained
-neural G2P the requirement also permits. Until then the 135,166-entry lexicon
+neural G2P the requirement also permits. Until then the 126,052-form lexicon
 is doing nearly all the real work, and `TXT-022`'s user lexicon is not a
 convenience but the practical escape hatch for any proper noun outside it.
 
@@ -230,7 +423,8 @@ and assert the requirement directly.
 
 ### The lexicon block
 
-`TXT-020` is satisfied by vendoring CMUdict (135,166 entries, 15,166 above the
+The lexicon-size clause of `TXT-020` is satisfied by vendoring CMUdict (126,052
+indexed forms, 6,052 above the
 required minimum) as a package resource under its BSD-2-Clause licence, which
 is attribution-only and does not encumber a commercial App Store product. It is
 stored as distributed in ARPAbet and converted to CHOIR's IPA inventory per
@@ -285,9 +479,9 @@ manufacture an angle bracket the scanner then mistakes for markup.
 | `PKG-004` zero third-party runtime dependencies | MUST | Implemented | Apple frameworks only |
 | `PKG-005` licence-clean, NOTICE file | MUST | **Fixed** | [NOTICE](./NOTICE) added; no NOTICE existed while CMUdict was already being redistributed |
 | `PKG-006` exportable as signed XCFramework | SHOULD | **Not implemented** | — |
-| `PKG-007` App Store compliance, no private API | MUST | Believed met | No private API used; unverifiable without a submission |
-| `API-001` three concentric tiers | MUST | **Partial** | Tier 1 (`Choir.speak`) added; Tiers 2 and 3 exist; dialogue queues and contour overrides outstanding |
-| `API-002` async for long operations, `Sendable` types | MUST | Implemented | — |
+| `PKG-007` App Store compliance, no private API | MUST | **External gate** | Requires a signed embedded app and App Store validation |
+| `API-001` three concentric tiers | MUST | **Partial** | The three surfaces exist, but Tier 3 contour/cache/asset management and complete multi-voice streaming remain incomplete |
+| `API-002` async for long operations, `Sendable` types | MUST | **Partial** | Primary synthesis/export/play APIs are async; synchronous public full-buffer DSP still needs off-actor wrappers |
 | `API-003` voices addressable type-safely and by string id | MUST | **Fixed** | `Voice(id:)` added |
 | `API-004` value type, builder, Codable, clamping reported | MUST | **Fixed** | Clamping was silent; now reported in `clampings` |
 | `API-005` DocC on every public symbol | MUST | **Partial** | Broadly documented; not enforced by a gate |
@@ -296,12 +490,12 @@ manufacture an angle bracket the scanner then mistakes for markup.
 | `CON-001` no main-thread block over 1 ms | MUST | **Not verified** | No instrumentation to prove it |
 | `CON-002` cancellation honoured every 50 ms | MUST | Implemented | Checked between every pipeline stage and every 64 words while phonemizing; 6 tests |
 | `CON-003` actor-isolated, multiple instances | MUST | Implemented | `ChoirEngine` is an actor |
-| `CON-004` QoS discipline, caller-assignable priority | MUST | **Not implemented** | — |
-| `CON-005` shed caches under memory pressure | MUST | **Not implemented** | — |
+| `CON-004` QoS discipline, caller-assignable priority | MUST | Implemented | Public scheduling intent maps to structured task priority |
+| `CON-005` shed caches under memory pressure | MUST | **Partial** | Race-safe lazy unload/reload exists; engine and OS-pressure integration remain |
 | `REL-001` error taxonomy with code, description, recovery | MUST | **Fixed** | Stable `CHOIR-1xxx` codes, recovery suggestions, retryability |
 | `REL-002` caller-selectable partial-failure policy | MUST | Implemented | `synthesizeBatch(texts:voice:parameters:policy:)`; 6 tests in `BatchPolicyTests` |
-| `REL-003` `engine.verify()` self-check | MUST | **Fixed** | Lexicon, voice profiles, initialization, smoke synthesis |
-| `REL-004` zero known reproducible crashes | MUST | **Believed met** | 16 traps fixed across 0.2.x–0.3.x; no fuzzing harness yet (TST-006) |
+| `REL-003` `engine.verify()` self-check | MUST | **Partial** | Current checks cover lexicon/profile/init/mock render; model hashes and the specified 0.5 s silent smoke remain |
+| `REL-004` zero known reproducible crashes | MUST | **Partial** | Known traps were fixed and robustness tests exist; the release fuzz/zero-crash gate remains |
 | `REL-005` structured logging via `os.Logger` | SHOULD | **Not implemented** | — |
 
 ### TXT-001: the engine rejected long input
@@ -381,14 +575,14 @@ largest.
 
 | Requirement | Priority | Status | Verified by |
 |---|---|---|---|
-| `PRF-001` batch RTF | MUST | **Measured** | `choir-benchmark`; R3 median 0.04 against 0.15 |
+| `PRF-001` batch RTF | MUST | **External gate** | Historical mock benchmark is not production-model evidence; reference hardware run remains |
 | `PRF-010` streaming TTFA | MUST | **Partial** | Warm TTFA measured; sustained streaming RTF needs a long-running stream on-device |
-| `PRF-011` cold start | MUST | **Measured** | R3 release: 0.02–0.05 s against a 1.50 s target, after the lexicon rewrite below |
+| `PRF-011` cold start | MUST | **External gate** | Historical mock/source-resource timing excludes production assets and is not acceptance evidence |
 | `PRF-020` peak memory | MUST | **Partial** | Whole-process RSS measured; the requirement asks for memory attributable to CHOIR alone |
 | `PRF-021` battery | MUST | **Not measured** | Needs 60 minutes of streaming with playback on physical R1 |
-| `PRF-030` asset budget | MUST | **Measured** | 3.45 MB against 400 MB, but voice assets do not exist yet |
-| `PRF-032` watchOS asset subset | MUST | **Measured** | 3.45 MB against 60 MB, same caveat |
-| `PRF-040` benchmark harness | MUST | Implemented | `swift run -c release choir-benchmark`; 11 tests in `BenchmarkHarnessTests`; report in [BENCHMARK.md](./BENCHMARK.md) |
+| `PRF-030` asset budget | MUST | **Partial** | Harness/source measurement exists; production voice/model/vocoder assets do not |
+| `PRF-032` watchOS asset subset | MUST | **Partial** | Current source measurement exists; a real watch voice subset does not |
+| `PRF-040` benchmark harness | MUST | **Partial** | Harness/tests/report exist; reproducible runs on every reference device remain |
 
 ### PRF-011: measured in debug, corrected in release, then fixed
 

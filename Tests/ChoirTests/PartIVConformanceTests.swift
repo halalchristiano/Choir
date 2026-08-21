@@ -61,7 +61,7 @@ struct PackageAndAPITests {
     @Test("API-004: clamping is reported, not silent")
     func testClampingReported() {
         let clamped = SynthesisParameters(pitchShift: 24, rate: 5.0)
-        #expect(clamped.pitchShift == 12)
+        #expect(clamped.pitchShift == 6)
         #expect(clamped.rate == 2.0)
         #expect(clamped.wasClamped)
         #expect(clamped.clampings.count == 2)
@@ -71,7 +71,7 @@ struct PackageAndAPITests {
 
         let pitch = clamped.clampings.first { $0.parameter == "pitchShift" }
         #expect(pitch?.requested == 24)
-        #expect(pitch?.applied == 12)
+        #expect(pitch?.applied == 6)
     }
 
     @Test("API-004: in-range values report no clamping")
@@ -102,7 +102,7 @@ struct PackageAndAPITests {
     @Test("API-004: the builder clamps and reports too")
     func testBuilderClamps() {
         let parameters = SynthesisParameters().pitch(99)
-        #expect(parameters.pitchShift == 12)
+        #expect(parameters.pitchShift == 6)
         #expect(parameters.wasClamped)
     }
 

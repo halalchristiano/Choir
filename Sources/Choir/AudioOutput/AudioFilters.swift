@@ -9,7 +9,6 @@ public struct AudioFilters: Sendable {
     @usableFromInline static let defaultSoftClipThreshold: Double = 0.9
     @usableFromInline static let defaultSibilantFrequency: Double = 6000.0
     @usableFromInline static let sibilantFilterRatio: Double = 0.8
-    @usableFromInline static let deEsserDryMix: Double = 0.8
     @usableFromInline static let deEsserWetMix: Double = 0.2
     @usableFromInline static let defaultReverbDelay: Int = 50
     @usableFromInline static let defaultReverbWetLevel: Double = 0.3
@@ -185,9 +184,10 @@ public struct AudioFilters: Sendable {
         let filtered = lowPassFilter(samples, cutoffFrequency: sibilantFrequency, sampleRate: sampleRate)
         let highpassed = highPassFilter(filtered, cutoffFrequency: sibilantFrequency * Self.sibilantFilterRatio, sampleRate: sampleRate)
 
-        // Mix: 80% original, 20% filtered (reduces sibilance)
-        return zip(samples, highpassed).map { original, filtered in
-            let mixed = Double(original) * Self.deEsserDryMix + Double(filtered) * Self.deEsserWetMix
+        // Subtract the detected band. Adding it back to a quieter dry signal
+        // increases relative sibilance, which is the opposite of de-essing.
+        return zip(samples, highpassed).map { original, sibilantBand in
+            let mixed = Double(original) - Double(sibilantBand) * Self.deEsserWetMix
             return Self.clampToPCM(mixed)
         }
     }
@@ -221,6 +221,88 @@ public struct AudioFilters: Sendable {
             let sign = sample >= 0 ? 1 : -1
 
             return Self.clampToPCM(compressed * Double(sign))
+        }
+    }
+
+    /// Removes per-channel DC bias from interleaved PCM.
+    public func removeDCOffset(_ samples: [Int16], channels: Int = 1) -> [Int16] {
+        guard channels > 0,
+              samples.count.isMultiple(of: channels),
+              !samples.isEmpty else { return samples }
+        let frames = samples.count / channels
+        var means = [Double](repeating: 0, count: channels)
+        for frame in 0..<frames {
+            for channel in 0..<channels {
+                means[channel] += Double(samples[frame * channels + channel])
+            }
+        }
+        means = means.map { $0 / Double(frames) }
+        return samples.enumerated().map { index, sample in
+            Self.clampToPCM(Double(sample) - means[index % channels])
+        }
+    }
+
+    /// Applies a linear click-prevention fade to both utterance edges.
+    /// Durations are bounded to the AUD-021 maximum of five milliseconds.
+    public func fadeEdges(
+        _ samples: [Int16],
+        durationMilliseconds: Double = 5,
+        sampleRate: Int = 48_000,
+        channels: Int = 1
+    ) -> [Int16] {
+        guard sampleRate > 0,
+              channels > 0,
+              samples.count.isMultiple(of: channels),
+              durationMilliseconds.isFinite,
+              durationMilliseconds > 0,
+              !samples.isEmpty else { return samples }
+        let frameCount = samples.count / channels
+        let boundedDuration = min(5, durationMilliseconds)
+        let requestedFrames = Int(
+            (boundedDuration / 1_000 * Double(sampleRate)).rounded(.up))
+        let fadeFrames = min(requestedFrames, max(1, frameCount / 2))
+        var output = samples
+        for frame in 0..<fadeFrames {
+            let gain = Double(frame) / Double(max(1, fadeFrames - 1))
+            let endFrame = frameCount - 1 - frame
+            for channel in 0..<channels {
+                output[frame * channels + channel] = Self.clampToPCM(
+                    Double(output[frame * channels + channel]) * gain)
+                output[endFrame * channels + channel] = Self.clampToPCM(
+                    Double(output[endFrame * channels + channel]) * gain)
+            }
+        }
+        return output
+    }
+
+    /// A soft-knee, infinite-ratio limiter for gentle broadcast mastering.
+    public func softKneeLimiter(
+        _ samples: [Int16],
+        ceilingDB: Double = -1,
+        kneeWidthDB: Double = 3
+    ) -> [Int16] {
+        let ceiling = ceilingDB.isFinite ? min(0, max(-24, ceilingDB)) : -1
+        let knee = kneeWidthDB.isFinite ? min(24, max(0, kneeWidthDB)) : 3
+        let kneeStart = ceiling - knee / 2
+        let kneeEnd = ceiling + knee / 2
+
+        return samples.map { sample in
+            let magnitude = abs(Double(sample)) / Self.pcmMaxValue
+            guard magnitude > 0 else { return 0 }
+            let inputDB = 20 * log10(magnitude)
+            let outputDB: Double
+            if knee == 0 {
+                outputDB = min(inputDB, ceiling)
+            } else if inputDB <= kneeStart {
+                outputDB = inputDB
+            } else if inputDB < kneeEnd {
+                let distance = inputDB - kneeStart
+                outputDB = inputDB - distance * distance / (2 * knee)
+            } else {
+                outputDB = ceiling
+            }
+            let outputMagnitude = pow(10, outputDB / 20) * Self.pcmMaxValue
+            return Self.clampToPCM(sample < 0 ? -outputMagnitude : outputMagnitude)
         }
     }
 

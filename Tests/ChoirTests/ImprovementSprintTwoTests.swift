@@ -280,7 +280,7 @@ struct BlendingAndParametersSprintTwoTests {
     func negativeStepAge() {
         let result = blending.ageTransition(from: .wren, to: .maeve, steps: -2)
         #expect(result.count == 1)
-        #expect(result[0].ageShift == -5)
+        #expect(result[0].ageShift == -1)
     }
 
     @Test("Gender transition follows requested direction")
@@ -292,7 +292,7 @@ struct BlendingAndParametersSprintTwoTests {
     @Test("Age transition reaches both documented endpoints")
     func directionalAge() {
         let result = blending.ageTransition(from: .wren, to: .maeve, steps: 2)
-        #expect(result.map(\.ageShift) == [-5, 0, 5])
+        #expect(result.map(\.ageShift) == [-1, 0, 1])
     }
 
     @Test("Predefined style lookup trims and ignores case")

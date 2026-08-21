@@ -40,6 +40,28 @@ public enum VoiceUseTag: String, Sendable, CaseIterable, Codable {
     case antagonist
 }
 
+/// Voice-specific pause multipliers required by SRS VOX-P-001.
+///
+/// The linguistic front end supplies a structural pause duration. These
+/// multipliers preserve that structure while allowing a child, narrator, or
+/// deliberately measured villain to realize the same punctuation differently.
+public struct VoicePauseStyle: Sendable, Equatable, Codable {
+    public let comma: Double
+    public let period: Double
+    public let paragraph: Double
+
+    public init(comma: Double = 1, period: Double = 1, paragraph: Double = 1) {
+        self.comma = Self.validMultiplier(comma)
+        self.period = Self.validMultiplier(period)
+        self.paragraph = Self.validMultiplier(paragraph)
+    }
+
+    private static func validMultiplier(_ value: Double) -> Double {
+        guard value.isFinite else { return 1 }
+        return min(2, max(0.5, value))
+    }
+}
+
 /// The immutable design parameters of a voice.
 ///
 /// Implements the parameter set required by SRS VOX-P-001 together with the
@@ -102,6 +124,134 @@ public struct VoiceProfile: Sendable, Equatable, Codable {
     /// Pitch dynamism: standard deviation of the intonation contour, in
     /// semitones.
     public let pitchDynamism: Double
+
+    /// Voice-specific comma, period, and paragraph pause multipliers.
+    public let pauseStyle: VoicePauseStyle
+
+    /// Consonant crispness from 0 (deliberately soft) to 1 (maximally precise).
+    public let articulationPrecision: Double
+
+    /// Creates a complete immutable profile.
+    ///
+    /// Section 8 describes pause and articulation mostly in qualitative terms.
+    /// Callers defining a new profile can provide exact values; the built-in
+    /// profiles receive deterministic age- and character-appropriate values so
+    /// the two VOX-P-001 fields can never be absent.
+    public init(
+        identifier: String,
+        displayName: String,
+        ageBand: AgeBand,
+        gender: GenderPresentation,
+        isVillain: Bool,
+        characterDescription: String,
+        recommendedUse: [VoiceUseTag],
+        medianF0: Double,
+        f0Range: ClosedRange<Double>,
+        formantScale: Double,
+        spectralTilt: Double,
+        spectralTiltDescription: String,
+        breathiness: Double,
+        roughness: Double,
+        tempo: Double,
+        pitchDynamism: Double,
+        pauseStyle: VoicePauseStyle? = nil,
+        articulationPrecision: Double? = nil
+    ) {
+        self.identifier = identifier
+        self.displayName = displayName
+        self.ageBand = ageBand
+        self.gender = gender
+        self.isVillain = isVillain
+        self.characterDescription = characterDescription
+        self.recommendedUse = recommendedUse
+        self.medianF0 = medianF0
+        self.f0Range = f0Range
+        self.formantScale = formantScale
+        self.spectralTilt = spectralTilt
+        self.spectralTiltDescription = spectralTiltDescription
+        self.breathiness = min(1, max(0, breathiness))
+        self.roughness = min(1, max(0, roughness))
+        self.tempo = tempo
+        self.pitchDynamism = max(0, pitchDynamism)
+        self.pauseStyle = pauseStyle ?? Self.defaultPauseStyle(
+            for: ageBand, isVillain: isVillain)
+        let defaultPrecision = Self.defaultArticulationPrecision(
+            for: ageBand, isVillain: isVillain)
+        let requestedPrecision = articulationPrecision ?? defaultPrecision
+        self.articulationPrecision = requestedPrecision.isFinite
+            ? min(1, max(0, requestedPrecision))
+            : defaultPrecision
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case identifier, displayName, ageBand, gender, isVillain
+        case characterDescription, recommendedUse, medianF0, f0Range
+        case formantScale, spectralTilt, spectralTiltDescription
+        case breathiness, roughness, tempo, pitchDynamism
+        case pauseStyle, articulationPrecision
+    }
+
+    /// Decodes profiles written before v0.16 with deterministic defaults for
+    /// the two newly persisted VOX-P-001 fields.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            identifier: try container.decode(String.self, forKey: .identifier),
+            displayName: try container.decode(String.self, forKey: .displayName),
+            ageBand: try container.decode(AgeBand.self, forKey: .ageBand),
+            gender: try container.decode(GenderPresentation.self, forKey: .gender),
+            isVillain: try container.decode(Bool.self, forKey: .isVillain),
+            characterDescription: try container.decode(
+                String.self, forKey: .characterDescription),
+            recommendedUse: try container.decode([VoiceUseTag].self, forKey: .recommendedUse),
+            medianF0: try container.decode(Double.self, forKey: .medianF0),
+            f0Range: try container.decode(ClosedRange<Double>.self, forKey: .f0Range),
+            formantScale: try container.decode(Double.self, forKey: .formantScale),
+            spectralTilt: try container.decode(Double.self, forKey: .spectralTilt),
+            spectralTiltDescription: try container.decode(
+                String.self, forKey: .spectralTiltDescription),
+            breathiness: try container.decode(Double.self, forKey: .breathiness),
+            roughness: try container.decode(Double.self, forKey: .roughness),
+            tempo: try container.decode(Double.self, forKey: .tempo),
+            pitchDynamism: try container.decode(Double.self, forKey: .pitchDynamism),
+            pauseStyle: try container.decodeIfPresent(
+                VoicePauseStyle.self, forKey: .pauseStyle),
+            articulationPrecision: try container.decodeIfPresent(
+                Double.self, forKey: .articulationPrecision))
+    }
+
+    private static func defaultPauseStyle(
+        for ageBand: AgeBand, isVillain: Bool
+    ) -> VoicePauseStyle {
+        let ageStyle: VoicePauseStyle
+        switch ageBand {
+        case .child:
+            ageStyle = VoicePauseStyle(comma: 0.85, period: 0.9, paragraph: 0.9)
+        case .youngAdult:
+            ageStyle = VoicePauseStyle(comma: 0.95, period: 1, paragraph: 1)
+        case .middleAged:
+            ageStyle = VoicePauseStyle(comma: 1, period: 1.05, paragraph: 1.1)
+        case .elderly:
+            ageStyle = VoicePauseStyle(comma: 1.15, period: 1.2, paragraph: 1.3)
+        }
+        guard isVillain else { return ageStyle }
+        return VoicePauseStyle(
+            comma: ageStyle.comma * 1.1,
+            period: ageStyle.period * 1.12,
+            paragraph: ageStyle.paragraph * 1.08)
+    }
+
+    private static func defaultArticulationPrecision(
+        for ageBand: AgeBand, isVillain: Bool
+    ) -> Double {
+        if isVillain && ageBand == .child { return 0.96 }
+        switch ageBand {
+        case .child: return 0.82
+        case .youngAdult: return 0.9
+        case .middleAged: return 0.92
+        case .elderly: return isVillain ? 0.9 : 0.78
+        }
+    }
 }
 
 /// The 32 voices of the CHOIR library.

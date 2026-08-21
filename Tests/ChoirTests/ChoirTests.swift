@@ -38,11 +38,11 @@ struct ChoirTests {
             genderShift: 2.0
         )
 
-        #expect(params.pitchShift == 12)
-        #expect(params.rate == 0.5)
+        #expect(params.pitchShift == 6)
+        #expect(params.rate == 0.6)
         #expect(params.emotionalIntensity == 1.0)
         #expect(params.breathiness == 0.0)
-        #expect(params.ageShift == 5)
+        #expect(params.ageShift == 1)
         #expect(params.genderShift == 1.0)
     }
 

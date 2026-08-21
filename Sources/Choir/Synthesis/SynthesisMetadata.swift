@@ -215,3 +215,60 @@ public struct SynthesisResult: Sendable {
         self.metadata = metadata
     }
 }
+
+/// Timing information delivered alongside one streaming audio chunk (STR-004).
+///
+/// Spans use the request-wide timeline, not offsets local to the chunk. A span
+/// is included when it intersects the chunk, so consumers can begin a word or
+/// viseme on one chunk and finish it on the next without reconstructing the
+/// global clock.
+public struct StreamingMetadataUpdate: Sendable, Equatable {
+    /// Start of the corresponding audio chunk, in milliseconds.
+    public let startMs: Double
+
+    /// End of the corresponding audio chunk, in milliseconds.
+    public let endMs: Double
+
+    /// Word spans intersecting this chunk.
+    public let words: [TimedSpan]
+
+    /// Phoneme spans intersecting this chunk.
+    public let phonemes: [TimedSpan]
+
+    /// Marks whose positions fall within this chunk.
+    public let marks: [MarkPosition]
+
+    /// Number of sentence ranges completed by the end of this chunk.
+    public let completedSentenceCount: Int
+
+    public init(
+        startMs: Double,
+        endMs: Double,
+        words: [TimedSpan] = [],
+        phonemes: [TimedSpan] = [],
+        marks: [MarkPosition] = [],
+        completedSentenceCount: Int = 0
+    ) {
+        let start = startMs.isFinite ? max(0, startMs) : 0
+        let end = endMs.isFinite ? max(start, endMs) : start
+        self.startMs = start
+        self.endMs = end
+        self.words = words
+        self.phonemes = phonemes
+        self.marks = marks
+        self.completedSentenceCount = max(0, completedSentenceCount)
+    }
+}
+
+/// One incremental streaming delivery: PCM plus synchronized timing metadata.
+public struct SynthesisStreamChunk: Sendable, Equatable {
+    public let audio: AudioChunk
+    public let metadata: StreamingMetadataUpdate
+
+    public init(audio: AudioChunk, metadata: StreamingMetadataUpdate) {
+        self.audio = audio
+        self.metadata = metadata
+    }
+
+    public var isFinal: Bool { audio.isFinal }
+}

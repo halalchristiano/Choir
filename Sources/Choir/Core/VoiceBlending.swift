@@ -86,10 +86,10 @@ public struct VoiceBlending: Sendable {
 
     private static func ageShift(for ageBand: AgeBand) -> Double {
         switch ageBand {
-        case .child: return -5
-        case .youngAdult: return -5.0 / 3.0
-        case .middleAged: return 5.0 / 3.0
-        case .elderly: return 5
+        case .child: return -1
+        case .youngAdult: return -1.0 / 3.0
+        case .middleAged: return 1.0 / 3.0
+        case .elderly: return 1
         }
     }
 }

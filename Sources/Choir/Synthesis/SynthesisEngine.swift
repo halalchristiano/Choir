@@ -2,8 +2,9 @@ import Foundation
 
 /// The main Choir synthesis engine for on-device text-to-speech.
 ///
-/// ChoirEngine provides both streaming (incremental) and batch (offline) synthesis modes,
-/// with full parametric control over prosody, emotion, and expression.
+/// ChoirEngine provides phrase-progressive and batch synthesis APIs plus
+/// validated control inputs. Audible production behavior remains dependent on
+/// caller-injected models until trained assets ship.
 public actor ChoirEngine {
     /// The current state of the engine.
     public enum State: Sendable, Equatable {
@@ -15,9 +16,20 @@ public actor ChoirEngine {
     }
 
     private var state: State = .uninitialized
-    private let audioFormat: AudioFormat
+    /// Module-visible so same-module API adapters can preserve custom formats.
+    let audioFormat: AudioFormat
     private let configuredPipeline: SynthesisPipeline?
     private var pipeline: SynthesisPipeline?
+    public nonisolated let maximumConcurrentJobs: Int
+    private var activeSynthesisJobs = 0
+    private var permitWaiters: [PermitWaiter] = []
+    private var isPipelineWarmedUp = false
+    private var warmUpTask: Task<Void, Error>?
+
+    private struct PermitWaiter {
+        let id: UUID
+        let continuation: CheckedContinuation<Result<Void, ChoirError>, Never>
+    }
 
     /// Creates a new Choir synthesis engine.
     ///
@@ -28,10 +40,12 @@ public actor ChoirEngine {
     ///     mock-backed development pipeline.
     public init(
         audioFormat: AudioFormat = AudioFormat(),
-        pipeline: SynthesisPipeline? = nil
+        pipeline: SynthesisPipeline? = nil,
+        maximumConcurrentJobs: Int = 2
     ) {
         self.audioFormat = audioFormat
         self.configuredPipeline = pipeline
+        self.maximumConcurrentJobs = max(2, maximumConcurrentJobs)
     }
 
     /// Initializes the engine, loading necessary models and resources.
@@ -63,6 +77,7 @@ public actor ChoirEngine {
         // assets are integrated; public documentation must not call this a
         // production neural path.
         self.pipeline = configuredPipeline ?? SynthesisPipeline(audioFormat: audioFormat)
+        self.isPipelineWarmedUp = false
 
         state = .ready
     }
@@ -83,24 +98,16 @@ public actor ChoirEngine {
     public func synthesize(
         text: String,
         voice: Voice,
-        parameters: SynthesisParameters = SynthesisParameters()
+        parameters: SynthesisParameters = SynthesisParameters(),
+        priority: SynthesisExecutionPriority = .automatic
     ) async throws -> AudioBuffer {
-        try validateState()
         try validateText(text)
-
-        guard let pipeline = pipeline else {
-            throw ChoirError.notInitialized
-        }
-
-        // SYN-007 requires cancellation to leave the model "in a reusable
-        // state". The engine holds no per-request mutable state, so restoring
-        // `state` on every exit path — including a throw from a cancellation
-        // check partway through a stage — is the whole guarantee.
-        let savedState = state
-        self.state = .synthesizing
-        defer { self.state = savedState }
-
-        return try await pipeline.synthesize(text: text, voice: voice, parameters: parameters)
+        let result = try await synthesize(
+            input: .markup(text),
+            voice: voice,
+            parameters: parameters,
+            priority: priority)
+        return result.audio
     }
 
     /// Synthesizes many items, with a caller-selected failure policy
@@ -122,10 +129,14 @@ public actor ChoirEngine {
         texts: [String],
         voice: Voice,
         parameters: SynthesisParameters = SynthesisParameters(),
-        policy: PartialFailurePolicy = .failFast
+        policy: PartialFailurePolicy = .failFast,
+        priority: SynthesisExecutionPriority = .utility
     ) async throws -> BatchResult {
-        try validateState()
+        try validateSynthesisState()
         guard let pipeline = pipeline else { throw ChoirError.notInitialized }
+
+        try await acquireSynthesisPermit()
+        defer { releaseSynthesisPermit() }
 
         var outcomes: [BatchItemOutcome] = []
         outcomes.reserveCapacity(texts.count)
@@ -137,7 +148,10 @@ public actor ChoirEngine {
 
             do {
                 let audio = try await pipeline.synthesize(
-                    text: text, voice: voice, parameters: parameters)
+                    text: text,
+                    voice: voice,
+                    parameters: parameters,
+                    priority: priority)
                 outcomes.append(BatchItemOutcome(index: index, text: text, audio: audio))
             } catch let error as ChoirError {
                 // Cancellation is not an item failure: it ends the whole job
@@ -248,13 +262,12 @@ public actor ChoirEngine {
     public func synthesize(
         input: SynthesisInput,
         voice: Voice,
-        parameters: SynthesisParameters = SynthesisParameters()
+        parameters: SynthesisParameters = SynthesisParameters(),
+        priority: SynthesisExecutionPriority = .automatic
     ) async throws -> SynthesisResult {
-        try validateState()
+        try validateSynthesisState()
 
-        guard !input.isEmpty else {
-            throw ChoirError.textProcessingFailed(reason: "Input is empty")
-        }
+        try validateInput(input)
         let unknown = input.unknownPhonemeSymbols
         guard unknown.isEmpty else {
             throw ChoirError.invalidParameter(
@@ -263,22 +276,44 @@ public actor ChoirEngine {
         }
 
         guard let pipeline = pipeline else { throw ChoirError.notInitialized }
+        try await acquireSynthesisPermit()
+        defer { releaseSynthesisPermit() }
 
         switch input {
         case .markup(let text):
             return try await pipeline.synthesizeMultiVoice(
-                text: text, defaultVoice: voice, parameters: parameters)
-        case .plainText(let text):
-            let escaped = text
-                .replacingOccurrences(of: "&", with: "&amp;")
-                .replacingOccurrences(of: "<", with: "&lt;")
-                .replacingOccurrences(of: ">", with: "&gt;")
+                text: text,
+                defaultVoice: voice,
+                parameters: parameters,
+                priority: priority)
+        case .plainText, .phonemes:
             return try await pipeline.synthesizeWithMetadata(
-                text: escaped, voice: voice, parameters: parameters)
-        case .phonemes:
-            throw ChoirError.synthesisError(
-                reason: "Pre-phonemized synthesis requires an acoustic model; the front-end path is available via LinguisticFrontend.process(_:)")
+                input: input,
+                voice: voice,
+                parameters: parameters,
+                priority: priority)
         }
+    }
+
+    /// Synthesizes caller-specified phonemes with optional aligned duration
+    /// and pitch targets, bypassing the linguistic front end (TXT-050).
+    public func synthesize(
+        phonemeProsody: PhonemeProsodySequence,
+        voice: Voice,
+        parameters: SynthesisParameters = SynthesisParameters(),
+        priority: SynthesisExecutionPriority = .automatic
+    ) async throws -> SynthesisResult {
+        try validateSynthesisState()
+        try phonemeProsody.validate()
+        guard let pipeline = pipeline else { throw ChoirError.notInitialized }
+
+        try await acquireSynthesisPermit()
+        defer { releaseSynthesisPermit() }
+        return try await pipeline.synthesizeWithMetadata(
+            phonemeProsody: phonemeProsody,
+            voice: voice,
+            parameters: parameters,
+            priority: priority)
     }
 
     /// Estimates how long `text` takes to speak, without synthesizing it
@@ -305,20 +340,15 @@ public actor ChoirEngine {
     public func synthesizeWithMetadata(
         text: String,
         voice: Voice,
-        parameters: SynthesisParameters = SynthesisParameters()
+        parameters: SynthesisParameters = SynthesisParameters(),
+        priority: SynthesisExecutionPriority = .automatic
     ) async throws -> SynthesisResult {
-        try validateState()
         try validateText(text)
-
-        guard let pipeline = pipeline else {
-            throw ChoirError.notInitialized
-        }
-
-        return try await pipeline.synthesizeWithMetadata(
-            text: text,
+        return try await synthesize(
+            input: .markup(text),
             voice: voice,
-            parameters: parameters
-        )
+            parameters: parameters,
+            priority: priority)
     }
 
     /// Synthesizes text to audio in streaming mode, yielding audio chunks as they are produced.
@@ -335,9 +365,9 @@ public actor ChoirEngine {
         voice: Voice,
         parameters: SynthesisParameters = SynthesisParameters(),
         options: StreamingOptions = StreamingOptions(),
-        onChunk: @Sendable (AudioChunk) async throws -> Void
+        onChunk: @escaping @Sendable (AudioChunk) async throws -> Void
     ) async throws {
-        try validateState()
+        try validateSynthesisState()
         try validateText(text)
         try options.validate()
 
@@ -345,9 +375,12 @@ public actor ChoirEngine {
             throw ChoirError.notInitialized
         }
 
-        let savedState = state
-        self.state = .synthesizing
-        defer { self.state = savedState }
+        if options.preloadModel, !isPipelineWarmedUp {
+            try await warmUp(voice: voice, priority: options.priority)
+        }
+
+        try await acquireSynthesisPermit()
+        defer { releaseSynthesisPermit() }
 
         let streamPipeline = StreamingSynthesisPipeline(
             pipeline: pipeline,
@@ -358,9 +391,108 @@ public actor ChoirEngine {
             text: text,
             voice: voice,
             parameters: parameters,
+            priority: options.priority,
             onChunk: onChunk
         )
     }
+
+    /// Streams PCM and synchronized word/phoneme/mark updates (STR-001/004).
+    public func streamSynthesisWithMetadata(
+        input: SynthesisInput,
+        voice: Voice,
+        parameters: SynthesisParameters = SynthesisParameters(),
+        options: StreamingOptions = StreamingOptions(),
+        onChunk: @escaping @Sendable (SynthesisStreamChunk) async throws -> Void
+    ) async throws {
+        try validateSynthesisState()
+        try validateInput(input)
+        try options.validate()
+        guard let pipeline = pipeline else { throw ChoirError.notInitialized }
+
+        if options.preloadModel, !isPipelineWarmedUp {
+            try await warmUp(voice: voice, priority: options.priority)
+        }
+
+        try await acquireSynthesisPermit()
+        defer { releaseSynthesisPermit() }
+        let streamPipeline = StreamingSynthesisPipeline(
+            pipeline: pipeline,
+            chunkSize: options.chunkSize)
+        try await streamPipeline.streamSynthesisWithMetadata(
+            input: input,
+            voice: voice,
+            parameters: parameters,
+            priority: options.priority,
+            onChunk: onChunk)
+    }
+
+    /// Streams fully specified phoneme/prosody input (TXT-050/STR-004).
+    public func streamSynthesisWithMetadata(
+        phonemeProsody: PhonemeProsodySequence,
+        voice: Voice,
+        parameters: SynthesisParameters = SynthesisParameters(),
+        options: StreamingOptions = StreamingOptions(),
+        onChunk: @escaping @Sendable (SynthesisStreamChunk) async throws -> Void
+    ) async throws {
+        try validateSynthesisState()
+        try phonemeProsody.validate()
+        try options.validate()
+        guard let pipeline = pipeline else { throw ChoirError.notInitialized }
+
+        if options.preloadModel, !isPipelineWarmedUp {
+            try await warmUp(voice: voice, priority: options.priority)
+        }
+
+        try await acquireSynthesisPermit()
+        defer { releaseSynthesisPermit() }
+        let streamPipeline = StreamingSynthesisPipeline(
+            pipeline: pipeline,
+            chunkSize: options.chunkSize)
+        try await streamPipeline.streamSynthesisWithMetadata(
+            phonemeProsody: phonemeProsody,
+            voice: voice,
+            parameters: parameters,
+            priority: options.priority,
+            onChunk: onChunk)
+    }
+
+    /// Preloads the built-in lexicon and executes a tiny model/vocoder pass so
+    /// lazy model loading and compute-graph compilation happen before the
+    /// user's first requested utterance (SYN-009).
+    public func warmUp(
+        voice: Voice = .isla,
+        priority: SynthesisExecutionPriority = .utility
+    ) async throws {
+        if case .uninitialized = state {
+            try await initialize()
+        }
+        try validateSynthesisState()
+        guard let pipeline = pipeline else { throw ChoirError.notInitialized }
+        if isPipelineWarmedUp { return }
+        if let warmUpTask {
+            try await warmUpTask.value
+            try Cancellation.check()
+            return
+        }
+
+        let task = Task {
+            try await self.performWarmUp(
+                pipeline: pipeline, voice: voice, priority: priority)
+        }
+        warmUpTask = task
+        do {
+            try await task.value
+            isPipelineWarmedUp = true
+            warmUpTask = nil
+            try Cancellation.check()
+        } catch {
+            warmUpTask = nil
+            throw error
+        }
+    }
+
+    /// Whether ``warmUp(voice:priority:)`` has completed successfully.
+    public func isWarmedUp() -> Bool { isPipelineWarmedUp }
 
     /// Exports audio to a specific format.
     ///
@@ -391,26 +523,87 @@ public actor ChoirEngine {
     /// active request keeps its pipeline until it completes; calling this
     /// while synthesis is active is therefore a no-op.
     public func clearCache() {
-        guard case .synthesizing = state else {
-            pipeline = nil
-            state = .uninitialized
-            return
-        }
+        guard activeSynthesisJobs == 0 else { return }
+        guard permitWaiters.isEmpty else { return }
+        guard warmUpTask == nil else { return }
+        pipeline = nil
+        isPipelineWarmedUp = false
+        state = .uninitialized
     }
 
     // MARK: - Private Helpers
 
-    private func validateState() throws {
+    private func performWarmUp(
+        pipeline: SynthesisPipeline,
+        voice: Voice,
+        priority: SynthesisExecutionPriority
+    ) async throws {
+        try await acquireSynthesisPermit()
+        defer { releaseSynthesisPermit() }
+        BuiltInLexicon.shared.preload()
+        try await pipeline.warmUp(voice: voice, priority: priority)
+    }
+
+    private func validateSynthesisState() throws {
         switch state {
-        case .ready:
+        case .ready, .synthesizing:
             return
-        case .initializing, .synthesizing:
+        case .initializing:
             throw ChoirError.engineBusy
         case .error(let error):
             throw error
         case .uninitialized:
             throw ChoirError.notInitialized
         }
+    }
+
+    /// Acquires one of the engine's FIFO synthesis slots. The actor remains
+    /// reentrant while model inference awaits, so two granted jobs can execute
+    /// concurrently even though slot accounting itself is isolated.
+    private func acquireSynthesisPermit() async throws {
+        try Cancellation.check()
+        if activeSynthesisJobs < maximumConcurrentJobs {
+            activeSynthesisJobs += 1
+            state = .synthesizing
+            return
+        }
+
+        let id = UUID()
+        let result: Result<Void, ChoirError> = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                if Task.isCancelled {
+                    continuation.resume(returning: .failure(.cancelled))
+                } else {
+                    self.permitWaiters.append(PermitWaiter(
+                        id: id,
+                        continuation: continuation))
+                }
+            }
+        } onCancel: {
+            Task { await self.cancelPermitWaiter(id) }
+        }
+        try result.get()
+    }
+
+    /// Transfers a released slot directly to the oldest waiter. Keeping the
+    /// active count unchanged during a transfer prevents a later arrival from
+    /// jumping the queue.
+    private func releaseSynthesisPermit() {
+        guard activeSynthesisJobs > 0 else { return }
+        if !permitWaiters.isEmpty {
+            let waiter = permitWaiters.removeFirst()
+            waiter.continuation.resume(returning: .success(()))
+            return
+        }
+
+        activeSynthesisJobs -= 1
+        if activeSynthesisJobs == 0 { state = .ready }
+    }
+
+    private func cancelPermitWaiter(_ id: UUID) {
+        guard let index = permitWaiters.firstIndex(where: { $0.id == id }) else { return }
+        let waiter = permitWaiters.remove(at: index)
+        waiter.continuation.resume(returning: .failure(.cancelled))
     }
 
     /// The largest input accepted, per SRS TXT-001.
@@ -434,6 +627,22 @@ public actor ChoirEngine {
             throw ChoirError.invalidParameter(
                 parameter: "text",
                 reason: "Text exceeds the maximum of \(Self.maximumInputCharacters) characters (TXT-001)")
+        }
+    }
+
+    private func validateInput(_ input: SynthesisInput) throws {
+        guard !input.isEmpty else {
+            throw ChoirError.textProcessingFailed(reason: "Input is empty")
+        }
+        switch input {
+        case .plainText(let text), .markup(let text):
+            try validateText(text)
+        case .phonemes(let phonemes):
+            guard phonemes.count <= Self.maximumInputCharacters else {
+                throw ChoirError.invalidParameter(
+                    parameter: "input",
+                    reason: "Phoneme input exceeds the maximum of \(Self.maximumInputCharacters) symbols")
+            }
         }
     }
 }

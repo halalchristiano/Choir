@@ -1,5 +1,132 @@
 import Foundation
 
+/// A caller-supplied phoneme sequence with optional aligned prosody (TXT-050).
+///
+/// Supplying neither contour preserves the ordinary predicted prosody while
+/// still bypassing normalization, tokenization, G2P, and stress assignment.
+/// Supplying a contour replaces that part of the prediction exactly, enabling
+/// precise lip-sync and research workflows without forcing callers to invent
+/// values for the controls they do not need.
+public struct PhonemeProsodySequence: Sendable, Equatable, Codable {
+    /// Phonemes in speaking order.
+    public let phonemes: [Phoneme]
+
+    /// Optional duration for every phoneme, in milliseconds.
+    public let durationsMs: [Double]?
+
+    /// Optional fundamental-frequency target for every phoneme, in hertz.
+    /// A value of zero is valid for an unvoiced phoneme.
+    public let pitchTargetsHz: [Double]?
+
+    /// Optional word starts, expressed as indices into ``phonemes``.
+    public let wordBoundaries: [Int]
+
+    /// Optional labels parallel to ``wordBoundaries`` for timing metadata.
+    public let wordTexts: [String]
+
+    public init(
+        phonemes: [Phoneme],
+        durationsMs: [Double]? = nil,
+        pitchTargetsHz: [Double]? = nil,
+        wordBoundaries: [Int] = [],
+        wordTexts: [String] = []
+    ) {
+        self.phonemes = phonemes
+        self.durationsMs = durationsMs
+        self.pitchTargetsHz = pitchTargetsHz
+        self.wordBoundaries = wordBoundaries
+        self.wordTexts = wordTexts
+    }
+
+    /// Validates the parallel phoneme/prosody tensors before model inference.
+    public func validate() throws {
+        guard !phonemes.isEmpty else {
+            throw ChoirError.invalidParameter(
+                parameter: "phonemes", reason: "At least one phoneme is required")
+        }
+        guard phonemes.count <= 1_000_000 else {
+            throw ChoirError.invalidParameter(
+                parameter: "phonemes", reason: "A request may contain at most 1,000,000 phonemes")
+        }
+
+        let unknown = phonemes.map(\.symbol).filter { !PhonemeInventory.isValidIPA($0) }
+        guard unknown.isEmpty else {
+            throw ChoirError.invalidParameter(
+                parameter: "phonemes",
+                reason: "Phonemes outside the documented inventory: \(unknown.joined(separator: ", "))")
+        }
+
+        if let durationsMs {
+            guard durationsMs.count == phonemes.count else {
+                throw ChoirError.invalidParameter(
+                    parameter: "durationsMs",
+                    reason: "A duration must be supplied for every phoneme")
+            }
+            guard durationsMs.allSatisfy({ $0.isFinite && $0 > 0 && $0 <= 10_000 }) else {
+                throw ChoirError.invalidParameter(
+                    parameter: "durationsMs",
+                    reason: "Durations must be finite and within (0, 10,000] ms")
+            }
+            let totalDurationMs = durationsMs.reduce(0, +)
+            guard totalDurationMs.isFinite, totalDurationMs <= 86_400_000 else {
+                throw ChoirError.invalidParameter(
+                    parameter: "durationsMs",
+                    reason: "Explicit phoneme timing may not exceed 24 hours")
+            }
+        }
+
+        if let pitchTargetsHz {
+            guard pitchTargetsHz.count == phonemes.count else {
+                throw ChoirError.invalidParameter(
+                    parameter: "pitchTargetsHz",
+                    reason: "A pitch target must be supplied for every phoneme")
+            }
+            guard pitchTargetsHz.allSatisfy({ $0.isFinite && $0 >= 0 }) else {
+                throw ChoirError.invalidParameter(
+                    parameter: "pitchTargetsHz",
+                    reason: "Pitch targets must be finite and non-negative")
+            }
+        }
+
+        if !wordBoundaries.isEmpty {
+            guard wordBoundaries.first == 0,
+                  wordBoundaries.allSatisfy({ phonemes.indices.contains($0) }),
+                  zip(wordBoundaries, wordBoundaries.dropFirst()).allSatisfy({ $0.0 < $0.1 }) else {
+                throw ChoirError.invalidParameter(
+                    parameter: "wordBoundaries",
+                    reason: "Word boundaries must begin at zero and be strictly increasing phoneme indices")
+            }
+            guard wordTexts.isEmpty || wordTexts.count == wordBoundaries.count else {
+                throw ChoirError.invalidParameter(
+                    parameter: "wordTexts",
+                    reason: "Word labels must be empty or parallel to word boundaries")
+            }
+        } else if !wordTexts.isEmpty {
+            throw ChoirError.invalidParameter(
+                parameter: "wordTexts", reason: "Word labels require word boundaries")
+        }
+    }
+
+    /// The transcription presented to prosody prediction and metadata.
+    var transcription: PhoneticTranscription {
+        let boundaries = wordBoundaries.isEmpty ? [0] : wordBoundaries
+        let labels: [String]
+        if wordTexts.isEmpty {
+            labels = boundaries.enumerated().map { index, start in
+                let end = index + 1 < boundaries.count ? boundaries[index + 1] : phonemes.count
+                return phonemes[start..<end].map(\.description).joined()
+            }
+        } else {
+            labels = wordTexts
+        }
+        return PhoneticTranscription(
+            phonemes: phonemes,
+            originalText: labels.joined(separator: " "),
+            wordBoundaries: boundaries,
+            wordTexts: labels)
+    }
+}
+
 /// How input is to be interpreted (SRS TXT-003).
 ///
 /// "Input shall be accepted as (a) plain text, (b) plain text with SSML-C

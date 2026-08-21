@@ -1,7 +1,7 @@
 # CHOIR project status
 
 **Status:** Pre-alpha engineering infrastructure
-**Package version:** 0.15.0
+**Package version:** 0.16.0
 **Updated:** 21 August 2026
 
 CHOIR is not currently a production text-to-speech engine. It contains a large
@@ -19,10 +19,12 @@ produce speech.
 - SSML-C parsing into events and styles.
 - Prosody data structures and prediction infrastructure.
 - Explicit plain-text, markup, and phoneme input modes at the front-end level.
-- Batch orchestration and post-render chunk delivery.
-- Timing metadata infrastructure.
-- Validated 16-bit RIFF/WAV export and raw PCM encoding.
-- Actor-based in-memory feature, transcription, and prosody caches.
+- Batch orchestration and phrase-progressive PCM/timing delivery.
+- Word, phoneme, sentence, mark, and incremental timing infrastructure.
+- Validated RIFF/WAV and raw PCM, float conversion/mastering primitives, and
+  per-line timing/SRT/WebVTT export.
+- In-memory caches plus a persistent SHA-256 synthesis-cache primitive with
+  limits, LRU eviction, pinning, inspection, and purge.
 - Cancellation checks and typed errors.
 - Benchmark, intelligibility, and conformance harness infrastructure.
 - A broad automated test suite for infrastructure behavior.
@@ -35,8 +37,28 @@ pipeline. The mock acoustic model produces deterministic synthetic features.
 The mock vocoder converts those features to a fixed test waveform. The result
 is useful for exercising APIs but is not intelligible speech.
 
-`CoreMLAcousticModel` validates its input and then reports
-`ChoirError.modelLoadFailed` because no production model is bundled.
+`CoreMLAcousticModel` and `CoreMLVocoder` validate caller-injected inference
+closures. The acoustic adapter's default form reports that no production model
+is bundled; the vocoder adapter requires an inference closure.
+
+## Reconciled 143-item carried backlog
+
+The authoritative item-by-item ledger is in
+[`SRS_CONFORMANCE.md`](./SRS_CONFORMANCE.md). Its current source-level
+classification is:
+
+| Status | Count |
+|---|---:|
+| Implemented (published CI still required) | 21 |
+| Partial | 57 |
+| Open | 28 |
+| External acceptance gate | 37 |
+| **Still incomplete or externally gated** | **122** |
+| **Total reconciled items** | **143** |
+
+“Implemented” means the requested repository code/document deliverable exists;
+it does not convert a mock-backed feature into production speech or waive an
+acoustic, listening, hardware, signing, or App Store gate.
 
 ## Major incomplete product requirements
 
@@ -46,7 +68,8 @@ is useful for exercising APIs but is not intelligible speech.
 - The 32 profiles are not yet 32 audible, perceptually distinct voices.
 - Pitch, emotion, breathiness, age, gender, and voice-profile controls are not
   proven audible through production models.
-- Chunk delivery starts only after the complete utterance has rendered.
+- Production-model TTFA, real-time factor, clickless joins, and long-form memory
+  behavior remain unmeasured even though phrase-progressive orchestration exists.
 - SSML styling is parsed, but several controls and break events are not fully
   executed through audio synthesis.
 - MP3, AAC, FLAC, CAF, ALAC, and audiobook export are not implemented.
@@ -80,6 +103,13 @@ is useful for exercising APIs but is not intelligible speech.
 - Prevented oversized entries from violating configured cache limits.
 - Added cache capacity and emptiness statistics.
 - Rewrote public streaming and getting-started documentation to match behavior.
+- Added bounded pull-based streaming with cancellation ownership and a
+  source-compatible fail-fast `AsyncThrowingStream` adapter.
+- Preserved clamping reports through request validation and Codable round trips.
+- Made normalized mark/sentence provenance drive timing metadata.
+- Hardened acoustic/vocoder allocation arithmetic and long expert timing.
+- Fixed lazy-asset stale-load, warm-up coalescing, dialogue-timeline, cache-key,
+  stereo DSP, playback-lifetime, and cache-startup regressions.
 
 ## Build and test truth
 

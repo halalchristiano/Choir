@@ -1,13 +1,13 @@
 # Getting started with CHOIR
 
-> CHOIR v0.15 is pre-alpha infrastructure. The default engine produces a mock
+> CHOIR v0.16 is pre-alpha infrastructure. The default engine produces a mock
 > waveform, not intelligible speech. Use it to develop and test integrations,
 > or inject your own `SynthesisPipeline` containing real model implementations.
 
 ## Installation
 
 ```swift
-.package(url: "https://github.com/halalchristiano/Choir.git", from: "0.15.0")
+.package(url: "https://github.com/halalchristiano/Choir.git", from: "0.16.0")
 ```
 
 The declared minimums are iOS 17, macOS 14, visionOS 1, watchOS 10, and tvOS
@@ -53,11 +53,11 @@ print(Voice.garrick.conditioningID)
 Profiles and conditioning IDs are real metadata. Distinct audible timbres are
 not bundled yet.
 
-## Deliver a render in chunks
+## Stream natural phrase units
 
 ```swift
 try await engine.streamSynthesis(
-    text: "Deliver this completed render in chunks.",
+    text: "Render and deliver this passage phrase by phrase.",
     voice: .orion,
     options: StreamingOptions(chunkSize: 2_400)
 ) { chunk in
@@ -65,9 +65,10 @@ try await engine.streamSynthesis(
 }
 ```
 
-The current implementation renders the entire utterance first. It then emits
-timestamped chunks and checks cancellation between them. See
-[STREAMING.md](./STREAMING.md) for the precise limitation and completion gates.
+The front end prepares request-wide text and prosody, then acoustic/vocoder
+inference runs one natural phrase at a time. Each phrase is emitted before the
+next one runs, with synchronized timing and cancellation checks. See
+[STREAMING.md](./STREAMING.md) for the precise boundary and remaining gates.
 
 ## Export WAV
 

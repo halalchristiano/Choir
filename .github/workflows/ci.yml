@@ -30,14 +30,21 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift') }}
-          restore-keys: ${{ runner.os }}-spm-
+          key: ${{ runner.os }}-${{ runner.arch }}-swift63-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-swift63-
 
       - name: Build (debug)
-        run: swift build
+        run: swift build -Xswiftc -warnings-as-errors
 
-      - name: Test
-        run: swift test
+      - name: Test coverage-gate path handling
+        run: python3 -B -m unittest discover -s Scripts -p 'test_*.py'
+
+      - name: Test with linguistic-front-end coverage gate
+        run: |
+          swift test --enable-code-coverage
+          COVERAGE_JSON="$(swift test --show-codecov-path)"
+          test -s "$COVERAGE_JSON"
+          python3 Scripts/check_frontend_coverage.py "$COVERAGE_JSON" 85
 
       - name: Build (release)
         run: swift build -c release

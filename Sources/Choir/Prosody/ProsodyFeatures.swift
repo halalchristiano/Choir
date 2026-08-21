@@ -144,27 +144,40 @@ public struct ProsodyContour: Sendable {
         if time < points.first!.time { return points.first!.value }
         if time > points.last!.time { return points.last!.value }
 
-        // Find surrounding points
-        var lower: (time: Double, value: Double)? = nil
-        var upper: (time: Double, value: Double)? = nil
-
-        for point in points {
-            if point.time <= time {
-                lower = point
-            }
-            if point.time >= time && upper == nil {
-                upper = point
-            }
+        // Find surrounding points. The contour is sorted during initialization,
+        // so the first point at or after the query is the upper endpoint.
+        guard let upperIndex = points.firstIndex(where: { $0.time >= time }) else {
+            return points.last?.value
         }
+        let lowerIndex = max(0, upperIndex - 1)
+        let l = points[lowerIndex]
+        let u = points[upperIndex]
 
-        guard let l = lower, let u = upper else { return nil }
-
+        // A control point owns its exact timestamp for every interpolation
+        // mode. Without this check, step interpolation returned the previous
+        // value at the final point itself.
+        if u.time == time { return u.value }
         if interpolation == "step" { return l.value }
-
-        // Spline currently uses the stable linear fallback until neighboring
-        // tangent estimation is added.
         if l.time == u.time { return l.value }
         let ratio = (time - l.time) / (u.time - l.time)
+
+        if interpolation == "spline" {
+            // Catmull-Rom interpolation uses the neighboring points to produce
+            // a continuously changing contour rather than silently falling
+            // back to a straight line. Clamp to the segment's endpoint range
+            // to prevent pitch/energy overshoot at sharp control points.
+            let before = points[max(0, lowerIndex - 1)].value
+            let after = points[min(points.count - 1, upperIndex + 1)].value
+            let t2 = ratio * ratio
+            let t3 = t2 * ratio
+            let value = 0.5 * (
+                (2 * l.value)
+                + (-before + u.value) * ratio
+                + (2 * before - 5 * l.value + 4 * u.value - after) * t2
+                + (-before + 3 * l.value - 3 * u.value + after) * t3)
+            return min(max(l.value, u.value), max(min(l.value, u.value), value))
+        }
+
         return l.value + ratio * (u.value - l.value)
     }
 }
