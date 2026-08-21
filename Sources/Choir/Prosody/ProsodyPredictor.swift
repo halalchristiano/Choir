@@ -37,8 +37,17 @@ public struct ProsodyPredictor: Sendable {
         let pitchShift = synthesisParams.pitchShift
         let emotionalIntensity = synthesisParams.emotionalIntensity
 
+        // SYN-002/SYN-003: a seed makes the variation reproducible; without
+        // one it differs per render, so a repeated line is not mechanically
+        // identical. The generator is threaded through every varied quantity so
+        // that a given seed fixes all of them together.
+        var variation = ProsodyVariation(seed: synthesisParams.seed)
+
         // Step 1: Predict durations for each phoneme
-        let durations = predictDurations(transcript.phonemes, rate: rate)
+        var durations = predictDurations(transcript.phonemes, rate: rate)
+        for index in durations.indices {
+            durations[index] *= variation.durationScale()
+        }
 
         // Step 2: Predict pitch contour
         let pitchPoints = predictPitchContour(
@@ -47,7 +56,10 @@ public struct ProsodyPredictor: Sendable {
             pitchShift: pitchShift,
             emotionalIntensity: emotionalIntensity
         )
-        let pitchContour = ProsodyContour(points: pitchPoints, interpolation: "spline")
+        let variedPitchPoints = pitchPoints.map { point in
+            (time: point.time, value: point.value * variation.pitchScale())
+        }
+        let pitchContour = ProsodyContour(points: variedPitchPoints, interpolation: "spline")
 
         // Step 3: Predict energy contour
         let energyPoints = predictEnergyContour(

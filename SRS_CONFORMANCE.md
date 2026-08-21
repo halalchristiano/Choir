@@ -63,12 +63,14 @@ precision are not quantified per voice in §8 and are not yet modelled.
 | `TXT-022` runtime user lexicon API | MUST | Implemented | 9 tests in `UserLexiconTests` |
 | `TXT-023` biblical/theological proper-noun supplement (≥2,500) | SHOULD | **Partial** | 111 curated entries against a target of 2,500; 6 tests in `TheologicalLexiconTests` |
 | `TXT-024` documented, stable phoneme inventory | MUST | Implemented | 39 phonemes, ARPAbet↔IPA, 8 tests in `PhonemeInventoryTests` |
-| `TXT-030` sentence and phrase segmentation | MUST | **Partial** | Splitting exists; phrase-boundary strength is not passed to prosody |
-| `TXT-031` breath groups for long sentences | MUST | **Not implemented** | — |
+| `TXT-030` sentence and phrase segmentation | MUST | Implemented | 10 tests in `SegmentationTests` — abbreviations, initials, decimals, dialogue punctuation, `PhraseBoundary` strength |
+| `TXT-031` breath groups for long sentences | MUST | Implemented | 9 tests in `BreathGroupTests` — word cap and duration ceiling |
+| `TXT-032` paragraph/section pauses and pitch reset | SHOULD | **Partial** | `PhraseBoundary` carries pause length and a pitch-reset flag; the prosody model does not yet act on them |
 | `TXT-040` SSML-C dialect | MUST | Implemented | 13 tests in `SSMLCParsingTests` — all seven tag types, nestable prosody |
 | `TXT-041` graceful degradation + markup diagnostics | MUST | Implemented | 9 tests in `SSMLDegradationTests` — degradation, diagnostics, strict mode |
 | `TXT-042` `<voice>` mid-text switching | MUST | **Partial** | Parsed and carried per segment (`testVoiceSwitching`); synthesis does not yet render segments in different voices |
-| `SYN-002` deterministic output given a seed | MUST | **Not implemented** | No seed parameter exists |
+| `SYN-002` deterministic output given a seed | MUST | Implemented | 8 tests in `DeterminismTests` |
+| `SYN-003` controlled variation without a seed | MUST | Implemented | `testUnseededVaries`, `testVariationBounded` — **was violated**: every render was bit-identical |
 | `SYN-005` timing metadata (per word/phoneme, marks) | MUST | Implemented | 14 tests across `SynthesisMetadataTests` and `SynthesisMarkTests` |
 | `SYN-008` failures surface as typed errors, never traps | MUST | Implemented | `testFrontendRobustness`; 16 traps fixed across 0.2.x–0.3.x |
 | `SYN-010` duration estimate API | SHOULD | **Not implemented** | — |
@@ -91,6 +93,41 @@ Part III is where the bulk of the remaining work sits. `TXT-020` through
 `TXT-024` (lexicon, heteronyms, user pronunciations) are the largest block and
 are prerequisites for the acoustic model being useful, since a trained voice
 saying the wrong phonemes is not an improvement.
+
+### Determinism and variation
+
+`SYN-002` and `SYN-003` are a pair, and the engine satisfied the first only by
+failing the second: prosody prediction contained no randomness at all, so every
+render was already bit-identical. That is trivially deterministic and exactly
+the "robotic sameness in repeated game lines" `SYN-003` forbids.
+
+`SeededGenerator` is SplitMix64 — specified entirely in integer arithmetic, so
+the stream is identical on every architecture, which is what `SYN-002`'s
+"bit-identical audio on the same device class" requires. It is not
+cryptographic, and should not be used as though it were.
+
+`ProsodyVariation` applies bounded jitter to phoneme durations (±3%) and pitch
+targets (±1.5%). With a seed the stream is reproducible; without one it starts
+from a system-drawn value and then proceeds deterministically, so variation is
+still bounded and well-distributed, just not reproducible.
+
+### Breath groups
+
+`TXT-031`'s "~30 words" is a proxy, not the constraint. Thirty polysyllabic
+words last far longer than thirty short ones, so division enforces both a word
+cap and a duration ceiling estimated from syllable count. The first
+implementation enforced only the word cap and produced 13.3-second groups
+against a 9-second ceiling; the test caught it.
+
+Division prefers punctuation boundaries, then falls back to breaking before a
+conjunction, and only then splits mechanically — so a break lands on a phrase
+edge rather than inside a constituent, which is what "syntactically plausible"
+asks for.
+
+Dialogue punctuation is handled by treating a terminator followed by a
+lowercase continuation as reported speech, so `"Stop there!" she cried.` is one
+sentence rather than two.
+
 
 ### The lexicon block
 
