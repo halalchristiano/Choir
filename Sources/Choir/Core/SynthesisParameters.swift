@@ -45,6 +45,112 @@ public struct SynthesisParameters: Sendable, Equatable, Hashable, Codable {
         self.breathiness = max(0, min(1.0, breathiness))
         self.ageShift = max(-5, min(5, ageShift))
         self.genderShift = max(-1.0, min(1.0, genderShift))
+
+        self.clampings = Self.clampings(
+            pitchShift: pitchShift, rate: rate,
+            emotionalIntensity: emotionalIntensity, breathiness: breathiness,
+            ageShift: ageShift, genderShift: genderShift)
+    }
+
+    // MARK: - Envelope clamping (API-004, PRO-030)
+
+    /// One parameter that was clamped into its documented envelope.
+    public struct Clamping: Sendable, Equatable, Hashable, Codable {
+        public let parameter: String
+        public let requested: Double
+        public let applied: Double
+
+        public var description: String {
+            "\(parameter) \(requested) clamped to \(applied)"
+        }
+    }
+
+    /// Parameters that were clamped when this value was constructed.
+    ///
+    /// API-004 requires validation that *reports* envelope clamping. Silently
+    /// clamping is the failure mode this exists to prevent: a caller asking for
+    /// a pitch shift of 24 semitones and receiving 12 with no indication will
+    /// conclude the parameter does nothing.
+    public let clampings: [Clamping]
+
+    /// Whether any parameter was clamped.
+    public var wasClamped: Bool { !clampings.isEmpty }
+
+    private static func clampings(
+        pitchShift: Double, rate: Double, emotionalIntensity: Double,
+        breathiness: Double, ageShift: Double, genderShift: Double
+    ) -> [Clamping] {
+        var result: [Clamping] = []
+        func check(_ name: String, _ requested: Double, _ low: Double, _ high: Double) {
+            let applied = max(low, min(high, requested))
+            if applied != requested {
+                result.append(Clamping(parameter: name, requested: requested, applied: applied))
+            }
+        }
+        check("pitchShift", pitchShift, -12, 12)
+        check("rate", rate, 0.5, 2.0)
+        check("emotionalIntensity", emotionalIntensity, 0, 1)
+        check("breathiness", breathiness, 0, 1)
+        check("ageShift", ageShift, -5, 5)
+        check("genderShift", genderShift, -1, 1)
+        return result
+    }
+
+    // MARK: - Builder-style modification (API-004)
+
+    /// Returns a copy with `pitchShift` replaced.
+    public func pitch(_ semitones: Double) -> SynthesisParameters {
+        modified { $0.pitchShift = semitones }
+    }
+
+    /// Returns a copy with `rate` replaced.
+    public func speed(_ multiplier: Double) -> SynthesisParameters {
+        modified { $0.rate = multiplier }
+    }
+
+    /// Returns a copy with `emotionalIntensity` replaced.
+    public func emotion(_ intensity: Double) -> SynthesisParameters {
+        modified { $0.emotionalIntensity = intensity }
+    }
+
+    /// Returns a copy with `breathiness` replaced.
+    public func breath(_ amount: Double) -> SynthesisParameters {
+        modified { $0.breathiness = amount }
+    }
+
+    /// Returns a copy with `ageShift` replaced.
+    public func age(_ shift: Double) -> SynthesisParameters {
+        modified { $0.ageShift = shift }
+    }
+
+    /// Returns a copy with `genderShift` replaced.
+    public func gender(_ shift: Double) -> SynthesisParameters {
+        modified { $0.genderShift = shift }
+    }
+
+    /// Returns a copy with `seed` replaced (SYN-002).
+    public func seeded(_ seed: UInt64?) -> SynthesisParameters {
+        var copy = self
+        copy.seed = seed
+        return copy
+    }
+
+    /// Re-runs the initializer so clamping and its report stay correct.
+    ///
+    /// Mutating a stored property directly would leave `clampings` describing
+    /// a value that no longer exists.
+    private func modified(_ change: (inout SynthesisParameters) -> Void) -> SynthesisParameters {
+        var draft = self
+        change(&draft)
+        var rebuilt = SynthesisParameters(
+            pitchShift: draft.pitchShift,
+            rate: draft.rate,
+            emotionalIntensity: draft.emotionalIntensity,
+            breathiness: draft.breathiness,
+            ageShift: draft.ageShift,
+            genderShift: draft.genderShift)
+        rebuilt.seed = draft.seed
+        return rebuilt
     }
 }
 

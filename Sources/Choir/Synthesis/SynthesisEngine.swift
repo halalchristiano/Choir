@@ -72,6 +72,90 @@ public actor ChoirEngine {
         return try await pipeline.synthesize(text: text, voice: voice, parameters: parameters)
     }
 
+    /// The outcome of a start-up self-check (SRS REL-003).
+    public struct VerificationResult: Sendable, Equatable {
+        /// Whether the installation is usable.
+        public let isHealthy: Bool
+
+        /// Individual checks, in the order they ran.
+        public let checks: [Check]
+
+        public struct Check: Sendable, Equatable {
+            public let name: String
+            public let passed: Bool
+            public let detail: String
+        }
+
+        public var failures: [Check] { checks.filter { !$0.passed } }
+
+        public var summary: String {
+            isHealthy
+                ? "Installation healthy: \(checks.count) checks passed"
+                : "Installation broken: \(failures.map(\.name).joined(separator: ", "))"
+        }
+    }
+
+    /// Runs a start-up self-check (SRS REL-003).
+    ///
+    /// "The engine shall run a start-up self-check (asset hashes, model load,
+    /// 0.5 s silent smoke synthesis) exposed as `engine.verify()`, so consuming
+    /// apps can detect a broken installation deterministically rather than
+    /// failing at first user request."
+    ///
+    /// The point is the word *deterministically*: an app can call this at
+    /// launch and know, rather than discovering at the moment a user taps
+    /// speak that a voice pack is missing.
+    public func verify() async -> VerificationResult {
+        var checks: [VerificationResult.Check] = []
+
+        // The lexicon is a shipped asset, so its absence is a broken install.
+        let lexicon = BuiltInLexicon.shared
+        let lexiconCount = lexicon.count
+        checks.append(.init(
+            name: "lexicon",
+            passed: lexiconCount >= 120_000,
+            detail: "\(lexiconCount) word forms (TXT-020 requires at least 120,000)"))
+
+        // Every voice must resolve to a complete profile.
+        let incomplete = Voice.allCases.filter {
+            $0.profile.identifier.isEmpty || $0.profile.medianF0 <= 0
+        }
+        checks.append(.init(
+            name: "voices",
+            passed: incomplete.isEmpty,
+            detail: incomplete.isEmpty
+                ? "\(Voice.allCases.count) voice profiles complete"
+                : "incomplete: \(incomplete.map(\.displayName).joined(separator: ", "))"))
+
+        // Engine state.
+        checks.append(.init(
+            name: "initialization",
+            passed: pipeline != nil,
+            detail: pipeline != nil ? "engine initialized" : "engine not initialized"))
+
+        // Smoke synthesis: the end-to-end path must produce audio.
+        if pipeline != nil {
+            do {
+                let audio = try await synthesize(text: "Verification.", voice: .isla)
+                checks.append(.init(
+                    name: "smoke synthesis",
+                    passed: !audio.samples.isEmpty,
+                    detail: audio.samples.isEmpty
+                        ? "produced no samples"
+                        : "produced \(audio.samples.count) samples"))
+            } catch {
+                checks.append(.init(
+                    name: "smoke synthesis",
+                    passed: false,
+                    detail: "failed: \(error.localizedDescription)"))
+            }
+        }
+
+        return VerificationResult(
+            isHealthy: checks.allSatisfy(\.passed),
+            checks: checks)
+    }
+
     /// Synthesizes input whose interpretation the caller has stated (TXT-003).
     ///
     /// The mode is never inferred: `.plainText` speaks markup characters

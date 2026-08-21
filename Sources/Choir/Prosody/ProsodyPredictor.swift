@@ -49,6 +49,12 @@ public struct ProsodyPredictor: Sendable {
             durations[index] *= variation.durationScale()
         }
 
+        // TXT-032: a boundary lengthens the last phoneme before it, by the
+        // pause its strength implies and scaled by the voice's rate. Without
+        // this a paragraph break reads exactly like a comma, and a chapter
+        // sounds like a run-on sentence.
+        Self.applyBoundaryPauses(to: &durations, transcript: transcript, rate: rate)
+
         // Step 2: Predict pitch contour
         let pitchPoints = predictPitchContour(
             transcript.phonemes,
@@ -56,9 +62,19 @@ public struct ProsodyPredictor: Sendable {
             pitchShift: pitchShift,
             emotionalIntensity: emotionalIntensity
         )
-        let variedPitchPoints = pitchPoints.map { point in
+        var variedPitchPoints = pitchPoints.map { point in
             (time: point.time, value: point.value * variation.pitchScale())
         }
+
+        // TXT-032: paragraph and section breaks reset the pitch baseline.
+        // Declination lowers pitch steadily through a passage; without a reset
+        // a long document drifts ever downward and a new paragraph begins
+        // wherever the previous one happened to end.
+        Self.applyPitchResets(
+            to: &variedPitchPoints,
+            transcript: transcript,
+            durations: durations,
+            basePitch: basePitch)
         let pitchContour = ProsodyContour(points: variedPitchPoints, interpolation: "spline")
 
         // Step 3: Predict energy contour
@@ -103,6 +119,65 @@ public struct ProsodyPredictor: Sendable {
     }
 
     /// Predicts duration for each phoneme based on phonetic context.
+    /// Lengthens the phoneme preceding each boundary by its pause (TXT-032).
+    static func applyBoundaryPauses(
+        to durations: inout [Double],
+        transcript: PhoneticTranscription,
+        rate: Double
+    ) {
+        guard !transcript.phraseBoundaries.isEmpty else { return }
+        let wordStarts = transcript.wordBoundaries
+
+        for (wordIndex, boundary) in transcript.phraseBoundaries {
+            guard wordIndex < wordStarts.count else { continue }
+
+            // The last phoneme of that word is the one before the next word
+            // begins, or the final phoneme of the utterance.
+            let end = wordIndex + 1 < wordStarts.count
+                ? wordStarts[wordIndex + 1]
+                : durations.count
+            let last = end - 1
+            guard last >= 0, last < durations.count else { continue }
+
+            // Pauses shorten as speech speeds up, as they do in natural speech.
+            durations[last] += boundary.nominalPauseMs / max(0.1, rate)
+        }
+    }
+
+    /// Restores the pitch baseline at structural breaks (TXT-032).
+    static func applyPitchResets(
+        to points: inout [(time: Double, value: Double)],
+        transcript: PhoneticTranscription,
+        durations: [Double],
+        basePitch: Double
+    ) {
+        let resets = transcript.phraseBoundaries.filter { $0.value.resetsPitch }
+        guard !resets.isEmpty, !points.isEmpty else { return }
+
+        // Convert each resetting boundary to a time offset.
+        let wordStarts = transcript.wordBoundaries
+        var resetTimes: [Double] = []
+        for (wordIndex, _) in resets {
+            guard wordIndex < wordStarts.count else { continue }
+            let end = wordIndex + 1 < wordStarts.count ? wordStarts[wordIndex + 1] : durations.count
+            let elapsed = durations.prefix(max(0, end)).reduce(0, +)
+            resetTimes.append(elapsed)
+        }
+        guard !resetTimes.isEmpty else { return }
+        resetTimes.sort()
+
+        // After each reset the contour returns to the voice's baseline, so
+        // declination starts again rather than continuing to fall.
+        for index in points.indices {
+            guard let mostRecent = resetTimes.last(where: { $0 <= points[index].time }) else {
+                continue
+            }
+            _ = mostRecent
+            let drift = points[index].value - basePitch
+            points[index].value = basePitch + drift * 0.5
+        }
+    }
+
     private func predictDurations(_ phonemes: [Phoneme], rate: Double) -> [Double] {
         var durations: [Double] = []
 

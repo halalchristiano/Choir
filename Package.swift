@@ -3,12 +3,14 @@ import PackageDescription
 
 let package = Package(
     name: "Choir",
+    // PKG-003 sets the minimum deployment targets. They were previously one
+    // major version low on iOS, macOS and watchOS.
     platforms: [
-        .iOS(.v16),
-        .macOS(.v13),
+        .iOS(.v17),
+        .macOS(.v14),
         .visionOS(.v1),
-        .watchOS(.v9),
-        .tvOS(.v16),
+        .watchOS(.v10),
+        .tvOS(.v17),
     ],
     products: [
         .library(

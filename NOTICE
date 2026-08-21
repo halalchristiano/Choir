@@ -1,0 +1,57 @@
+CHOIR — Third-Party Notices
+===========================
+
+Required by SRS PKG-005: "All training-pipeline code, licences, and datasets
+shall be licence-clean for closed-source commercial distribution of the runtime
+(no GPL/AGPL contamination of shipped assets or code; permissive-licensed
+research code use documented in a NOTICE file)."
+
+This file lists every third-party work redistributed in this package, so that a
+consuming application can satisfy its own attribution obligations.
+
+--------------------------------------------------------------------------------
+CMU Pronouncing Dictionary (CMUdict)
+--------------------------------------------------------------------------------
+
+Used as the built-in pronunciation lexicon (SRS TXT-020), shipped as
+`Sources/Choir/Resources/cmudict.lex` in a sorted, tab-separated form derived
+from the upstream `cmudict.dict`. Content is unmodified; only the ordering and
+field separator differ, to permit memory-mapped binary search.
+
+    Copyright (C) 1993-2015 Carnegie Mellon University. All rights reserved.
+
+Licensed under the two-clause BSD licence. The full text is redistributed
+alongside the data at `Sources/Choir/Resources/CMUDICT-LICENSE.txt`, satisfying
+the licence's requirement that the copyright notice and conditions accompany
+redistributions in source form.
+
+Upstream: https://github.com/cmusphinx/cmudict
+
+This licence is attribution-only. It imposes no copyleft obligation and does not
+restrict closed-source or commercial distribution, which is what PKG-005
+requires and what Guiding Principle 5 means by a licence that cannot "poison a
+commercial App Store product".
+
+--------------------------------------------------------------------------------
+IEEE Harvard Sentences
+--------------------------------------------------------------------------------
+
+Used as the intelligibility corpus (SRS QUA-004), in
+`Sources/Choir/Quality/HarvardSentences.swift`.
+
+From "IEEE Recommended Practice for Speech Quality Measurements", IEEE No. 297
+(1969). These phonetically balanced sentence lists have been published and
+reproduced in speech-research literature for over fifty years and are used here
+as a measurement instrument rather than as creative content.
+
+--------------------------------------------------------------------------------
+Everything else
+--------------------------------------------------------------------------------
+
+No other third-party code, data, or model weights are redistributed. Per
+PKG-004 the runtime links only Apple frameworks and has zero third-party
+runtime dependencies.
+
+Voice model assets do not yet exist. When they do, ML-A-004 requires their
+training data to be licence-clean for closed-source commercial synthesis, with
+full provenance recorded — and that provenance belongs in this file.
