@@ -385,21 +385,44 @@ public struct TextNormalizer: Sendable, Equatable, Hashable, Codable {
         return result
     }
 
-    /// Collapses every Unicode whitespace run, including tabs, line breaks,
-    /// em spaces and paragraph separators, into one ordinary ASCII space.
+    /// Collapses horizontal Unicode whitespace and single line breaks while
+    /// preserving paragraph structure as a canonical double newline.
     /// Leading and trailing whitespace are removed in the same pass.
     private func collapseWhitespace(_ text: String) -> String {
         var result = ""
         result.reserveCapacity(text.count)
         var pendingSpace = false
+        var pendingLineBreaks = 0
+        var previousWasCarriageReturn = false
 
         for character in text {
-            if character.isWhitespace {
+            if character == "\r" {
+                pendingLineBreaks += 1
+                previousWasCarriageReturn = true
+            } else if character == "\n" {
+                if !previousWasCarriageReturn { pendingLineBreaks += 1 }
+                previousWasCarriageReturn = false
+            } else if character == "\u{2028}" {
+                pendingLineBreaks += 1
+                previousWasCarriageReturn = false
+            } else if character == "\u{2029}" {
+                pendingLineBreaks = max(2, pendingLineBreaks)
+                previousWasCarriageReturn = false
+            } else if character.isWhitespace {
                 pendingSpace = !result.isEmpty
+                previousWasCarriageReturn = false
             } else {
-                if pendingSpace { result.append(" ") }
+                if !result.isEmpty {
+                    if pendingLineBreaks >= 2 {
+                        result.append("\n\n")
+                    } else if pendingLineBreaks == 1 || pendingSpace {
+                        result.append(" ")
+                    }
+                }
                 result.append(character)
                 pendingSpace = false
+                pendingLineBreaks = 0
+                previousWasCarriageReturn = false
             }
         }
         return result

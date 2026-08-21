@@ -19,11 +19,13 @@ struct ImprovementSprintFourTextNormalizerTests {
         #expect(Set([value, decoded]).count == 1)
     }
 
-    @Test("352: Unicode whitespace collapses in prose and verbatim modes")
+    @Test("352: Unicode whitespace collapses without erasing paragraph structure")
     func unicodeWhitespace() {
-        let input = "  Alpha\t\n\u{2003}\u{2028}Beta  "
+        let input = "  Alpha\t\u{00A0}\u{2003}Beta  "
         #expect(normalizer.normalize(input) == "alpha beta")
         #expect(TextNormalizer(policy: .verbatimMode).normalize(input) == "alpha beta")
+        #expect(normalizer.normalize("Alpha\n\nBeta") == "alpha\n\nbeta")
+        #expect(normalizer.normalize("Alpha\u{2029}Beta") == "alpha\n\nbeta")
     }
 
     @Test("353: Contractions expand only at lexical boundaries")

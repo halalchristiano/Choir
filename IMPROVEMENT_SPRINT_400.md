@@ -61,7 +61,7 @@ This ledger records the fourth non-duplicative set of 100 completed improvements
 ## Linguistic normalization and stress integrity
 
 - [x] 351. Make normalization policies and normalizers codable, hashable value types.
-- [x] 352. Collapse all Unicode whitespace runs consistently in prose and verbatim modes.
+- [x] 352. Collapse horizontal Unicode whitespace while preserving paragraph structure.
 - [x] 353. Prevent contraction expansion inside larger lexical tokens.
 - [x] 354. Prevent abbreviation expansion inside larger lexical tokens.
 - [x] 355. Use singular grammar for exactly one dollar.
