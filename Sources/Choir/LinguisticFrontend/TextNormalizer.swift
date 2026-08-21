@@ -133,29 +133,105 @@ public struct TextNormalizer: Sendable {
     }
 
     /// Normalizes text for synthesis, expanding numbers, abbreviations, etc.
+    /// Normalizes text for synthesis (SRS TXT-010, TXT-012, TXT-013).
+    ///
+    /// Stage order is deliberate throughout. The recurring hazard is that a
+    /// later stage destroys the pattern an earlier one needs: once "3:30" has
+    /// become "three:thirty" it is no longer recognizable as a clock time, and
+    /// once "$5" has become "$five" it is no longer currency. Each stage below
+    /// records why it sits where it does.
     public func normalize(_ text: String) -> String {
-        var result = text.lowercased()
-
         // Verbatim mode speaks the text as written (TXT-012).
         guard !policy.verbatim else {
-            return cleanPunctuation(result).trimmingCharacters(in: .whitespaces)
+            return cleanPunctuation(text.lowercased()).trimmingCharacters(in: .whitespaces)
         }
 
-        // Expand contractions and abbreviations
+        // --- Case-sensitive stages, before the text is folded to lowercase ---
+
+        // One scan establishes what the input contains; every stage below is
+        // gated on it, so a stage that cannot possibly match costs nothing.
+        let flags = ContentFlags(text)
+
+        // TXT-013: fold smart quotes and ellipses so later patterns see ASCII.
+        var result = flags.hasFancyPunctuation ? normalizeTypography(text) : text
+
+        // Addresses hold dots and digits the decimal and date stages would
+        // otherwise claim, so they are spoken structurally first.
+        if flags.hasAt || flags.hasDot {
+            result = expandWebAddresses(result)
+        }
+
+        // Roman numerals and the Saint/Street distinction both depend on
+        // capitalization: lowercase "i", "x" and "c" are ordinary words, and
+        // "St. John" versus "Baker St." is decided by the following capital.
+        if flags.hasUppercase {
+            result = expandRomanNumerals(result)
+            result = disambiguateSaint(result)
+        }
+
+        result = result.lowercased()
+
+        // --- Case-insensitive stages ---
+
         result = expandDictionary(result, Self.contractions)
 
-        // Scripture references must expand before bare numbers, or "3:16"
-        // is spoken as two unrelated numbers (TXT-011).
-        if policy.expandsScriptureReferences {
+        // Scripture claims "book 3:16" before the clock-time stage can read it
+        // as half past three (TXT-011).
+        if policy.expandsScriptureReferences, flags.hasColon {
             result = ScriptureNormalizer(style: policy.scriptureStyle).normalize(result)
         }
 
-        // Currency must expand before bare numbers, otherwise "$50" becomes
-        // "$fifty" and the currency pattern no longer matches.
+        // Every stage below matches on a digit. One O(n) scan to establish
+        // there are none is far cheaper than running a dozen regexes over the
+        // whole input to discover the same thing -- which matters at the
+        // 1,000,000 characters TXT-001 requires the engine to accept.
+        guard flags.hasDigit else {
+            result = expandDictionary(result, Self.abbreviations)
+            if flags.hasWideDash { result = foldDashPauses(result) }
+            return cleanPunctuation(result).trimmingCharacters(in: .whitespaces)
+        }
+
+        // Dates before times: an ISO date contains no colon, but a slash date
+        // and a time can both appear in one sentence, and dates are the more
+        // specific pattern.
+        result = expandDates(result)
+        result = expandClockTimes(result)
+
+        // Phone numbers before ranges: "555-1234" is a number read digit by
+        // digit, not the range five hundred fifty five to one thousand.
+        result = expandPhoneNumbers(result)
+
+        // Currency before bare numbers, or "$50" becomes "$fifty".
         result = expandCurrency(result)
+
+        // Decades before units: "1990s" would otherwise match the unit pattern
+        // as 1990 plus the seconds symbol.
+        result = expandDecades(result)
+
+        // Units and percentages carry a trailing symbol that number expansion
+        // would strand.
+        result = expandUnits(result)
+        result = expandPercentages(result)
+
+        // Fractions before decimals and ranges, since "1/2" contains neither
+        // a point nor a dash but does contain two bare integers.
+        result = expandFractions(result)
+        result = expandRanges(result)
+        result = expandDecimals(result)
+
+        // Ordinals before years: "1st" must not be read as a cardinal, and
+        // four-digit years must not be read as plain thousands.
+        result = expandOrdinals(result)
+        result = expandYears(result)
+
+        // Whatever integers remain are cardinals.
         result = expandNumbers(result)
+
         result = expandDictionary(result, Self.abbreviations)
 
+        // TXT-013: dashes become pauses only now that every range pattern
+        // that needed the dash character has already matched.
+        if flags.hasWideDash { result = foldDashPauses(result) }
         result = cleanPunctuation(result)
 
         return result.trimmingCharacters(in: .whitespaces)
