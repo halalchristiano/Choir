@@ -69,10 +69,10 @@ public struct DurationEstimate: Sendable, Equatable {
     public let pauseSeconds: Double
 
     public init(seconds: Double, syllables: Int, breathGroupCount: Int, pauseSeconds: Double) {
-        self.seconds = seconds
-        self.syllables = syllables
-        self.breathGroupCount = breathGroupCount
-        self.pauseSeconds = pauseSeconds
+        self.seconds = seconds.isFinite ? max(0, seconds) : 0
+        self.syllables = max(0, syllables)
+        self.breathGroupCount = max(0, breathGroupCount)
+        self.pauseSeconds = pauseSeconds.isFinite ? max(0, pauseSeconds) : 0
     }
 
     /// Duration in milliseconds.
@@ -113,13 +113,14 @@ public struct DurationEstimator: Sendable {
         )
 
         let syllables = groups.reduce(0) { $0 + $1.estimatedSyllables }
-        let effectiveTempo = max(0.1, voice.profile.tempo * max(0.1, rate))
+        let effectiveRate = rate.isFinite ? max(0.1, rate) : 1
+        let effectiveTempo = max(0.1, voice.profile.tempo * effectiveRate)
         let speechSeconds = Double(syllables) / effectiveTempo
 
         // Boundaries contribute pause time, scaled by rate as pauses shorten
         // with faster speech.
         let pauseSeconds = groups.reduce(0.0) { total, group in
-            total + group.boundary.nominalPauseMs / 1000 / max(0.1, rate)
+            total + group.boundary.nominalPauseMs / 1000 / effectiveRate
         }
 
         return DurationEstimate(

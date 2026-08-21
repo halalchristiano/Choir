@@ -87,9 +87,9 @@ struct VoiceBlendingTests {
 
         #expect(transition.count == 4)  // steps + 1
 
-        // Should progress from masculine to feminine
+        // Masculine is +1 and feminine is -1, so this direction decreases.
         for i in 0..<transition.count - 1 {
-            #expect(transition[i].genderShift < transition[i + 1].genderShift)
+            #expect(transition[i].genderShift > transition[i + 1].genderShift)
         }
     }
 

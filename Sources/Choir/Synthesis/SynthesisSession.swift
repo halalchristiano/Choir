@@ -24,7 +24,7 @@ public actor SynthesisSession {
     public var pronunciationDictionary: PronunciationDictionary
 
     /// Session state.
-    public enum State: Sendable {
+    public enum State: Sendable, Equatable {
         case idle
         case synthesizing
         case completed
@@ -33,6 +33,7 @@ public actor SynthesisSession {
 
     private var state: State = .idle
     private var lastSynthesizedText: String?
+    private var lastAudioByteCount: Int = 0
     private var synthesisCaches: [String: AudioBuffer] = [:]
 
     /// Creates a new synthesis session.
@@ -55,6 +56,21 @@ public actor SynthesisSession {
         state
     }
 
+    /// Begins a synthesis only when the session is not already busy.
+    @discardableResult
+    public func beginSynthesis() -> Bool {
+        guard state != .synthesizing else { return false }
+        state = .synthesizing
+        return true
+    }
+
+    /// Returns the session to idle without discarding configuration or cache.
+    public func resetState() {
+        state = .idle
+    }
+
+    public func getLastSynthesizedText() -> String? { lastSynthesizedText }
+
     /// Caches audio under a key.
     public func cacheAudio(_ audio: AudioBuffer, for key: String) {
         synthesisCaches[key] = audio
@@ -65,6 +81,17 @@ public actor SynthesisSession {
         synthesisCaches[key]
     }
 
+    public func containsCachedAudio(for key: String) -> Bool {
+        synthesisCaches[key] != nil
+    }
+
+    @discardableResult
+    public func removeCachedAudio(for key: String) -> Bool {
+        synthesisCaches.removeValue(forKey: key) != nil
+    }
+
+    public var cachedKeys: [String] { synthesisCaches.keys.sorted() }
+
     /// Clears all cached audio.
     public func clearCache() {
         synthesisCaches.removeAll()
@@ -73,6 +100,7 @@ public actor SynthesisSession {
     /// Records synthesis completion.
     public func recordSynthesis(text: String, audio: AudioBuffer) {
         lastSynthesizedText = text
+        lastAudioByteCount = audio.byteCount
         state = .completed
     }
 
@@ -89,19 +117,23 @@ public actor SynthesisSession {
             elapsedTime: Date().timeIntervalSince(createdAt),
             state: state,
             cacheSize: synthesisCaches.values.reduce(0) { $0 + $1.samples.count * 2 },
-            cachedItemCount: synthesisCaches.count
+            cachedItemCount: synthesisCaches.count,
+            lastSynthesizedText: lastSynthesizedText,
+            lastAudioByteCount: lastAudioByteCount
         )
     }
 }
 
 /// Statistics for a synthesis session.
-public struct SessionStatistics: Sendable {
+public struct SessionStatistics: Sendable, Equatable {
     public let id: UUID
     public let createdAt: Date
     public let elapsedTime: TimeInterval
     public let state: SynthesisSession.State
     public let cacheSize: Int
     public let cachedItemCount: Int
+    public let lastSynthesizedText: String?
+    public let lastAudioByteCount: Int
 
     public var elapsedSeconds: Double {
         elapsedTime
@@ -110,6 +142,8 @@ public struct SessionStatistics: Sendable {
     public var cacheInfo: String {
         "\(cachedItemCount) items, \(cacheSize / 1024)KB"
     }
+
+    public var hasCachedAudio: Bool { cachedItemCount > 0 }
 }
 
 /// Manager for multiple synthesis sessions.
@@ -149,12 +183,16 @@ public actor SynthesisSessionManager {
 
     /// Returns all active sessions.
     public func getActiveSessions() -> [SynthesisSession] {
-        activeSessions.compactMap { sessions[$0] }
+        activeSessions
+            .sorted { $0.uuidString < $1.uuidString }
+            .compactMap { sessions[$0] }
     }
 
     /// Returns all sessions.
     public func getAllSessions() -> [SynthesisSession] {
-        sessions.values.map { $0 }
+        sessions.keys
+            .sorted { $0.uuidString < $1.uuidString }
+            .compactMap { sessions[$0] }
     }
 
     /// Clears a session and its cache.
@@ -180,11 +218,25 @@ public actor SynthesisSessionManager {
             totalCacheSize: 0
         )
     }
+
+    /// Accurate aggregate statistics, including actor-isolated session caches.
+    public func getDetailedStatistics() async -> ManagerStatistics {
+        var cacheBytes = 0
+        for session in sessions.values {
+            cacheBytes += (await session.getStatistics()).cacheSize
+        }
+        return ManagerStatistics(
+            totalSessions: sessions.count,
+            activeSessions: activeSessions.count,
+            totalCacheSize: cacheBytes)
+    }
 }
 
 /// Statistics for session manager.
-public struct ManagerStatistics: Sendable {
+public struct ManagerStatistics: Sendable, Equatable {
     public let totalSessions: Int
     public let activeSessions: Int
     public let totalCacheSize: Int
+
+    public var completedSessions: Int { max(0, totalSessions - activeSessions) }
 }

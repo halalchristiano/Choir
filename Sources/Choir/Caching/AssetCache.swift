@@ -95,6 +95,37 @@ public actor AssetCache: Sendable {
         return value
     }
 
+    public func containsAcousticFeatures(for key: String) -> Bool {
+        featureCache[key] != nil
+    }
+
+    public func containsTranscription(for key: String) -> Bool {
+        transcriptionCache[key] != nil
+    }
+
+    public func containsProsody(for key: String) -> Bool {
+        prosodyCache[key] != nil
+    }
+
+    /// Removes every cached representation stored under `key`.
+    @discardableResult
+    public func removeValue(for key: String) -> Bool {
+        let existed = featureCache[key] != nil || transcriptionCache[key] != nil || prosodyCache[key] != nil
+        removeFeature(for: key)
+        removeTranscription(for: key)
+        removeProsody(for: key)
+        accessTimes.removeValue(forKey: key)
+        return existed
+    }
+
+    /// Keys currently represented in at least one cache, in stable order.
+    public var cachedKeys: [String] {
+        Set(featureCache.keys)
+            .union(transcriptionCache.keys)
+            .union(prosodyCache.keys)
+            .sorted()
+    }
+
     /// Clears all caches.
     public func clear() {
         featureCache.removeAll()
@@ -197,5 +228,20 @@ public struct CacheStatistics: Sendable, Equatable {
     /// Whether no entries are currently cached.
     public var isEmpty: Bool {
         featureCount == 0 && transcriptionCount == 0 && prosodyCount == 0
+    }
+
+    /// Total values across the three typed caches.
+    public var totalCount: Int {
+        featureCount + transcriptionCount + prosodyCount
+    }
+
+    /// Utilization as a 0...1 fraction.
+    public var utilizationFraction: Double {
+        utilizationPercent / 100
+    }
+
+    /// Whether no additional byte can fit under the configured limit.
+    public var isAtCapacity: Bool {
+        maxSizeBytes == 0 || currentSizeBytes >= maxSizeBytes
     }
 }

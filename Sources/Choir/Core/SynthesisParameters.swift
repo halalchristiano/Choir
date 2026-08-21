@@ -39,12 +39,12 @@ public struct SynthesisParameters: Sendable, Equatable, Hashable, Codable {
         seed: UInt64? = nil
     ) {
         self.seed = seed
-        self.pitchShift = max(-12, min(12, pitchShift))
-        self.rate = max(0.5, min(2.0, rate))
-        self.emotionalIntensity = max(0, min(1.0, emotionalIntensity))
-        self.breathiness = max(0, min(1.0, breathiness))
-        self.ageShift = max(-5, min(5, ageShift))
-        self.genderShift = max(-1.0, min(1.0, genderShift))
+        self.pitchShift = Self.bounded(pitchShift, low: -12, high: 12, fallback: 0)
+        self.rate = Self.bounded(rate, low: 0.5, high: 2.0, fallback: 1)
+        self.emotionalIntensity = Self.bounded(emotionalIntensity, low: 0, high: 1, fallback: 0.5)
+        self.breathiness = Self.bounded(breathiness, low: 0, high: 1, fallback: 0)
+        self.ageShift = Self.bounded(ageShift, low: -5, high: 5, fallback: 0)
+        self.genderShift = Self.bounded(genderShift, low: -1, high: 1, fallback: 0)
 
         self.clampings = Self.clampings(
             pitchShift: pitchShift, rate: rate,
@@ -59,9 +59,18 @@ public struct SynthesisParameters: Sendable, Equatable, Hashable, Codable {
         public let parameter: String
         public let requested: Double
         public let applied: Double
+        public let reason: String?
+
+        public init(parameter: String, requested: Double, applied: Double, reason: String? = nil) {
+            self.parameter = parameter
+            self.requested = requested
+            self.applied = applied
+            self.reason = reason
+        }
 
         public var description: String {
-            "\(parameter) \(requested) clamped to \(applied)"
+            if let reason { return "\(parameter): \(reason); applied \(applied)" }
+            return "\(parameter) \(requested) clamped to \(applied)"
         }
     }
 
@@ -81,19 +90,35 @@ public struct SynthesisParameters: Sendable, Equatable, Hashable, Codable {
         breathiness: Double, ageShift: Double, genderShift: Double
     ) -> [Clamping] {
         var result: [Clamping] = []
-        func check(_ name: String, _ requested: Double, _ low: Double, _ high: Double) {
+        func check(
+            _ name: String, _ requested: Double, _ low: Double, _ high: Double,
+            fallback: Double
+        ) {
+            guard requested.isFinite else {
+                result.append(Clamping(
+                    parameter: name, requested: fallback, applied: fallback,
+                    reason: "non-finite value replaced with the default"))
+                return
+            }
             let applied = max(low, min(high, requested))
             if applied != requested {
                 result.append(Clamping(parameter: name, requested: requested, applied: applied))
             }
         }
-        check("pitchShift", pitchShift, -12, 12)
-        check("rate", rate, 0.5, 2.0)
-        check("emotionalIntensity", emotionalIntensity, 0, 1)
-        check("breathiness", breathiness, 0, 1)
-        check("ageShift", ageShift, -5, 5)
-        check("genderShift", genderShift, -1, 1)
+        check("pitchShift", pitchShift, -12, 12, fallback: 0)
+        check("rate", rate, 0.5, 2.0, fallback: 1)
+        check("emotionalIntensity", emotionalIntensity, 0, 1, fallback: 0.5)
+        check("breathiness", breathiness, 0, 1, fallback: 0)
+        check("ageShift", ageShift, -5, 5, fallback: 0)
+        check("genderShift", genderShift, -1, 1, fallback: 0)
         return result
+    }
+
+    private static func bounded(
+        _ value: Double, low: Double, high: Double, fallback: Double
+    ) -> Double {
+        guard value.isFinite else { return fallback }
+        return max(low, min(high, value))
     }
 
     // MARK: - Builder-style modification (API-004)
@@ -152,10 +177,22 @@ public struct SynthesisParameters: Sendable, Equatable, Hashable, Codable {
         rebuilt.seed = draft.seed
         return rebuilt
     }
+
+    /// Revalidates a value after direct mutation of its public properties.
+    public func validated() -> SynthesisParameters {
+        SynthesisParameters(
+            pitchShift: pitchShift,
+            rate: rate,
+            emotionalIntensity: emotionalIntensity,
+            breathiness: breathiness,
+            ageShift: ageShift,
+            genderShift: genderShift,
+            seed: seed)
+    }
 }
 
 /// Audio format specification for synthesis output.
-public struct AudioFormat: Sendable {
+public struct AudioFormat: Sendable, Equatable, Hashable, Codable {
     /// Sample rate in Hz. Default is 48000.
     public let sampleRate: Int
 
@@ -189,7 +226,7 @@ public struct AudioFormat: Sendable {
 }
 
 /// Streaming options for real-time synthesis.
-public struct StreamingOptions: Sendable {
+public struct StreamingOptions: Sendable, Equatable, Hashable, Codable {
     /// Target buffer size for streaming chunks in samples. Default is 2400 (50ms at 48kHz).
     public var chunkSize: Int = 2400
 

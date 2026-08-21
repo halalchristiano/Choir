@@ -51,7 +51,8 @@ public struct SSMLBreak: Sendable, Equatable, Codable {
 
     /// The duration this break represents.
     public var resolvedMs: Double {
-        timeMs ?? strength?.nominalMs ?? Strength.medium.nominalMs
+        let candidate = timeMs ?? strength?.nominalMs ?? Strength.medium.nominalMs
+        return candidate.isFinite ? max(0, candidate) : Strength.medium.nominalMs
     }
 }
 
@@ -207,17 +208,30 @@ public struct SSMLCParser: Sendable {
 
             if trimmed.hasPrefix("/") {
                 // Closing tag.
-                let name = String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces).lowercased()
-                guard let open = openTags.last else {
+                let closingBody = String(trimmed.dropFirst())
+                    .trimmingCharacters(in: .whitespaces)
+                    .lowercased()
+                let name = closingBody.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
+                guard !name.isEmpty else {
+                    try report("Closing tag has no name")
+                    continue
+                }
+                if closingBody != name {
+                    try report("Closing tag </\(name)> must not contain attributes")
+                }
+                guard let matchingIndex = openTags.lastIndex(of: name) else {
                     try report("Closing tag </\(name)> with no matching opening tag")
                     continue
                 }
-                if open != name {
-                    try report("Mismatched closing tag: expected </\(open)>, found </\(name)>")
-                    // Recover by treating it as closing the innermost tag.
+                if matchingIndex != openTags.index(before: openTags.endIndex) {
+                    let implicitlyClosed = openTags[(matchingIndex + 1)...].reversed().joined(separator: ", ")
+                    try report("Mismatched closing tag </\(name)>; implicitly closed \(implicitlyClosed)")
                 }
-                openTags.removeLast()
-                if styleStack.count > 1 { styleStack.removeLast() }
+                let removalCount = openTags.count - matchingIndex
+                openTags.removeSubrange(matchingIndex...)
+                for _ in 0..<removalCount {
+                    if styleStack.count > 1 { styleStack.removeLast() }
+                }
                 continue
             }
 
@@ -239,10 +253,18 @@ public struct SSMLCParser: Sendable {
             if Self.voidTags.contains(name) {
                 switch name {
                 case "break":
-                    events.append(.pause(Self.parseBreak(attributes)))
+                    let parsed = try Self.parseBreak(attributes) { message in
+                        try report(message)
+                    }
+                    events.append(.pause(parsed))
                 case "mark":
-                    if let markName = attributes["name"], !markName.isEmpty {
-                        events.append(.mark(name: markName))
+                    if let rawName = attributes["name"] {
+                        let markName = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if markName.isEmpty {
+                            try report("<mark> has an empty name attribute")
+                        } else {
+                            events.append(.mark(name: markName))
+                        }
                     } else {
                         try report("<mark> is missing a name attribute")
                     }
@@ -293,13 +315,48 @@ public struct SSMLCParser: Sendable {
     /// Decodes the XML entities SSML documents carry.
     static func decodingEntities(_ text: String) -> String {
         guard text.contains("&") else { return text }
-        var result = text
+        var result = decodingNumericEntities(text)
         // Ampersand last, so "&amp;lt;" decodes to "&lt;" and not to "<".
         for (entity, character) in [
             ("&lt;", "<"), ("&gt;", ">"), ("&quot;", "\""),
             ("&apos;", "'"), ("&#39;", "'"), ("&nbsp;", " "), ("&amp;", "&"),
         ] {
             result = result.replacingOccurrences(of: entity, with: character)
+        }
+        return result
+    }
+
+    /// Decodes decimal and hexadecimal XML numeric character references.
+    private static func decodingNumericEntities(_ text: String) -> String {
+        var result = ""
+        var index = text.startIndex
+        while index < text.endIndex {
+            guard text[index] == "&",
+                  let semicolon = text[index...].prefix(14).firstIndex(of: ";")
+            else {
+                result.append(text[index])
+                index = text.index(after: index)
+                continue
+            }
+
+            let bodyStart = text.index(after: index)
+            let body = String(text[bodyStart..<semicolon])
+            let scalarValue: UInt32?
+            if body.hasPrefix("#x") || body.hasPrefix("#X") {
+                scalarValue = UInt32(body.dropFirst(2), radix: 16)
+            } else if body.hasPrefix("#") {
+                scalarValue = UInt32(body.dropFirst(), radix: 10)
+            } else {
+                scalarValue = nil
+            }
+
+            if let scalarValue, let scalar = UnicodeScalar(scalarValue) {
+                result.unicodeScalars.append(scalar)
+                index = text.index(after: semicolon)
+            } else {
+                result.append(text[index])
+                index = text.index(after: index)
+            }
         }
         return result
     }
@@ -373,13 +430,24 @@ public struct SSMLCParser: Sendable {
         }
     }
 
-    private static func parseBreak(_ attributes: [String: String]) -> SSMLBreak {
+    private static func parseBreak(
+        _ attributes: [String: String],
+        report: (String) throws -> Void
+    ) rethrows -> SSMLBreak {
         var result = SSMLBreak()
         if let time = attributes["time"] {
-            result.timeMs = parseDuration(time)
+            if let duration = parseDuration(time) {
+                result.timeMs = duration
+            } else {
+                try report("Unparseable break time '\(time)'; using strength or medium default")
+            }
         }
         if let strength = attributes["strength"]?.lowercased() {
-            result.strength = SSMLBreak.Strength(rawValue: strength)
+            if let parsed = SSMLBreak.Strength(rawValue: strength) {
+                result.strength = parsed
+            } else {
+                try report("Unknown break strength '\(strength)'; using medium default")
+            }
         }
         return result
     }
@@ -389,13 +457,16 @@ public struct SSMLCParser: Sendable {
     /// "500ms", "1.5s", "500" (milliseconds assumed).
     static func parseDuration(_ value: String) -> Double? {
         let text = value.trimmingCharacters(in: .whitespaces).lowercased()
+        let parsed: Double?
         if text.hasSuffix("ms") {
-            return Double(text.dropLast(2))
+            parsed = Double(text.dropLast(2))
+        } else if text.hasSuffix("s") {
+            parsed = Double(text.dropLast(1)).map { $0 * 1000 }
+        } else {
+            parsed = Double(text)
         }
-        if text.hasSuffix("s") {
-            return Double(text.dropLast(1)).map { $0 * 1000 }
-        }
-        return Double(text)
+        guard let parsed, parsed.isFinite, parsed >= 0 else { return nil }
+        return parsed
     }
 
     /// "+5st", "-3st", "+5", "5".
@@ -403,7 +474,8 @@ public struct SSMLCParser: Sendable {
         var text = value.trimmingCharacters(in: .whitespaces).lowercased()
         if text.hasSuffix("st") { text = String(text.dropLast(2)) }
         if text.hasPrefix("+") { text = String(text.dropFirst()) }
-        return Double(text)
+        guard let value = Double(text), value.isFinite else { return nil }
+        return value
     }
 
     /// "120%", "1.2" (a bare multiplier), "120".
@@ -411,9 +483,10 @@ public struct SSMLCParser: Sendable {
         var text = value.trimmingCharacters(in: .whitespaces).lowercased()
         if text.hasSuffix("%") {
             text = String(text.dropLast())
-            return Double(text)
+            guard let value = Double(text), value.isFinite, value > 0 else { return nil }
+            return value
         }
-        guard let raw = Double(text) else { return nil }
+        guard let raw = Double(text), raw.isFinite, raw > 0 else { return nil }
         // A bare value at or below 3 reads as a multiplier, as SSML authors write.
         return raw <= 3 ? raw * 100 : raw
     }
@@ -423,7 +496,8 @@ public struct SSMLCParser: Sendable {
         var text = value.trimmingCharacters(in: .whitespaces).lowercased()
         if text.hasSuffix("db") { text = String(text.dropLast(2)) }
         if text.hasPrefix("+") { text = String(text.dropFirst()) }
-        return Double(text)
+        guard let value = Double(text), value.isFinite else { return nil }
+        return value
     }
 
     /// Splits "prosody pitch=\"+5st\" rate=\"120%\"" into its name and attributes.
