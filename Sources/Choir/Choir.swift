@@ -8,5 +8,5 @@ public struct Choir {
     /// Kept in step with the released tag. It had drifted to 0.1.0 across
     /// eleven releases before the benchmark harness printed it into a report
     /// and made the drift visible.
-    public static let version = "0.12.0"
+    public static let version = "0.12.1"
 }
