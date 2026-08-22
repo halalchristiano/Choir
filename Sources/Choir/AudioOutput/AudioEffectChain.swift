@@ -294,10 +294,10 @@ public struct AudioEffectChain: Sendable {
             .add(AudioEffect(name: "Soft Clip", kind: .softClip(threshold: 0.95)))
     }()
 
-    /// Optional AUD-022 broadcast chain. It is deliberately opt-in rather
-    /// than applied by the default synthesis path.
-    public static let broadcast: AudioEffectChain = {
-        AudioEffectChain()
+    /// Builds the optional AUD-022 broadcast chain for an output sample rate.
+    /// It is deliberately opt-in rather than applied by default synthesis.
+    public static func broadcast(sampleRate: Int) -> AudioEffectChain {
+        AudioEffectChain(sampleRate: sampleRate)
             .add(AudioEffect(name: "DC Block", kind: .removeDCOffset))
             .add(AudioEffect(name: "40 Hz High Pass", kind: .highPass(cutoffHz: 40)))
             .add(AudioEffect(name: "De-esser", kind: .deEsser(centerHz: 6_000)))
@@ -305,5 +305,8 @@ public struct AudioEffectChain: Sendable {
                 name: "Soft-knee Limiter",
                 kind: .softKneeLimiter(ceilingDB: -1, kneeWidthDB: 3)))
             .add(AudioEffect(name: "Clickless Edges", kind: .edgeFade(durationMilliseconds: 5)))
-    }()
+    }
+
+    /// The canonical 48 kHz broadcast chain retained for source compatibility.
+    public static let broadcast = broadcast(sampleRate: 48_000)
 }

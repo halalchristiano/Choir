@@ -257,6 +257,7 @@ public actor SynthesisAudioCache: Sendable {
     private let manager: FileManager
     private let cacheDirectory: URL
     private let pinnedDirectory: URL
+    private let directoryLock: NSRecursiveLock
     private let maximumSizeBytes: Int
     private var entries: [String: CacheEntryRecord]
     private var hitCount: UInt64 = 0
@@ -281,7 +282,12 @@ public actor SynthesisAudioCache: Sendable {
         let pinnedDirectory = pinnedBase
             .appendingPathComponent("Choir", isDirectory: true)
             .appendingPathComponent("PinnedSynthesis", isDirectory: true)
+        let directoryLock = CacheDirectoryLockRegistry.shared.lock(
+            ordinaryDirectory: cacheDirectory,
+            pinnedDirectory: pinnedDirectory)
 
+        directoryLock.lock()
+        defer { directoryLock.unlock() }
         do {
             try manager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
             try manager.createDirectory(at: pinnedDirectory, withIntermediateDirectories: true)
@@ -301,6 +307,7 @@ public actor SynthesisAudioCache: Sendable {
             self.manager = manager
             self.cacheDirectory = cacheDirectory
             self.pinnedDirectory = pinnedDirectory
+            self.directoryLock = directoryLock
             self.maximumSizeBytes = configuration.maximumSizeBytes
             self.entries = records
             self.lastAccessDate = records.values.map(\.lastAccess).max() ?? .distantPast
@@ -313,35 +320,39 @@ public actor SynthesisAudioCache: Sendable {
 
     /// Returns cached PCM and refreshes its persistent LRU timestamp.
     public func audio(for key: SynthesisCacheKey) throws -> AudioBuffer? {
-        guard var record = entries[key.digest] else {
-            missCount &+= 1
-            return nil
-        }
-        let storedAudioURL = audioURL(for: record)
-        guard manager.fileExists(atPath: storedAudioURL.path) else {
-            // The OS may purge Caches independently of this actor. Treat that
-            // as an ordinary stale miss so the caller can recompute.
-            entries.removeValue(forKey: key.digest)
-            try? manager.removeItem(at: metadataURL(for: record))
-            missCount &+= 1
-            return nil
-        }
-        do {
-            let data = try Data(contentsOf: storedAudioURL)
-            guard data.count == record.byteCount else {
-                throw SynthesisAudioCacheError.corruptEntry(
-                    key: key.digest, reason: "Stored byte count does not match metadata")
+        try withDirectoryLock {
+            try refreshEntriesLocked()
+            guard var record = entries[key.digest] else {
+                missCount &+= 1
+                return nil
             }
-            let audio = try AudioCacheCodec.decode(data, key: key.digest)
-            record.lastAccess = nextAccessDate()
-            try writeMetadata(record)
-            entries[key.digest] = record
-            hitCount &+= 1
-            return audio
-        } catch let error as SynthesisAudioCacheError {
-            throw error
-        } catch {
-            throw SynthesisAudioCacheError.storageFailure(error.localizedDescription)
+            let storedAudioURL = audioURL(for: record)
+            guard manager.fileExists(atPath: storedAudioURL.path) else {
+                // The OS may purge Caches independently of this actor. Treat
+                // that as an ordinary stale miss so the caller can recompute.
+                entries.removeValue(forKey: key.digest)
+                try? manager.removeItem(at: metadataURL(for: record))
+                missCount &+= 1
+                return nil
+            }
+            do {
+                let data = try Data(contentsOf: storedAudioURL)
+                guard data.count == record.byteCount else {
+                    throw SynthesisAudioCacheError.corruptEntry(
+                        key: key.digest,
+                        reason: "Stored byte count does not match metadata")
+                }
+                let audio = try AudioCacheCodec.decode(data, key: key.digest)
+                record.lastAccess = nextAccessDate()
+                try writeMetadata(record)
+                entries[key.digest] = record
+                hitCount &+= 1
+                return audio
+            } catch let error as SynthesisAudioCacheError {
+                throw error
+            } catch {
+                throw SynthesisAudioCacheError.storageFailure(error.localizedDescription)
+            }
         }
     }
 
@@ -353,89 +364,127 @@ public actor SynthesisAudioCache: Sendable {
         pinned: Bool = false
     ) throws {
         let encoded = try AudioCacheCodec.encode(audio)
-        let existing = entries[key.digest]
-        try ensureCapacity(
-            resultingByteCount: encoded.count,
-            replacing: existing,
-            preserving: key.digest)
-        let targetPinned = pinned || existing?.isPinned == true
-        let accessDate = nextAccessDate()
-        let record = CacheEntryRecord(
-            digest: key.digest,
-            byteCount: encoded.count,
-            createdAt: existing?.createdAt ?? accessDate,
-            lastAccess: accessDate,
-            isPinned: targetPinned)
-        do {
-            let destinationAudioURL = audioURL(for: record)
-            try encoded.write(to: destinationAudioURL, options: .atomic)
-            try writeMetadata(record)
-            if let existing, existing.isPinned != record.isPinned {
-                try? manager.removeItem(at: audioURL(for: existing))
-                try? manager.removeItem(at: metadataURL(for: existing))
+        try withDirectoryLock {
+            try refreshEntriesLocked()
+            let existing = entries[key.digest]
+            try ensureCapacity(
+                resultingByteCount: encoded.count,
+                replacing: existing,
+                preserving: key.digest)
+            let targetPinned = pinned || existing?.isPinned == true
+            let accessDate = nextAccessDate()
+            let record = CacheEntryRecord(
+                digest: key.digest,
+                byteCount: encoded.count,
+                createdAt: existing?.createdAt ?? accessDate,
+                lastAccess: accessDate,
+                isPinned: targetPinned)
+            do {
+                let destinationAudioURL = audioURL(for: record)
+                try encoded.write(to: destinationAudioURL, options: .atomic)
+                try writeMetadata(record)
+                if let existing, existing.isPinned != record.isPinned {
+                    try? manager.removeItem(at: audioURL(for: existing))
+                    try? manager.removeItem(at: metadataURL(for: existing))
+                }
+                entries[key.digest] = record
+            } catch let error as SynthesisAudioCacheError {
+                throw error
+            } catch {
+                throw SynthesisAudioCacheError.storageFailure(error.localizedDescription)
             }
-            entries[key.digest] = record
-        } catch let error as SynthesisAudioCacheError {
-            throw error
-        } catch {
-            throw SynthesisAudioCacheError.storageFailure(error.localizedDescription)
         }
     }
 
     public func contains(_ key: SynthesisCacheKey) -> Bool {
-        entries[key.digest] != nil
+        withDirectoryLockBestEffort {
+            try refreshEntriesLocked()
+            return entries[key.digest] != nil
+        } fallback: {
+            entries[key.digest] != nil
+        }
     }
 
-    public var cachedDigests: [String] { entries.keys.sorted() }
+    public var cachedDigests: [String] {
+        withDirectoryLockBestEffort {
+            try refreshEntriesLocked()
+            return entries.keys.sorted()
+        } fallback: {
+            entries.keys.sorted()
+        }
+    }
 
     /// Moves a value between Caches and Application Support without changing
     /// its content-addressed identity.
     @discardableResult
     public func setPinned(_ shouldPin: Bool, for key: SynthesisCacheKey) throws -> Bool {
-        guard var record = entries[key.digest] else { return false }
-        guard record.isPinned != shouldPin else { return true }
-        let oldRecord = record
-        do {
-            let data = try Data(contentsOf: audioURL(for: oldRecord))
-            record.isPinned = shouldPin
-            record.lastAccess = nextAccessDate()
-            try data.write(to: audioURL(for: record), options: .atomic)
-            try writeMetadata(record)
-            try? manager.removeItem(at: audioURL(for: oldRecord))
-            try? manager.removeItem(at: metadataURL(for: oldRecord))
-            entries[key.digest] = record
-            return true
-        } catch {
-            throw SynthesisAudioCacheError.storageFailure(error.localizedDescription)
+        try withDirectoryLock {
+            try refreshEntriesLocked()
+            guard var record = entries[key.digest] else { return false }
+            guard record.isPinned != shouldPin else { return true }
+            let oldRecord = record
+            do {
+                let data = try Data(contentsOf: audioURL(for: oldRecord))
+                record.isPinned = shouldPin
+                record.lastAccess = nextAccessDate()
+                try data.write(to: audioURL(for: record), options: .atomic)
+                try writeMetadata(record)
+                try? manager.removeItem(at: audioURL(for: oldRecord))
+                try? manager.removeItem(at: metadataURL(for: oldRecord))
+                entries[key.digest] = record
+                return true
+            } catch {
+                throw SynthesisAudioCacheError.storageFailure(error.localizedDescription)
+            }
         }
     }
 
     @discardableResult
     public func remove(_ key: SynthesisCacheKey) throws -> Bool {
-        guard let record = entries[key.digest] else { return false }
-        try remove(record)
-        return true
+        try withDirectoryLock {
+            try refreshEntriesLocked()
+            guard let record = entries[key.digest] else { return false }
+            try remove(record)
+            return true
+        }
     }
 
     /// Selective purge for a set of known content keys.
     @discardableResult
     public func remove(_ keys: [SynthesisCacheKey]) throws -> Int {
-        var removed = 0
-        for key in keys {
-            if try remove(key) { removed += 1 }
+        try withDirectoryLock {
+            try refreshEntriesLocked()
+            var removed = 0
+            for key in keys {
+                guard let record = entries[key.digest] else { continue }
+                try remove(record)
+                removed += 1
+            }
+            return removed
         }
-        return removed
     }
 
     /// Full purge. Callers can retain app-critical pinned audio when desired.
     @discardableResult
     public func removeAll(includingPinned: Bool = true) throws -> Int {
-        let victims = entries.values.filter { includingPinned || !$0.isPinned }
-        for record in victims { try remove(record) }
-        return victims.count
+        try withDirectoryLock {
+            try refreshEntriesLocked()
+            let victims = entries.values.filter { includingPinned || !$0.isPinned }
+            for record in victims { try remove(record) }
+            return victims.count
+        }
     }
 
     public func statistics() -> SynthesisAudioCacheStatistics {
+        withDirectoryLockBestEffort {
+            try refreshEntriesLocked()
+            return makeStatistics()
+        } fallback: {
+            makeStatistics()
+        }
+    }
+
+    private func makeStatistics() -> SynthesisAudioCacheStatistics {
         SynthesisAudioCacheStatistics(
             itemCount: entries.count,
             pinnedItemCount: entries.values.filter(\.isPinned).count,
@@ -443,6 +492,37 @@ public actor SynthesisAudioCache: Sendable {
             maximumSizeBytes: maximumSizeBytes,
             hitCount: hitCount,
             missCount: missCount)
+    }
+
+    private func refreshEntriesLocked() throws {
+        let scanned = try Self.scan(
+            manager: manager,
+            ordinaryDirectory: cacheDirectory,
+            pinnedDirectory: pinnedDirectory)
+        entries = try Self.enforceCapacity(
+            scanned,
+            maximumSizeBytes: maximumSizeBytes,
+            manager: manager,
+            ordinaryDirectory: cacheDirectory,
+            pinnedDirectory: pinnedDirectory)
+        if let latest = entries.values.map(\.lastAccess).max(), latest > lastAccessDate {
+            lastAccessDate = latest
+        }
+    }
+
+    private func withDirectoryLock<T>(_ body: () throws -> T) throws -> T {
+        directoryLock.lock()
+        defer { directoryLock.unlock() }
+        return try body()
+    }
+
+    private func withDirectoryLockBestEffort<T>(
+        _ body: () throws -> T,
+        fallback: () -> T
+    ) -> T {
+        directoryLock.lock()
+        defer { directoryLock.unlock() }
+        return (try? body()) ?? fallback()
     }
 
     private func ensureCapacity(
@@ -520,18 +600,32 @@ public actor SynthesisAudioCache: Sendable {
             let urls = try manager.contentsOfDirectory(
                 at: directory, includingPropertiesForKeys: nil,
                 options: [.skipsHiddenFiles])
+            var retainedAudioNames: Set<String> = []
             for url in urls where url.pathExtension == "json" {
+                let fileDigest = url.deletingPathExtension().lastPathComponent
                 guard let record = try? decoder.decode(
                     CacheEntryRecord.self, from: Data(contentsOf: url)),
+                      record.digest == fileDigest,
                       record.isPinned == expectedPinned,
-                      SynthesisCacheKey(digest: record.digest) != nil else { continue }
-                let audio = directory.appendingPathComponent(record.digest + ".choirpcm")
-                guard manager.fileExists(atPath: audio.path) else { continue }
-                guard let attributes = try? manager.attributesOfItem(atPath: audio.path),
-                      let actualSize = attributes[.size] as? NSNumber,
-                      actualSize.intValue == record.byteCount else {
+                      SynthesisCacheKey(digest: record.digest) != nil else {
+                    try? manager.removeItem(at: url)
+                    if SynthesisCacheKey(digest: fileDigest) != nil {
+                        try? manager.removeItem(at: directory.appendingPathComponent(
+                            fileDigest + ".choirpcm"))
+                    }
                     continue
                 }
+                let audioName = record.digest + ".choirpcm"
+                let audio = directory.appendingPathComponent(audioName)
+                guard manager.fileExists(atPath: audio.path),
+                      let attributes = try? manager.attributesOfItem(atPath: audio.path),
+                      let actualSize = attributes[.size] as? NSNumber,
+                      actualSize.intValue == record.byteCount else {
+                    try? manager.removeItem(at: url)
+                    try? manager.removeItem(at: audio)
+                    continue
+                }
+                retainedAudioNames.insert(audioName)
                 // Startup reads only small metadata and filesystem sizes.
                 // Payload bytes and codec/header integrity are checked lazily
                 // by audio(for:), avoiding a synchronous read of the entire
@@ -541,6 +635,13 @@ public actor SynthesisAudioCache: Sendable {
                 } else {
                     records[record.digest] = record
                 }
+            }
+            // Interrupted atomic writes and external purges can leave payloads
+            // without metadata. They can never be addressed safely, so reclaim
+            // them during the same coordinated scan.
+            for url in urls where url.pathExtension == "choirpcm"
+                && !retainedAudioNames.contains(url.lastPathComponent) {
+                try? manager.removeItem(at: url)
             }
         }
         return records
@@ -588,6 +689,28 @@ public actor SynthesisAudioCache: Sendable {
             total -= candidate.byteCount
         }
         return retained
+    }
+}
+
+/// Coordinates cache actors that target the same pair of directories inside
+/// one process. The lock covers refresh, LRU selection, and mutation as one
+/// transaction so independently-created actors cannot overwrite one another's
+/// view or exceed the shared capacity between scans.
+private final class CacheDirectoryLockRegistry: @unchecked Sendable {
+    static let shared = CacheDirectoryLockRegistry()
+
+    private let registryLock = NSLock()
+    private var locks: [String: NSRecursiveLock] = [:]
+
+    func lock(ordinaryDirectory: URL, pinnedDirectory: URL) -> NSRecursiveLock {
+        let key = ordinaryDirectory.standardizedFileURL.path + "\0"
+            + pinnedDirectory.standardizedFileURL.path
+        registryLock.lock()
+        defer { registryLock.unlock() }
+        if let existing = locks[key] { return existing }
+        let created = NSRecursiveLock()
+        locks[key] = created
+        return created
     }
 }
 

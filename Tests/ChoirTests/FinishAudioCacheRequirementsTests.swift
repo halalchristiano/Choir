@@ -101,6 +101,26 @@ struct FinishAudioCacheRequirementsTests {
         #expect(output.last == 0)
     }
 
+    @Test("AUD-022 broadcast mastering is an opt-in production export preset")
+    func broadcastMasteringExportPreset() async throws {
+        let audio = AudioBuffer(
+            samples: Array(repeating: 1_000, count: 480),
+            format: AudioFormat(sampleRate: 8_000))
+        let engine = ChoirEngine(audioFormat: audio.format)
+        guard case .wav(let unprocessed) = try await engine.exportAudio(
+            audio, format: .wav),
+              case .wav(let broadcast) = try await engine.exportAudio(
+                audio, format: .wav, preset: .broadcast) else {
+            Issue.record("Expected WAV output")
+            return
+        }
+
+        #expect(readInt16LE(unprocessed, offset: AudioEncoder.wavHeaderSize) == 1_000)
+        #expect(readInt16LE(broadcast, offset: AudioEncoder.wavHeaderSize) == 0)
+        #expect(readInt16LE(broadcast, offset: broadcast.count - 2) == 0)
+        #expect(unprocessed != broadcast)
+    }
+
     @Test("AUD-011 WAV exports tags, chapters, and a correct RIFF size")
     func wavMetadataAndChapters() throws {
         let audio = AudioBuffer(
@@ -291,6 +311,71 @@ struct FinishAudioCacheRequirementsTests {
         #expect(pinnedRemoved == 1)
     }
 
+    @Test("CCH-002 cache actors share one coherent capacity and LRU view")
+    func persistentCacheCoordinatesMultipleActors() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("choir-shared-cache-test-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let configuration = SynthesisAudioCacheConfiguration(
+            maximumSizeBytes: 60,
+            cacheDirectory: root.appendingPathComponent("cache"),
+            applicationSupportDirectory: root.appendingPathComponent("support"))
+        let firstActor = try SynthesisAudioCache(configuration: configuration)
+        let secondActor = try SynthesisAudioCache(configuration: configuration)
+        let audio = AudioBuffer(samples: [1], format: AudioFormat(sampleRate: 8_000))
+        let first = SynthesisCacheKey(
+            text: "shared-first", voice: .maeve,
+            parameters: .init(seed: 1), engineVersion: 1)
+        let second = SynthesisCacheKey(
+            text: "shared-second", voice: .maeve,
+            parameters: .init(seed: 1), engineVersion: 1)
+        let third = SynthesisCacheKey(
+            text: "shared-third", voice: .maeve,
+            parameters: .init(seed: 1), engineVersion: 1)
+
+        try await firstActor.store(audio, for: first)
+        #expect(await secondActor.contains(first))
+        try await secondActor.store(audio, for: second)
+        _ = try await secondActor.audio(for: first)
+
+        // The first actor must rescan before selecting an aggregate LRU victim.
+        try await firstActor.store(audio, for: third)
+        #expect(await secondActor.contains(first))
+        #expect(!(await secondActor.contains(second)))
+        #expect(await secondActor.contains(third))
+        #expect(await firstActor.statistics().itemCount == 2)
+        #expect(await firstActor.statistics().currentSizeBytes == 60)
+
+        #expect(try await secondActor.setPinned(true, for: first))
+        #expect(await firstActor.statistics().pinnedItemCount == 1)
+        #expect(try await firstActor.removeAll(includingPinned: false) == 1)
+        #expect(await secondActor.cachedDigests == [first.digest])
+    }
+
+    @Test("CCH-002 coordinated scans reclaim unaddressable cache orphans")
+    func persistentCacheReclaimsOrphans() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("choir-orphan-cache-test-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cacheBase = root.appendingPathComponent("cache")
+        let synthesisDirectory = cacheBase
+            .appendingPathComponent("Choir", isDirectory: true)
+            .appendingPathComponent("Synthesis", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: synthesisDirectory, withIntermediateDirectories: true)
+        let orphan = synthesisDirectory.appendingPathComponent(
+            String(repeating: "a", count: 64) + ".choirpcm")
+        try Data([0, 1, 2]).write(to: orphan)
+
+        let cache = try SynthesisAudioCache(configuration: .init(
+            maximumSizeBytes: 60,
+            cacheDirectory: cacheBase,
+            applicationSupportDirectory: root.appendingPathComponent("support")))
+
+        #expect(!FileManager.default.fileExists(atPath: orphan.path))
+        #expect(await cache.statistics().itemCount == 0)
+    }
+
     @Test("CCH-011 lazy assets coalesce, unload, and reload")
     func lazyAssetLifecycle() async throws {
         let probe = AssetLoaderProbe()
@@ -340,6 +425,12 @@ struct FinishAudioCacheRequirementsTests {
             | UInt32(bytes[offset + 1]) << 8
             | UInt32(bytes[offset + 2]) << 16
             | UInt32(bytes[offset + 3]) << 24
+    }
+
+    private func readInt16LE(_ data: Data, offset: Int) -> Int16 {
+        let bytes = [UInt8](data)
+        let bits = UInt16(bytes[offset]) | UInt16(bytes[offset + 1]) << 8
+        return Int16(bitPattern: bits)
     }
 }
 

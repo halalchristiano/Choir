@@ -501,17 +501,22 @@ public actor ChoirEngine {
     ///   - format: The desired output format (.wav, .mp3, .aac, etc).
     /// - Returns: `AudioOutput` in the requested format.
     /// - Throws: `ChoirError` if encoding fails.
-    public func exportAudio(_ audio: AudioBuffer, format: AudioOutputFormat) throws -> AudioOutput {
+    public func exportAudio(
+        _ audio: AudioBuffer,
+        format: AudioOutputFormat,
+        preset: AudioExportPreset = .unprocessed
+    ) throws -> AudioOutput {
+        let processedAudio = try preset.process(audio)
         let encoder = AudioEncoder()
         switch format {
         case .wav:
-            return .wav(try encoder.encodeWAV(audio))
+            return .wav(try encoder.encodeWAV(processedAudio))
         case .mp3:
-            return .mp3(try encoder.encodeMP3(audio))
+            return .mp3(try encoder.encodeMP3(processedAudio))
         case .aac:
-            return .aac(try encoder.encodeAAC(audio))
+            return .aac(try encoder.encodeAAC(processedAudio))
         case .flac:
-            _ = try encoder.encodeFLAC(audio)
+            _ = try encoder.encodeFLAC(processedAudio)
             throw ChoirError.audioEncodingFailed(
                 reason: "FLAC has no AudioOutput representation in this API version")
         }

@@ -37,6 +37,27 @@ public struct AudioFileMetadata: Sendable, Equatable, Codable {
     }
 }
 
+/// Optional processing applied immediately before file encoding.
+public enum AudioExportPreset: Sendable, Equatable, Codable {
+    /// Preserve the supplied PCM exactly.
+    case unprocessed
+
+    /// Apply CHOIR's opt-in broadcast chain (AUD-022).
+    case broadcast
+
+    func process(_ audio: AudioBuffer) throws -> AudioBuffer {
+        switch self {
+        case .unprocessed:
+            try audio.validate()
+            return audio
+        case .broadcast:
+            return try AudioEffectChain
+                .broadcast(sampleRate: audio.format.sampleRate)
+                .process(audio)
+        }
+    }
+}
+
 /// Encodes PCM audio to various formats.
 public struct AudioEncoder: Sendable {
     /// Bytes in the canonical PCM WAV header emitted by this encoder.
