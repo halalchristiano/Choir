@@ -508,21 +508,23 @@ extension SynthesisResult {
     /// on the caller's executor (API-001/API-002/CON-001).
     public func exported(
         as format: AudioOutputFormat,
+        preset: AudioExportPreset = .unprocessed,
         priority: SynthesisExecutionPriority = .utility
     ) async throws -> AudioOutput {
         let audio = self.audio
         let task = Task.detached(priority: priority.taskPriority) {
             try Cancellation.check()
+            let processedAudio = try preset.process(audio)
             let encoder = AudioEncoder()
             switch format {
             case .wav:
-                return AudioOutput.wav(try encoder.encodeWAV(audio))
+                return AudioOutput.wav(try encoder.encodeWAV(processedAudio))
             case .mp3:
-                return AudioOutput.mp3(try encoder.encodeMP3(audio))
+                return AudioOutput.mp3(try encoder.encodeMP3(processedAudio))
             case .aac:
-                return AudioOutput.aac(try encoder.encodeAAC(audio))
+                return AudioOutput.aac(try encoder.encodeAAC(processedAudio))
             case .flac:
-                _ = try encoder.encodeFLAC(audio)
+                _ = try encoder.encodeFLAC(processedAudio)
                 throw ChoirError.audioEncodingFailed(
                     reason: "FLAC has no AudioOutput representation in this API version")
             }
