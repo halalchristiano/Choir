@@ -2,7 +2,7 @@
 
 **Status:** Pre-alpha engineering infrastructure
 **Package version:** 0.16.0
-**Updated:** 21 August 2026
+**Updated:** 22 August 2026
 
 CHOIR is not currently a production text-to-speech engine. It contains a large
 amount of useful Swift infrastructure, but the default synthesis path does not
@@ -49,11 +49,11 @@ classification is:
 
 | Status | Count |
 |---|---:|
-| Implemented (published CI still required) | 21 |
-| Partial | 57 |
+| Implemented | 23 |
+| Partial | 55 |
 | Open | 28 |
 | External acceptance gate | 37 |
-| **Still incomplete or externally gated** | **122** |
+| **Still incomplete or externally gated** | **120** |
 | **Total reconciled items** | **143** |
 
 “Implemented” means the requested repository code/document deliverable exists;

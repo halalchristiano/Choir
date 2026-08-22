@@ -11,7 +11,7 @@ signing, or release gates recorded below.
 
 ---
 
-## 2026-08-21 reconciliation of the 143-item carried backlog
+## 2026-08-22 reconciliation of the 143-item carried backlog
 
 This section is the authoritative reconciliation of the 136 items previously
 reported as remaining plus seven mandatory failures found in the subsequent
@@ -19,6 +19,10 @@ acceptance review. It supersedes an older status anywhere below when the two
 conflict. The list is intentionally not a claim that a mock, test helper, or
 documentation page satisfies an acoustic, listening, hardware, signing, App
 Store, or production-model acceptance gate.
+
+Latest published source evidence: [CI run 44](https://github.com/halalchristiano/Choir/actions/runs/32551225065)
+passed 780 tests in 90 suites, the debug and release builds, all configured
+Apple-platform builds, and the 94.97% linguistic-front-end coverage gate.
 
 Status meanings:
 
@@ -45,12 +49,12 @@ Status meanings:
 | `AUD-012` | M | Open | Resumable, verified multi-chapter M4B audiobook assembly is not implemented. |
 | `AUD-020` | M | Partial | LUFS normalization and true-peak limiting primitives exist but are not yet the mandatory all-voice output stage or production-voice proof. |
 | `AUD-021` | M | Partial | DC removal and clickless-edge primitives exist; integration and all-voice limits remain unproved. |
-| `AUD-022` | S | Partial | An opt-in broadcast mastering chain value exists, but it is not yet integrated as a production export preset. |
+| `AUD-022` | S | Implemented | The opt-in broadcast chain is integrated into engine and result export APIs, adapts to the output sample rate, and is covered by export-level tests. |
 | `AUD-030` | M | Partial | One-call synthesis/playback now retains the player and propagates completion/errors; pause, resume, stop, and seek controls remain. |
 | `AUD-031` | S | Partial | Progressive synthesis carries synchronized word/phoneme/mark timing, but playback-time observation events are not exposed by `Choir.play`. |
 | `AUD-040` | S | Implemented | Per-line WAV, timing JSON, SRT, and WebVTT export uses validated word timing to derive caption cues. |
 | `CCH-001` | M | Partial | Stable SHA-256 synthesis keys and persistent audio storage exist; the cache is not yet wired into every engine synthesis path. |
-| `CCH-002` | M | Partial | Configurable limits, LRU eviction, pinning, inspection, and purge primitives exist; multiple actors sharing one directory are not yet coherently coordinated. |
+| `CCH-002` | M | Implemented | Configurable limits, coordinated cross-actor LRU eviction, pinning, inspection, purge, and orphan cleanup are implemented and tested against a shared directory. |
 | `CCH-003` | M | Implemented | Platform cache/application-support defaults and version-independent compatible cache records are implemented. |
 | `CCH-010` | M | Open | Embedded/resumable downloaded asset packs with SHA-256 verification are not implemented. |
 | `CCH-011` | M | Partial | A coalescing lazy asset store handles unload/reload and stale-load races; production model assets and OS memory-pressure integration remain. |
