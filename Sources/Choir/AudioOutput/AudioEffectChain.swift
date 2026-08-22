@@ -297,10 +297,13 @@ public struct AudioEffectChain: Sendable {
     /// Builds the optional AUD-022 broadcast chain for an output sample rate.
     /// It is deliberately opt-in rather than applied by default synthesis.
     public static func broadcast(sampleRate: Int) -> AudioEffectChain {
-        AudioEffectChain(sampleRate: sampleRate)
+        // Keep the de-esser below Nyquist for supported low-rate exports while
+        // preserving the canonical 6 kHz target at 16 kHz and above.
+        let deEsserCenterHz = min(6_000, Double(sampleRate) * 0.45)
+        return AudioEffectChain(sampleRate: sampleRate)
             .add(AudioEffect(name: "DC Block", kind: .removeDCOffset))
             .add(AudioEffect(name: "40 Hz High Pass", kind: .highPass(cutoffHz: 40)))
-            .add(AudioEffect(name: "De-esser", kind: .deEsser(centerHz: 6_000)))
+            .add(AudioEffect(name: "De-esser", kind: .deEsser(centerHz: deEsserCenterHz)))
             .add(AudioEffect(
                 name: "Soft-knee Limiter",
                 kind: .softKneeLimiter(ceilingDB: -1, kneeWidthDB: 3)))
