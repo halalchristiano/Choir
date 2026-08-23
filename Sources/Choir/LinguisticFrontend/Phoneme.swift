@@ -68,6 +68,20 @@ public struct TranscriptionMarkAnchor: Sendable, Equatable {
     }
 }
 
+/// A parsed `<break>` anchored to the normalized word that follows it.
+///
+/// The duration remains in milliseconds until output preparation, where it is
+/// quantized exactly once to the selected PCM sample rate (PRO-021).
+public struct TranscriptionPauseAnchor: Sendable, Equatable {
+    public let durationMs: Double
+    public let followingWordIndex: Int
+
+    public init(durationMs: Double, followingWordIndex: Int) {
+        self.durationMs = durationMs.isFinite ? max(0, durationMs) : 0
+        self.followingWordIndex = max(0, followingWordIndex)
+    }
+}
+
 /// A sequence of phonemes with timing and prosodic information.
 public struct PhoneticTranscription: Sendable {
     /// The phonemes in sequence.
@@ -100,6 +114,9 @@ public struct PhoneticTranscription: Sendable {
     /// `$1,250` advances by all spoken words rather than one raw token.
     public let markAnchors: [TranscriptionMarkAnchor]
 
+    /// Explicit SSML-C pauses anchored after normalization (PRO-021).
+    public let pauseAnchors: [TranscriptionPauseAnchor]
+
     public init(
         phonemes: [Phoneme],
         originalText: String,
@@ -107,10 +124,12 @@ public struct PhoneticTranscription: Sendable {
         syllableBoundaries: [Int] = [],
         wordTexts: [String] = [],
         phraseBoundaries: [Int: PhraseBoundary] = [:],
-        markAnchors: [TranscriptionMarkAnchor] = []
+        markAnchors: [TranscriptionMarkAnchor] = [],
+        pauseAnchors: [TranscriptionPauseAnchor] = []
     ) {
         self.phraseBoundaries = phraseBoundaries
         self.markAnchors = markAnchors
+        self.pauseAnchors = pauseAnchors
         self.phonemes = phonemes
         self.originalText = originalText
         self.wordBoundaries = wordBoundaries
