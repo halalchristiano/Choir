@@ -117,6 +117,13 @@ public struct PhoneticTranscription: Sendable {
     /// Explicit SSML-C pauses anchored after normalization (PRO-021).
     public let pauseAnchors: [TranscriptionPauseAnchor]
 
+    /// Contextual natural-language analysis parallel to the normalized words.
+    ///
+    /// Pre-phonemized input and front ends with NLP disabled leave this `nil`.
+    /// Consumers must therefore treat it as an enhancement, never as a
+    /// prerequisite for synthesis.
+    public let speechPlan: ContextualSpeechPlan?
+
     public init(
         phonemes: [Phoneme],
         originalText: String,
@@ -125,11 +132,13 @@ public struct PhoneticTranscription: Sendable {
         wordTexts: [String] = [],
         phraseBoundaries: [Int: PhraseBoundary] = [:],
         markAnchors: [TranscriptionMarkAnchor] = [],
-        pauseAnchors: [TranscriptionPauseAnchor] = []
+        pauseAnchors: [TranscriptionPauseAnchor] = [],
+        speechPlan: ContextualSpeechPlan? = nil
     ) {
         self.phraseBoundaries = phraseBoundaries
         self.markAnchors = markAnchors
         self.pauseAnchors = pauseAnchors
+        self.speechPlan = speechPlan
         self.phonemes = phonemes
         self.originalText = originalText
         self.wordBoundaries = wordBoundaries
