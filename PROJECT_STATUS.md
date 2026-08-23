@@ -15,6 +15,10 @@ produce speech.
 - A unique conditioning ID for every voice.
 - Text normalization, a bundled CMUdict resource, curated pronunciation
   supplements, user-lexicon primitives, phonemization, and stress assignment.
+- Deterministic on-device English speech planning for intent, restrained
+  emotion, quoted dialogue, contrastive emphasis, and clause boundaries, with
+  typed cues consumed by duration, pitch, energy, accent, pause, and terminal
+  boundary-tone prediction.
 - Sentence and breath-group segmentation.
 - SSML-C parsing into events and styles.
 - Prosody data structures and prediction infrastructure.
