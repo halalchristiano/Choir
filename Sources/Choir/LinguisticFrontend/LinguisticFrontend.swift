@@ -165,7 +165,7 @@ public struct LinguisticFrontend: Sendable {
         // prosody model can lengthen the pause and reset pitch at structural
         // breaks rather than treating every gap alike.
         let boundaries = Self.phraseBoundaries(for: wordTexts, segmenter: segmenter)
-        let markAnchors = Self.markAnchors(
+        let anchors = Self.eventAnchors(
             in: parsed,
             normalizedSegmentWordCounts: normalizedSegmentWordCounts)
 
@@ -175,18 +175,20 @@ public struct LinguisticFrontend: Sendable {
             wordBoundaries: wordBoundaries,
             wordTexts: wordTexts,
             phraseBoundaries: boundaries,
-            markAnchors: markAnchors
+            markAnchors: anchors.marks,
+            pauseAnchors: anchors.pauses
         )
     }
 
     /// Uses the word counts produced by the main normalization pass to retain
-    /// mark provenance without normalizing a potentially million-character
-    /// request a second time.
-    private static func markAnchors(
+    /// mark and break provenance without normalizing a potentially
+    /// million-character request a second time.
+    private static func eventAnchors(
         in parsed: SSMLParseResult,
         normalizedSegmentWordCounts: [Int]
-    ) -> [TranscriptionMarkAnchor] {
-        var result: [TranscriptionMarkAnchor] = []
+    ) -> (marks: [TranscriptionMarkAnchor], pauses: [TranscriptionPauseAnchor]) {
+        var marks: [TranscriptionMarkAnchor] = []
+        var pauses: [TranscriptionPauseAnchor] = []
         var normalizedWordsSeen = 0
         var speechIndex = 0
         for event in parsed.events {
@@ -197,14 +199,16 @@ public struct LinguisticFrontend: Sendable {
                 }
                 speechIndex += 1
             case .mark(let name):
-                result.append(TranscriptionMarkAnchor(
+                marks.append(TranscriptionMarkAnchor(
                     name: name,
                     followingWordIndex: normalizedWordsSeen))
-            case .pause:
-                break
+            case .pause(let pause):
+                pauses.append(TranscriptionPauseAnchor(
+                    durationMs: pause.resolvedMs,
+                    followingWordIndex: normalizedWordsSeen))
             }
         }
-        return result
+        return (marks, pauses)
     }
 
     /// Maps each breath group's boundary onto the index of its final word.
