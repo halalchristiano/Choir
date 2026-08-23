@@ -8,6 +8,7 @@ public struct LinguisticFrontend: Sendable {
     private let phonemizer: Phonemizer
     private let stressAssigner: StressAssigner
     private let ssmlParser: SSMLCParser
+    private let speechPlanner: ContextualSpeechPlanner
     private let segmenter = SentenceSegmenter()
 
     /// Creates a linguistic front end with default components.
@@ -15,12 +16,14 @@ public struct LinguisticFrontend: Sendable {
         normalizer: TextNormalizer = TextNormalizer(),
         phonemizer: Phonemizer = Phonemizer(),
         stressAssigner: StressAssigner = StressAssigner(),
-        ssmlParser: SSMLCParser = SSMLCParser()
+        ssmlParser: SSMLCParser = SSMLCParser(),
+        speechPlanner: ContextualSpeechPlanner = ContextualSpeechPlanner()
     ) {
         self.normalizer = normalizer
         self.phonemizer = phonemizer
         self.stressAssigner = stressAssigner
         self.ssmlParser = ssmlParser
+        self.speechPlanner = speechPlanner
     }
 
     /// Returns a copy of this front end whose phonemizer honours `lexicon`
@@ -30,7 +33,8 @@ public struct LinguisticFrontend: Sendable {
             normalizer: normalizer,
             phonemizer: phonemizer.withUserLexicon(lexicon),
             stressAssigner: stressAssigner,
-            ssmlParser: ssmlParser
+            ssmlParser: ssmlParser,
+            speechPlanner: speechPlanner
         )
     }
 
@@ -164,20 +168,60 @@ public struct LinguisticFrontend: Sendable {
         // TXT-030/TXT-032: attribute a boundary to the word it follows, so the
         // prosody model can lengthen the pause and reset pitch at structural
         // breaks rather than treating every gap alike.
-        let boundaries = Self.phraseBoundaries(for: wordTexts, segmenter: segmenter)
+        let speechPlan = speechPlanner.configuration.isEnabled
+            ? speechPlanner.plan(normalizedWords: wordTexts)
+            : nil
+        let contextuallyStressedPhonemes = Self.applyingContextualEmphasis(
+            speechPlan,
+            to: allPhonemes,
+            wordBoundaries: wordBoundaries)
+        var boundaries = Self.phraseBoundaries(for: wordTexts, segmenter: segmenter)
+        if let speechPlan {
+            for (wordIndex, boundary) in speechPlan.inferredBoundaries {
+                boundaries[wordIndex] = max(boundaries[wordIndex] ?? .minor, boundary)
+            }
+        }
         let anchors = Self.eventAnchors(
             in: parsed,
             normalizedSegmentWordCounts: normalizedSegmentWordCounts)
 
         return PhoneticTranscription(
-            phonemes: allPhonemes,
+            phonemes: contextuallyStressedPhonemes,
             originalText: text,
             wordBoundaries: wordBoundaries,
             wordTexts: wordTexts,
             phraseBoundaries: boundaries,
             markAnchors: anchors.marks,
-            pauseAnchors: anchors.pauses
+            pauseAnchors: anchors.pauses,
+            speechPlan: speechPlan
         )
+    }
+
+    /// Promotes vowel stress for contrastive words without weakening explicit
+    /// SSML or dictionary stress already present on the phonemes.
+    static func applyingContextualEmphasis(
+        _ plan: ContextualSpeechPlan?,
+        to phonemes: [Phoneme],
+        wordBoundaries: [Int]
+    ) -> [Phoneme] {
+        guard let plan, !plan.wordCues.isEmpty, !wordBoundaries.isEmpty else {
+            return phonemes
+        }
+        var result = phonemes
+        for (wordIndex, cue) in plan.wordCues where cue.emphasis != .none {
+            guard wordIndex >= 0, wordIndex < wordBoundaries.count else { continue }
+            let start = wordBoundaries[wordIndex]
+            let end = wordIndex + 1 < wordBoundaries.count
+                ? wordBoundaries[wordIndex + 1]
+                : phonemes.count
+            guard start >= 0, start < end, end <= result.count else { continue }
+            for phonemeIndex in start..<end where result[phonemeIndex].isVowel {
+                result[phonemeIndex].stress = max(
+                    result[phonemeIndex].stress,
+                    cue.emphasis == .strong ? 2 : 1)
+            }
+        }
+        return result
     }
 
     /// Uses the word counts produced by the main normalization pass to retain
