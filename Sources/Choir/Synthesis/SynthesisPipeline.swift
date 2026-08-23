@@ -129,11 +129,17 @@ public struct SynthesisPipeline: Sendable {
     /// vocoder inference. Streaming renders its ranges one at a time; batch
     /// renders the exact same ranges and concatenates them, which keeps both
     /// modes on one quality path (SYN-004/STR-002).
+    fileprivate enum PreparedUnit: Sendable, Equatable {
+        case speech(Range<Int>)
+        case silence(frameCount: Int)
+    }
+
     fileprivate struct PreparedSynthesis: Sendable {
         let transcript: PhoneticTranscription
         let prosody: ProsodyDescription
         let markup: SSMLParseResult?
-        let units: [Range<Int>]
+        let units: [PreparedUnit]
+        let pauseFrameCounts: [Int]
         let parameters: SynthesisParameters
     }
 
@@ -172,13 +178,23 @@ public struct SynthesisPipeline: Sendable {
             markup = nil
         }
 
+        let pauseFrameCounts = try transcript.pauseAnchors.map {
+            try Self.quantizedPauseFrameCount(
+                durationMs: $0.durationMs,
+                sampleRate: audioFormat.sampleRate)
+        }
+        let speechUnits = Self.synthesisUnits(
+            for: transcript,
+            phonemeDurationsMs: prosody.phonemes.map(\.prosody.duration))
         return PreparedSynthesis(
             transcript: transcript,
             prosody: prosody,
             markup: markup,
-            units: Self.synthesisUnits(
-                for: transcript,
-                phonemeDurationsMs: prosody.phonemes.map(\.prosody.duration)),
+            units: Self.renderUnits(
+                speechUnits: speechUnits,
+                transcript: transcript,
+                pauseFrameCounts: pauseFrameCounts),
+            pauseFrameCounts: pauseFrameCounts,
             parameters: effectiveParameters)
     }
 
@@ -237,8 +253,60 @@ public struct SynthesisPipeline: Sendable {
             markup: nil,
             units: Self.synthesisUnits(
                 for: transcript,
-                phonemeDurationsMs: prosody.phonemes.map(\.prosody.duration)),
+                phonemeDurationsMs: prosody.phonemes.map(\.prosody.duration))
+                .map(PreparedUnit.speech),
+            pauseFrameCounts: [],
             parameters: effectiveParameters)
+    }
+
+    /// Interleaves acoustic units with explicit, frame-quantized silence.
+    fileprivate static func renderUnits(
+        speechUnits: [Range<Int>],
+        transcript: PhoneticTranscription,
+        pauseFrameCounts: [Int]
+    ) -> [PreparedUnit] {
+        guard !speechUnits.isEmpty else { return [] }
+        var pausesByPhoneme: [Int: [Int]] = [:]
+        for (index, anchor) in transcript.pauseAnchors.enumerated() {
+            guard index < pauseFrameCounts.count else { continue }
+            let phonemeIndex = anchor.followingWordIndex < transcript.wordBoundaries.count
+                ? transcript.wordBoundaries[anchor.followingWordIndex]
+                : transcript.phonemes.count
+            pausesByPhoneme[phonemeIndex, default: []].append(pauseFrameCounts[index])
+        }
+
+        var result: [PreparedUnit] = []
+        for speechUnit in speechUnits {
+            var lower = speechUnit.lowerBound
+            let pausePositions = pausesByPhoneme.keys
+                .filter { speechUnit.contains($0) }
+                .sorted()
+            for position in pausePositions {
+                if lower < position { result.append(.speech(lower..<position)) }
+                for frameCount in pausesByPhoneme[position] ?? [] where frameCount > 0 {
+                    result.append(.silence(frameCount: frameCount))
+                }
+                lower = position
+            }
+            if lower < speechUnit.upperBound {
+                result.append(.speech(lower..<speechUnit.upperBound))
+            }
+        }
+        for frameCount in pausesByPhoneme[transcript.phonemes.count] ?? [] where frameCount > 0 {
+            result.append(.silence(frameCount: frameCount))
+        }
+        return result
+    }
+
+    fileprivate static func quantizedPauseFrameCount(
+        durationMs: Double,
+        sampleRate: Int
+    ) throws -> Int {
+        let frames = durationMs / 1_000 * Double(sampleRate)
+        guard frames.isFinite, frames >= 0, frames <= Double(Int.max) else {
+            throw ChoirError.outOfMemory
+        }
+        return Int(frames.rounded())
     }
 
     /// Natural acoustic units ending at a phrase boundary. A request with no
@@ -354,11 +422,23 @@ public struct SynthesisPipeline: Sendable {
     ) async throws -> SynthesisResult {
         var samples: [Int16] = []
         for unit in prepared.units {
-            let audio = try await renderUnit(unit, from: prepared, voice: voice)
-            _ = try Self.validatedCombinedSampleCount(
-                currentCount: samples.count,
-                newCount: audio.samples.count)
-            samples.append(contentsOf: audio.samples)
+            switch unit {
+            case .speech(let range):
+                let audio = try await renderUnit(range, from: prepared, voice: voice)
+                _ = try Self.validatedCombinedSampleCount(
+                    currentCount: samples.count,
+                    newCount: audio.samples.count)
+                samples.append(contentsOf: audio.samples)
+            case .silence(let frameCount):
+                let sampleCount = frameCount.multipliedReportingOverflow(
+                    by: audioFormat.channels)
+                guard !sampleCount.overflow else { throw ChoirError.outOfMemory }
+                _ = try Self.validatedCombinedSampleCount(
+                    currentCount: samples.count,
+                    newCount: sampleCount.partialValue)
+                samples.append(contentsOf: repeatElement(
+                    Int16.zero, count: sampleCount.partialValue))
+            }
         }
 
         let audio = AudioBuffer(samples: samples, format: audioFormat)
@@ -368,7 +448,8 @@ public struct SynthesisPipeline: Sendable {
             audio: audio,
             voice: voice,
             parameters: prepared.parameters,
-            markup: prepared.markup)
+            markup: prepared.markup,
+            pauseFrameCounts: prepared.pauseFrameCounts)
         return SynthesisResult(audio: audio, metadata: metadata)
     }
 
@@ -546,21 +627,38 @@ public struct SynthesisPipeline: Sendable {
         audio: AudioBuffer,
         voice: Voice,
         parameters: SynthesisParameters,
-        markup: SSMLParseResult? = nil
+        markup: SSMLParseResult? = nil,
+        pauseFrameCounts: [Int] = []
     ) -> SynthesisMetadata {
         var phonemeSpans: [TimedSpan] = []
         phonemeSpans.reserveCapacity(transcript.phonemes.count)
+
+        var pauseMillisecondsByPhonemeIndex: [Int: Double] = [:]
+        for (index, anchor) in transcript.pauseAnchors.enumerated() {
+            guard index < pauseFrameCounts.count else { continue }
+            let phonemeIndex = anchor.followingWordIndex < transcript.wordBoundaries.count
+                ? transcript.wordBoundaries[anchor.followingWordIndex]
+                : transcript.phonemes.count
+            let durationMs = Double(pauseFrameCounts[index])
+                / Double(audio.format.sampleRate) * 1_000
+            pauseMillisecondsByPhonemeIndex[phonemeIndex, default: 0] += durationMs
+        }
 
         let predictedTotalMs = durationsMs.prefix(transcript.phonemes.count).reduce(0) {
             $0 + max(0, $1)
         }
         let audioDurationMs = audio.duration * 1000
-        let durationScale = audioDurationMs > 0 && predictedTotalMs > 0
-            ? audioDurationMs / predictedTotalMs
+        let pauseTotalMs = pauseMillisecondsByPhonemeIndex.values.reduce(0, +)
+        let renderedSpeechDurationMs = audioDurationMs > 0
+            ? max(0, audioDurationMs - pauseTotalMs)
+            : predictedTotalMs
+        let durationScale = renderedSpeechDurationMs > 0 && predictedTotalMs > 0
+            ? renderedSpeechDurationMs / predictedTotalMs
             : 1
 
         var cursor = 0.0
         for (index, phoneme) in transcript.phonemes.enumerated() {
+            cursor += pauseMillisecondsByPhonemeIndex[index] ?? 0
             // A missing duration contributes nothing rather than trapping.
             let duration = index < durationsMs.count
                 ? max(0, durationsMs[index]) * durationScale : 0
@@ -569,6 +667,7 @@ public struct SynthesisPipeline: Sendable {
             )
             cursor += duration
         }
+        cursor += pauseMillisecondsByPhonemeIndex[transcript.phonemes.count] ?? 0
 
         // Word spans span the phonemes between consecutive boundaries.
         var wordSpans: [TimedSpan] = []
@@ -834,71 +933,111 @@ public struct StreamingSynthesisPipeline: Sendable {
             audio: AudioBuffer(samples: [], format: pipeline.outputFormat),
             voice: voice,
             parameters: prepared.parameters,
-            markup: prepared.markup)
+            markup: prepared.markup,
+            pauseFrameCounts: prepared.pauseFrameCounts)
 
         var emittedSamples = 0
         for (unitIndex, unit) in prepared.units.enumerated() {
             try Cancellation.check()
-            let audio = try await pipeline.renderUnit(unit, from: prepared, voice: voice)
-            guard !audio.samples.isEmpty else {
-                throw ChoirError.synthesisError(
-                    reason: "A streaming synthesis unit produced no audio")
-            }
+            switch unit {
+            case .speech(let range):
+                let audio = try await pipeline.renderUnit(range, from: prepared, voice: voice)
+                guard !audio.samples.isEmpty else {
+                    throw ChoirError.synthesisError(
+                        reason: "A streaming synthesis unit produced no audio")
+                }
 
-            let channels = audio.format.channels
-            let samplesPerChunk = max(channels, (chunkSize / channels) * channels)
-            let predictedStartMs = plannedMetadata.phonemes[unit.lowerBound].startMs
-            let predictedEndMs = plannedMetadata.phonemes[unit.upperBound - 1].endMs
-            let predictedDurationMs = max(
-                Double.leastNonzeroMagnitude, predictedEndMs - predictedStartMs)
-            let actualUnitStartMs = Double(emittedSamples)
-                / Double(audio.format.sampleRate * channels) * 1000
-            let actualUnitDurationMs = audio.duration * 1000
-            let timingScale = actualUnitDurationMs / predictedDurationMs
+                let channels = audio.format.channels
+                let samplesPerChunk = max(channels, (chunkSize / channels) * channels)
+                let predictedStartMs = plannedMetadata.phonemes[range.lowerBound].startMs
+                let predictedEndMs = plannedMetadata.phonemes[range.upperBound - 1].endMs
+                let predictedDurationMs = max(
+                    Double.leastNonzeroMagnitude, predictedEndMs - predictedStartMs)
+                let actualUnitStartMs = Double(emittedSamples)
+                    / Double(audio.format.sampleRate * channels) * 1000
+                let actualUnitDurationMs = audio.duration * 1000
+                let timingScale = actualUnitDurationMs / predictedDurationMs
 
-            var localOffset = 0
-            while localOffset < audio.samples.count {
-                try Cancellation.check()
-                let end = localOffset + min(
-                    samplesPerChunk, audio.samples.count - localOffset)
-                let samples = Array(audio.samples[localOffset..<end])
-                let startSeconds = Double(emittedSamples)
-                    / Double(audio.format.sampleRate * channels)
-                let endSeconds = startSeconds
-                    + Double(samples.count)
+                var localOffset = 0
+                while localOffset < audio.samples.count {
+                    try Cancellation.check()
+                    let end = localOffset + min(
+                        samplesPerChunk, audio.samples.count - localOffset)
+                    let samples = Array(audio.samples[localOffset..<end])
+                    let startSeconds = Double(emittedSamples)
                         / Double(audio.format.sampleRate * channels)
-                let isFinal = unitIndex == prepared.units.count - 1
-                    && end == audio.samples.count
-                let audioChunk = AudioChunk(
-                    samples: samples,
-                    isFinal: isFinal,
-                    timestamp: startSeconds)
-                let actualStartMs = startSeconds * 1000
-                let actualEndMs = endSeconds * 1000
-                let plannedStartMs = predictedStartMs
-                    + (actualStartMs - actualUnitStartMs) / timingScale
-                let plannedEndMs = min(
-                    predictedEndMs,
-                    predictedStartMs + (actualEndMs - actualUnitStartMs) / timingScale)
-                let plannedTiming = Self.timingUpdate(
-                    metadata: plannedMetadata,
-                    startMs: plannedStartMs,
-                    endMs: plannedEndMs,
-                    includeEndBoundary: isFinal)
-                let timing = Self.align(
-                    plannedTiming,
-                    predictedUnitStartMs: predictedStartMs,
-                    actualUnitStartMs: actualUnitStartMs,
-                    scale: timingScale,
-                    actualStartMs: actualStartMs,
-                    actualEndMs: actualEndMs)
+                    let endSeconds = startSeconds
+                        + Double(samples.count)
+                            / Double(audio.format.sampleRate * channels)
+                    let isFinal = unitIndex == prepared.units.count - 1
+                        && end == audio.samples.count
+                    let audioChunk = AudioChunk(
+                        samples: samples,
+                        isFinal: isFinal,
+                        timestamp: startSeconds)
+                    let actualStartMs = startSeconds * 1000
+                    let actualEndMs = endSeconds * 1000
+                    let plannedStartMs = predictedStartMs
+                        + (actualStartMs - actualUnitStartMs) / timingScale
+                    let plannedEndMs = min(
+                        predictedEndMs,
+                        predictedStartMs + (actualEndMs - actualUnitStartMs) / timingScale)
+                    let plannedTiming = Self.timingUpdate(
+                        metadata: plannedMetadata,
+                        startMs: plannedStartMs,
+                        endMs: plannedEndMs,
+                        includeEndBoundary: isFinal)
+                    let timing = Self.align(
+                        plannedTiming,
+                        predictedUnitStartMs: predictedStartMs,
+                        actualUnitStartMs: actualUnitStartMs,
+                        scale: timingScale,
+                        actualStartMs: actualStartMs,
+                        actualEndMs: actualEndMs)
 
-                try await onChunk(SynthesisStreamChunk(
-                    audio: audioChunk,
-                    metadata: timing))
+                    try await onChunk(SynthesisStreamChunk(
+                        audio: audioChunk,
+                        metadata: timing))
 
-                emittedSamples += samples.count
-                localOffset = end
+                    emittedSamples += samples.count
+                    localOffset = end
+                }
+
+            case .silence(let frameCount):
+                let format = pipeline.outputFormat
+                let totalSamples = frameCount.multipliedReportingOverflow(by: format.channels)
+                guard !totalSamples.overflow else { throw ChoirError.outOfMemory }
+                let samplesPerChunk = max(
+                    format.channels,
+                    (chunkSize / format.channels) * format.channels)
+                var localOffset = 0
+                while localOffset < totalSamples.partialValue {
+                    try Cancellation.check()
+                    let sampleCount = min(
+                        samplesPerChunk, totalSamples.partialValue - localOffset)
+                    let startSeconds = Double(emittedSamples)
+                        / Double(format.sampleRate * format.channels)
+                    let endSeconds = startSeconds
+                        + Double(sampleCount) / Double(format.sampleRate * format.channels)
+                    let isFinal = unitIndex == prepared.units.count - 1
+                        && localOffset + sampleCount == totalSamples.partialValue
+                    let completed = Self.timingUpdate(
+                        metadata: plannedMetadata,
+                        startMs: startSeconds * 1_000,
+                        endMs: endSeconds * 1_000,
+                        includeEndBoundary: isFinal).completedSentenceCount
+                    try await onChunk(SynthesisStreamChunk(
+                        audio: AudioChunk(
+                            samples: Array(repeating: 0, count: sampleCount),
+                            isFinal: isFinal,
+                            timestamp: startSeconds),
+                        metadata: StreamingMetadataUpdate(
+                            startMs: startSeconds * 1_000,
+                            endMs: endSeconds * 1_000,
+                            completedSentenceCount: completed)))
+                    emittedSamples += sampleCount
+                    localOffset += sampleCount
+                }
             }
         }
     }
