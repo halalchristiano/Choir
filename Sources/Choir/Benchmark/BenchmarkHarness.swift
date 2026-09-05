@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(WinSDK)
+import WinSDK
+#endif
 
 /// The outcome of judging one benchmark measurement.
 public enum BenchmarkJudgement: String, Sendable, Equatable, Codable {
@@ -605,7 +608,12 @@ public struct BenchmarkHarness: Sendable {
     }
 
     /// Resident set size of this process in bytes.
+    ///
+    /// Mach task introspection is Darwin-only. Non-Apple hosts are used for
+    /// local development builds and report no measurement rather than a
+    /// fabricated one; PRF memory targets are judged on reference devices.
     static func residentBytes() -> UInt64? {
+        #if canImport(Darwin)
         var info = mach_task_basic_info()
         var count = mach_msg_type_number_t(
             MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size)
@@ -616,14 +624,28 @@ public struct BenchmarkHarness: Sendable {
             }
         }
         return result == KERN_SUCCESS ? info.resident_size : nil
+        #elseif canImport(WinSDK)
+        var counters = PROCESS_MEMORY_COUNTERS()
+        counters.cb = DWORD(MemoryLayout<PROCESS_MEMORY_COUNTERS>.size)
+        guard K32GetProcessMemoryInfo(GetCurrentProcess(), &counters, counters.cb) else {
+            return nil
+        }
+        return UInt64(counters.WorkingSetSize)
+        #else
+        return nil
+        #endif
     }
 
     static var hostDescription: String {
+        #if canImport(Darwin)
         var systemInfo = utsname()
         uname(&systemInfo)
         let machine = withUnsafePointer(to: &systemInfo.machine) {
             $0.withMemoryRebound(to: CChar.self, capacity: 1) { String(cString: $0) }
         }
+        #else
+        let machine = "unknown"
+        #endif
         #if os(macOS)
         let os = "macOS"
         #elseif os(iOS)
@@ -634,6 +656,10 @@ public struct BenchmarkHarness: Sendable {
         let os = "tvOS"
         #elseif os(visionOS)
         let os = "visionOS"
+        #elseif os(Windows)
+        let os = "Windows"
+        #elseif os(Linux)
+        let os = "Linux"
         #else
         let os = "unknown"
         #endif

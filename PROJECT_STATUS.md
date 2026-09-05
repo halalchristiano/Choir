@@ -113,10 +113,18 @@ acoustic, listening, hardware, signing, or App Store gate.
 
 ## Build and test truth
 
-GitHub Actions is the authoritative build result. The current work environment
-does not include a Swift toolchain, so new changes must not be described as
-compiled locally. A green infrastructure suite does not establish production
-speech quality because the suite still runs primarily against mocks.
+GitHub Actions is the authoritative build result, because only macOS runners
+exercise the Apple platform targets, `xcodebuild`, and the AVFoundation and
+Speech code paths.
+
+The package now also builds and tests on a Windows Swift 6.3 toolchain, so
+changes can be checked locally before they reach CI. The Darwin-only sections
+are compiled out there, which means a green Windows run does not cover the
+`canImport(AVFoundation)`, `canImport(AVFAudio)`, or `canImport(Speech)`
+branches, and does not stand in for the platform build matrix.
+
+A green infrastructure suite does not establish production speech quality
+because the suite still runs primarily against mocks.
 
 ## Release rule
 
