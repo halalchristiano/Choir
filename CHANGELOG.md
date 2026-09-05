@@ -4,6 +4,27 @@ All notable changes to CHOIR are recorded here. Versions follow Semantic
 Versioning; the separate audio engine version remains unchanged unless seeded
 audio output compatibility changes.
 
+## Unreleased
+
+### Added
+
+- A rule-based formant synthesis path — `FormantAcousticModel`, `FormantVocoder`
+  and `FormantTable` — reachable as `SynthesisPipeline.formant()`. It renders
+  intelligible, unmistakably synthetic speech with no trained model, no bundled
+  voice assets and no recorded audio, so the front end, prosody, timing and
+  output stages can be exercised against real speech structure instead of a
+  test tone. It is a development and demonstration path, not a production
+  voice: the SRS naturalness, distinctness and fatigue gates still require
+  trained models.
+- Formant targets for all 40 phonemes of `PhonemeInventory`, with per-voice
+  vocal-tract scaling so that the 32 profiles render audibly differently.
+
+### Fixed
+
+- `BenchmarkHarness` no longer requires Darwin, so the package builds and tests
+  on Windows and Linux toolchains. Resident memory is read through Mach on
+  Apple platforms and `K32GetProcessMemoryInfo` on Windows.
+
 ## 0.16.0 - 2026-08-21
 
 ### Added

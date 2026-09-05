@@ -16,6 +16,11 @@ An experimental on-device text-to-speech Swift package for Apple platforms.
 > The 32 voices are metadata profiles with unique conditioning IDs, not 32
 > trained or perceptually distinct voices.
 >
+> `SynthesisPipeline.formant()` does render intelligible speech, without any
+> trained model — see [Hearing it speak](#hearing-it-speak). It is a rule-based
+> formant synthesizer: a working demonstration and a development baseline, and
+> audibly a robot.
+>
 > Treat this as a foundation to build on, not a drop-in replacement for AVSpeechSynthesizer.
 > The API may change before 1.0.
 
@@ -104,6 +109,42 @@ Voice.voice(withIdentifier: "choir.ya.female.lyra")
 > **Note:** the voice roster changed in 0.3.0 to conform to the SRS. See
 > [SRS_CONFORMANCE.md](./SRS_CONFORMANCE.md) for the migration table and for
 > specification defects found while implementing it.
+
+## Hearing it speak
+
+The default pipeline emits a test tone. To hear the engine actually speak, use
+the formant pipeline, which needs no models, no assets and no downloads:
+
+```swift
+import Choir
+
+let engine = ChoirEngine(pipeline: .formant())
+try await engine.initialize()
+
+let audio = try await engine.synthesize(
+    text: "Hello world. This is Choir speaking.",
+    voice: .orion)
+
+try Data(AudioEncoder().encodeWAV(audio)).write(to: outputURL)
+```
+
+This is a rule-based [formant
+synthesizer](https://en.wikipedia.org/wiki/Speech_synthesis#Formant_synthesis):
+a glottal source and three formant resonators, driven by a table of measured
+formant targets for every phoneme in the inventory. It is the same family of
+technique as the speech synthesizers of the 1980s, and it sounds like it —
+clearly intelligible, clearly a machine.
+
+It exists because it is the one synthesis path that needs no training data. It
+lets the linguistic front end, prosody prediction, timing metadata, streaming
+and audio export be exercised against real speech structure rather than a sine
+wave, and it renders each of the 32 voice profiles at that profile's own
+vocal-tract scale, pitch range and spectral tilt.
+
+What it is not: a production voice. It does not satisfy the naturalness,
+cleanliness, distinctness or listening-fatigue requirements in the SRS, and it
+is not a step on the path to satisfying them — those still require trained
+acoustic and vocoder models behind the Core ML adapters.
 
 ## Installation
 
