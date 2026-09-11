@@ -8,6 +8,16 @@ audio output compatibility changes.
 
 ### Added
 
+- A rule-based formant synthesis path — `FormantAcousticModel`, `FormantVocoder`
+  and `FormantTable` — reachable as `SynthesisPipeline.formant()`. It renders
+  intelligible, unmistakably synthetic speech with no trained model, no bundled
+  voice assets and no recorded audio, so the front end, prosody, timing and
+  output stages can be exercised against real speech structure instead of a
+  test tone. It is a development and demonstration path, not a production
+  voice: the SRS naturalness, distinctness and fatigue gates still require
+  trained models.
+- Formant targets for all 40 phonemes of `PhonemeInventory`, with per-voice
+  vocal-tract scaling so that the 32 profiles render audibly differently.
 - Deterministic on-device English NLP speech planning for utterance intent,
   restrained emotion, quoted dialogue, contrastive focus, nuclear stress, and
   syntactic clause boundaries.
@@ -18,6 +28,12 @@ audio output compatibility changes.
   energy, pitch-accent, pause, and terminal boundary-tone changes.
 - Focused NLP, front-end integration, prosody, configuration, and regression
   tests plus an integration guide.
+
+### Fixed
+
+- `BenchmarkHarness` no longer requires Darwin, so the package builds and tests
+  on Windows and Linux toolchains. Resident memory is read through Mach on
+  Apple platforms and `K32GetProcessMemoryInfo` on Windows.
 
 ## 0.16.0 - 2026-08-21
 

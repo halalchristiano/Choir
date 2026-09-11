@@ -41,6 +41,16 @@ pipeline. The mock acoustic model produces deterministic synthetic features.
 The mock vocoder converts those features to a fixed test waveform. The result
 is useful for exercising APIs but is not intelligible speech.
 
+`SynthesisPipeline.formant()` is now available as an alternative that does
+produce speech. It pairs `FormantAcousticModel` with `FormantVocoder`: a
+rule-based source-filter synthesizer driven by a table of formant targets for
+every phoneme in the inventory. It needs no trained weights, no recordings and
+no bundled assets, and it renders every voice profile through that profile's
+own vocal-tract scale. The output is intelligible and plainly synthetic. It
+demonstrates the pipeline end to end and gives the front end, prosody and audio
+stages something real to be judged against; it does not satisfy any acoustic
+quality gate, and it is not the production path.
+
 `CoreMLAcousticModel` and `CoreMLVocoder` validate caller-injected inference
 closures. The acoustic adapter's default form reports that no production model
 is bundled; the vocoder adapter requires an inference closure.
@@ -66,10 +76,14 @@ acoustic, listening, hardware, signing, or App Store gate.
 
 ## Major incomplete product requirements
 
-- No trained production acoustic model.
+- No trained production acoustic model. The formant path is rule-based and is
+  not a substitute for one.
 - No trained neural vocoder in the default path.
 - No bundled production voice embedding or model asset for any voice.
-- The 32 profiles are not yet 32 audible, perceptually distinct voices.
+- The 32 profiles are not yet 32 audible, perceptually distinct voices. The
+  formant path renders them at different vocal-tract scales, which makes them
+  measurably different but has not been shown to make them perceptually
+  distinct to listeners.
 - Pitch, emotion, breathiness, age, gender, and voice-profile controls are not
   proven audible through production models.
 - Production-model TTFA, real-time factor, clickless joins, and long-form memory
@@ -117,10 +131,18 @@ acoustic, listening, hardware, signing, or App Store gate.
 
 ## Build and test truth
 
-GitHub Actions is the authoritative build result. The current work environment
-does not include a Swift toolchain, so new changes must not be described as
-compiled locally. A green infrastructure suite does not establish production
-speech quality because the suite still runs primarily against mocks.
+GitHub Actions is the authoritative build result, because only macOS runners
+exercise the Apple platform targets, `xcodebuild`, and the AVFoundation and
+Speech code paths.
+
+The package now also builds and tests on a Windows Swift 6.3 toolchain, so
+changes can be checked locally before they reach CI. The Darwin-only sections
+are compiled out there, which means a green Windows run does not cover the
+`canImport(AVFoundation)`, `canImport(AVFAudio)`, or `canImport(Speech)`
+branches, and does not stand in for the platform build matrix.
+
+A green infrastructure suite does not establish production speech quality
+because the suite still runs primarily against mocks.
 
 ## Release rule
 
