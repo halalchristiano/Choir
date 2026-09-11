@@ -5,6 +5,13 @@
 **SRS baseline:** CHOIR-SRS-001 v1.0, 239 numbered requirements
 **Last audited:** 21 August 2026
 
+> **Stale baseline.** This ledger was audited against v0.15.0 and has not been
+> reconciled with the work merged since, which includes the rule-based formant
+> synthesis path, contextual NLP speech planning, and the recovered audio-safety
+> fixes. Where it disagrees with [`PROJECT_STATUS.md`](./PROJECT_STATUS.md) or
+> [`SRS_CONFORMANCE.md`](./SRS_CONFORMANCE.md), those files are authoritative.
+> Its standard of evidence, not its counts, is the reason it is kept.
+
 This is the canonical backlog for work that genuinely remains before CHOIR can
 be described as a production-quality, fully on-device neural text-to-speech
 engine. It is deliberately stricter than PROJECT_STATUS.md, IMPROVEMENTS.md,

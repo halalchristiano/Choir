@@ -11,7 +11,7 @@ URL. For a `Package.swift` dependency, use:
 dependencies: [
     .package(
         url: "https://github.com/halalchristiano/Choir.git",
-        from: "0.16.0"
+        from: "0.17.0"
     )
 ]
 ```

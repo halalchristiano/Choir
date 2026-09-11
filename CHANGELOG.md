@@ -4,7 +4,7 @@ All notable changes to CHOIR are recorded here. Versions follow Semantic
 Versioning; the separate audio engine version remains unchanged unless seeded
 audio output compatibility changes.
 
-## Unreleased
+## 0.17.0 - 11 September 2026
 
 ### Added
 
@@ -28,6 +28,12 @@ audio output compatibility changes.
   energy, pitch-accent, pause, and terminal boundary-tone changes.
 - Focused NLP, front-end integration, prosody, configuration, and regression
   tests plus an integration guide.
+
+### Changed
+
+- `Choir.engineVersion` is now 2. The soft-clip fix below intentionally changes
+  the audio produced by identical seeded inputs, so persistent synthesis caches
+  written by 0.16.0 and earlier must not be reused (DST-001).
 
 ### Fixed
 

@@ -7,7 +7,7 @@
 ## Installation
 
 ```swift
-.package(url: "https://github.com/halalchristiano/Choir.git", from: "0.16.0")
+.package(url: "https://github.com/halalchristiano/Choir.git", from: "0.17.0")
 ```
 
 The declared minimums are iOS 17, macOS 14, visionOS 1, watchOS 10, and tvOS

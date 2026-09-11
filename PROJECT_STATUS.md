@@ -1,7 +1,7 @@
 # CHOIR project status
 
 **Status:** Pre-alpha engineering infrastructure
-**Package version:** 0.16.0
+**Package version:** 0.17.0
 **Updated:** 22 August 2026
 
 CHOIR is not currently a production text-to-speech engine. It contains a large

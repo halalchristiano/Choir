@@ -7,7 +7,7 @@
 
 An experimental on-device text-to-speech Swift package for Apple platforms.
 
-> ### ⚠️ Pre-alpha (v0.16.0) — not a speech product yet
+> ### ⚠️ Pre-alpha (v0.17.0) — not a speech product yet
 >
 > The package contains substantial API, linguistic, prosody, caching, and test
 > infrastructure. The default `SynthesisPipeline` still uses
@@ -156,7 +156,7 @@ Add CHOIR to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/halalchristiano/Choir.git", from: "0.16.0")
+    .package(url: "https://github.com/halalchristiano/Choir.git", from: "0.17.0")
 ]
 ```
 
