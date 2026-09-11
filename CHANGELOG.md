@@ -31,6 +31,13 @@ audio output compatibility changes.
 
 ### Fixed
 
+- `softClip` now bends only the overshoot above the knee, so the curve leaves
+  the knee at the same value. It previously shaped the whole sample, which put
+  a step of roughly 6,000 at the default threshold — audible distortion, and
+  the opposite of what soft clipping is for. A threshold of exactly 1.0 now
+  returns the buffer untouched instead of altering full-scale negative samples.
+  Recovered from the unmerged Int16 narrowing sweep on
+  `claude/last-thing-done-t48g2n`.
 - `BenchmarkHarness` no longer requires Darwin, so the package builds and tests
   on Windows and Linux toolchains. Resident memory is read through Mach on
   Apple platforms and `K32GetProcessMemoryInfo` on Windows.

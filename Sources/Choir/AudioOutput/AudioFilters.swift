@@ -147,20 +147,27 @@ public struct AudioFilters: Sendable {
         _ samples: [Int16],
         threshold: Double = defaultSoftClipThreshold
     ) -> [Int16] {
-        let effectiveThreshold = threshold.isFinite
+        let knee = threshold.isFinite
             ? max(0, min(1, threshold))
             : Self.defaultSoftClipThreshold
-        let thresholdValue = Int16(Self.pcmMaxValue * effectiveThreshold)
+        let headroom = 1.0 - knee
+        // A threshold of exactly 1.0 leaves no headroom to shape into, and the
+        // buffer is already within range.
+        guard headroom > 0 else { return samples }
 
         return samples.map { sample in
-            if sample.magnitude <= thresholdValue.magnitude {
-                return sample
-            }
-
-            // Soft clipping using tanh approximation
+            // Normalize first: `abs` on a Double cannot overflow, while
+            // `abs(Int16.min)` traps.
             let normalized = Double(sample) / Self.pcmMaxValue
-            let clipped = tanh(normalized)
-            return Self.clampToPCM(clipped * Self.pcmMaxValue)
+            let level = abs(normalized)
+            guard level > knee else { return sample }
+
+            // Bend only the overshoot so the curve leaves the knee at the same
+            // value. Shaping the whole sample instead puts a step at the knee:
+            // at the default threshold a sample one LSB above it dropped by
+            // roughly 6,000, which is the distortion this is meant to avoid.
+            let shaped = knee + headroom * tanh((level - knee) / headroom)
+            return Self.clampToPCM(copysign(shaped, normalized) * Self.pcmMaxValue)
         }
     }
 
