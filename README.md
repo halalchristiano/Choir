@@ -27,6 +27,9 @@ CHOIR is a self-contained TTS engine featuring:
 - **Offline architecture**: The runtime code has no intended network dependency; a release still requires an automated network-silence audit.
 - **Declared platform targets**: iOS, iPadOS, macOS, visionOS, watchOS, and tvOS; physical-device conformance remains outstanding.
 - **Parameter API**: Pitch, rate, emotion, breathiness, and age/gender controls exist, but the mock path does not prove their audible effect.
+- **On-device NLP speech planning**: Deterministic English intent, restrained
+  emotion, dialogue, contrastive focus, and clause analysis feed duration,
+  pitch, energy, accent, pause, and boundary-tone planning.
 - **Batch and progressive delivery**: Streaming prepares request-wide prosody,
   then renders and emits natural phrase units before later units run.
 - **Audio output**: 48 kHz mono 16-bit PCM by default, plus float PCM,
@@ -45,6 +48,7 @@ Sources/Choir/
 ├── AudioOutput/                   # Audio export
 │   └── AudioBuffer.swift          # PCM and format types
 ├── LinguisticFrontend/            # Text normalization, G2P, stress, SSML
+├── NaturalLanguage/               # Contextual speech planning
 ├── Prosody/                       # Prosody prediction, ToBI
 ├── VoiceSynthesis/                # Sample-based synthesis (see REAL_VOICES.md)
 ├── Caching/                       # Asset caching with LRU eviction
@@ -155,6 +159,7 @@ Complete guides for all use cases:
 | **[Error Handling](./ERROR_HANDLING.md)** | All error types, recovery patterns, testing | Production reliability |
 | **[Streaming Synthesis](./STREAMING.md)** | Current chunked-delivery behavior and true-streaming gates | Integration planning |
 | **[Voice Blending](./VOICE_BLENDING_GUIDE.md)** | Smooth voice transitions, character morphing | Creative applications |
+| **[Natural-language processing](./NATURAL_LANGUAGE_PROCESSING.md)** | Intent, emotion, dialogue, and contextual emphasis | Expressive reading |
 | **[Platforms Guide](./PLATFORMS.md)** | iOS, macOS, watchOS, visionOS, tvOS specifics | Cross-platform apps |
 
 **Quick Links:**
@@ -309,6 +314,8 @@ let audio = try await engine.synthesize(text: ssml, voice: .orion)
 - Grapheme-to-phoneme (G2P) conversion with rule-based fallback
 - Stress assignment with dictionary patterns
 - SSML markup parsing (prosody, emphasis, pause)
+- On-device contextual NLP for intent, restrained emotion, dialogue,
+  contrastive focus, and clause boundaries
 - Complete text-to-phoneme pipeline
 
 **Phase 3: Prosody & Synthesis**
@@ -317,6 +324,7 @@ let audio = try await engine.synthesize(text: ssml, voice: .orion)
 - Energy modeling for realistic prosody
 - Stress-based accentuation
 - Emotional intensity mapping to pitch/loudness
+- NLP-driven local pacing, pitch, energy, accents, pauses, and terminal tones
 
 **Phase 4: Model and vocoder interfaces**
 - Phoneme encoding/decoding interface

@@ -69,6 +69,13 @@ public struct ProsodyPredictor: Sendable {
             durations[index] *= variation.durationScale()
         }
 
+        // NLP-001: sentence emotion and contrastive focus shape local pacing
+        // before structural pauses are added. Explicit caller rate remains the
+        // dominant request-wide control.
+        Self.applyContextualDurationScales(
+            to: &durations,
+            transcript: transcript)
+
         // TXT-032: a boundary lengthens the last phoneme before it, by the
         // pause its strength implies and scaled by the voice's rate. Without
         // this a paragraph break reads exactly like a comma, and a chapter
@@ -82,7 +89,7 @@ public struct ProsodyPredictor: Sendable {
 
         // Step 2: Predict pitch contour
         let pitchPoints = predictPitchContour(
-            transcript.phonemes,
+            transcript,
             durations: durations,
             pitchShift: pitchShift,
             emotionalIntensity: emotionalIntensity,
@@ -109,7 +116,7 @@ public struct ProsodyPredictor: Sendable {
 
         // Step 3: Predict energy contour
         let energyPoints = predictEnergyContour(
-            transcript.phonemes,
+            transcript,
             durations: durations,
             emotionalIntensity: emotionalIntensity,
             breathiness: synthesisParams.breathiness
@@ -119,6 +126,7 @@ public struct ProsodyPredictor: Sendable {
         // Step 4: Create annotated phonemes with timing
         var annotated: [AnnotatedPhoneme] = []
         var currentTime: Double = 0
+        let wordIndices = Self.wordIndicesByPhoneme(in: transcript)
 
         for (i, phoneme) in transcript.phonemes.enumerated() {
             let duration = durations[i]
@@ -127,14 +135,22 @@ public struct ProsodyPredictor: Sendable {
             let f0 = pitchContour.valueAt(currentTime + duration / 2) ?? effectiveBasePitch
             let energy = energyContour.valueAt(currentTime + duration / 2) ?? -20.0
 
+            let wordIndex = wordIndices[i]
+            let contextualCue = wordIndex.flatMap { transcript.speechPlan?.cue(forWord: $0) }
+            let accent = contextualCue?.emphasis == .strong && phoneme.isVowel
+                ? "L+H*"
+                : selectAccentType(phoneme, at: i, in: transcript.phonemes)
             let prosody = ProsodyFeatures(
                 fundamentalFrequency: f0,
                 duration: duration,
                 energy: energy,
                 voicing: phoneme.isVowel ? 1.0 : 0.0,
                 isVoiced: phoneme.isVowel,
-                accentType: selectAccentType(phoneme, at: i, in: transcript.phonemes),
-                boundaryTone: "none"
+                accentType: accent,
+                boundaryTone: Self.boundaryTone(
+                    atPhoneme: i,
+                    wordIndex: wordIndex,
+                    transcript: transcript)
             )
 
             annotated.append(AnnotatedPhoneme(phoneme: phoneme, prosody: prosody, timing: timing))
@@ -147,6 +163,26 @@ public struct ProsodyPredictor: Sendable {
             energyContour: energyContour,
             durations: durations
         )
+    }
+
+    /// Applies word- and sentence-level pace cues inferred by the NLP planner.
+    static func applyContextualDurationScales(
+        to durations: inout [Double],
+        transcript: PhoneticTranscription
+    ) {
+        guard let plan = transcript.speechPlan,
+              durations.count == transcript.phonemes.count else { return }
+        let wordIndices = wordIndicesByPhoneme(in: transcript)
+        for phonemeIndex in durations.indices {
+            guard let wordIndex = wordIndices[phonemeIndex] else { continue }
+            let utterance = plan.utterance(containingWord: wordIndex)
+            let emotionRate = utterance?.emotion.rateScale ?? 1
+            let dialogueScale = utterance?.isDialogue == true ? 1.02 : 1
+            let focusScale = plan.cue(forWord: wordIndex)?.durationScale ?? 1
+            durations[phonemeIndex] = min(
+                500,
+                max(10, durations[phonemeIndex] / emotionRate * dialogueScale * focusScale))
+        }
     }
 
     /// Predicts duration for each phoneme based on phonetic context.
@@ -279,15 +315,17 @@ public struct ProsodyPredictor: Sendable {
 
     /// Predicts pitch contour based on stress, emotion, and phrase structure.
     private func predictPitchContour(
-        _ phonemes: [Phoneme],
+        _ transcript: PhoneticTranscription,
         durations: [Double],
         pitchShift: Double,
         emotionalIntensity: Double,
         basePitch: Double,
         pitchRange: (min: Double, max: Double)
     ) -> [(time: Double, value: Double)] {
+        let phonemes = transcript.phonemes
         var contour: [(time: Double, value: Double)] = []
         var currentTime: Double = 0
+        let wordIndices = Self.wordIndicesByPhoneme(in: transcript)
 
         // A semitone is a frequency ratio, not a fixed number of hertz. Apply
         // the ratio to the completed contour so stress, emotion, declination,
@@ -315,9 +353,34 @@ public struct ProsodyPredictor: Sendable {
             let declinationFactor = Double(i) / Double(max(1, phonemes.count))
             f0 -= declinationFactor * 10.0
 
+            // NLP-002: apply conservative sentence emotion, contrastive
+            // focus, dialogue lift, and terminal intent before the caller's
+            // global semitone transposition.
+            if let wordIndex = wordIndices[i], let plan = transcript.speechPlan {
+                let utterance = plan.utterance(containingWord: wordIndex)
+                var contextualSemitones = utterance?.emotion.pitchOffsetSemitones ?? 0
+                contextualSemitones += plan.cue(forWord: wordIndex)?.pitchOffsetSemitones ?? 0
+                if plan.cue(forWord: wordIndex)?.isDialogue == true {
+                    contextualSemitones += 0.15
+                }
+                if utterance?.endWordIndex == wordIndex,
+                   let terminalIntent = utterance?.intent {
+                    switch terminalIntent {
+                    case .question: contextualSemitones += 2.4
+                    case .statement, .command: contextualSemitones -= 0.6
+                    case .exclamation: contextualSemitones += 0.7
+                    case .fragment: break
+                    }
+                }
+                f0 *= pow(2, contextualSemitones / 12)
+            }
+
             // Phrase-final lowering
             if i == phonemes.count - 1 {
-                f0 -= 15.0
+                let finalIntent = wordIndices[i].flatMap {
+                    transcript.speechPlan?.utterance(containingWord: $0)?.intent
+                }
+                f0 += finalIntent == UtteranceIntent.question ? 8 : -15
             }
 
             f0 *= pitchRatio
@@ -345,13 +408,15 @@ public struct ProsodyPredictor: Sendable {
 
     /// Predicts energy (loudness) contour.
     private func predictEnergyContour(
-        _ phonemes: [Phoneme],
+        _ transcript: PhoneticTranscription,
         durations: [Double],
         emotionalIntensity: Double,
         breathiness: Double
     ) -> [(time: Double, value: Double)] {
+        let phonemes = transcript.phonemes
         var contour: [(time: Double, value: Double)] = []
         var currentTime: Double = 0
+        let wordIndices = Self.wordIndicesByPhoneme(in: transcript)
 
         // Base energy
         let boundedBreathiness = min(1, max(0, breathiness))
@@ -383,6 +448,11 @@ public struct ProsodyPredictor: Sendable {
             // Emotional intensity affects overall loudness
             energy += emotionalIntensity * 5.0
 
+            if let wordIndex = wordIndices[i], let plan = transcript.speechPlan {
+                energy += plan.utterance(containingWord: wordIndex)?.emotion.energyDeltaDB ?? 0
+                energy += plan.cue(forWord: wordIndex)?.energyDeltaDB ?? 0
+            }
+
             energy = max(-60, min(0, energy))
 
             if phoneme.isVowel {
@@ -399,6 +469,40 @@ public struct ProsodyPredictor: Sendable {
         }
 
         return contour
+    }
+
+    /// Builds an O(n) lookup parallel to phonemes for all contextual stages.
+    private static func wordIndicesByPhoneme(
+        in transcript: PhoneticTranscription
+    ) -> [Int?] {
+        var result = Array<Int?>(repeating: nil, count: transcript.phonemes.count)
+        guard !transcript.wordBoundaries.isEmpty else { return result }
+        for wordIndex in transcript.wordBoundaries.indices {
+            let start = transcript.wordBoundaries[wordIndex]
+            let end = wordIndex + 1 < transcript.wordBoundaries.count
+                ? transcript.wordBoundaries[wordIndex + 1]
+                : transcript.phonemes.count
+            guard start >= 0, start < end, end <= result.count else { continue }
+            for phonemeIndex in start..<end { result[phonemeIndex] = wordIndex }
+        }
+        return result
+    }
+
+    /// ToBI-style terminal tone inferred for the final phoneme of a sentence.
+    private static func boundaryTone(
+        atPhoneme phonemeIndex: Int,
+        wordIndex: Int?,
+        transcript: PhoneticTranscription
+    ) -> String {
+        guard let wordIndex,
+              let utterance = transcript.speechPlan?.utterance(containingWord: wordIndex),
+              utterance.endWordIndex == wordIndex,
+              wordIndex < transcript.wordBoundaries.count else { return "none" }
+        let wordEnd = wordIndex + 1 < transcript.wordBoundaries.count
+            ? transcript.wordBoundaries[wordIndex + 1]
+            : transcript.phonemes.count
+        guard phonemeIndex == wordEnd - 1 else { return "none" }
+        return utterance.intent == .question ? "H%" : "L%"
     }
 
     /// Selects appropriate pitch accent based on position and stress.
