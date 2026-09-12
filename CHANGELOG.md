@@ -32,6 +32,21 @@ audio output compatibility changes.
   implemented; MP3, AAC and FLAC throw. They threw clearly, but a caller had no
   way to find out except by attempting an export and catching the error. The
   errors now name `encodeWAV` as the alternative.
+- The recording ingest pipeline. `Scripts/split_session.py` cuts a continuous
+  session into single-utterance files at the silences, slicing byte offsets in
+  the original so the 24-bit samples are bit-identical.
+  `choir-benchmark --transcribe DIR` runs the on-device recognizer over them,
+  and `Scripts/align_session.py` aligns the transcripts against the reading
+  sheet by dynamic programming, joins lines read across a pause, and writes the
+  manifest.
+
+  Position alone cannot produce a correct manifest. Splitting the first real
+  session gave 103 utterances against 75 sheet lines, because a reader pauses
+  mid-sentence and the gap is cut. Pairing those by index would have mislabelled
+  every line after the first pause, and a manifest that pairs audio with the
+  wrong words teaches the model a wrong mapping that is invisible until
+  synthesis sounds subtly wrong. Aligned by transcript: 73 of 75 lines matched,
+  23 joined across pauses, nothing dropped.
 - `RECORDING_PROTOCOL.md`: the session protocol and phonetically balanced
   script for recording one voice (ML-A, ML-V). `RecordingScriptTests` verifies
   it against the engine itself — every symbol in `PhonemeInventory` is

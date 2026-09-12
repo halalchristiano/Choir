@@ -63,7 +63,21 @@ struct AppleSpeechTranscriber: SpeechTranscriber {
         let wav = try AudioEncoder().encodeWAV(audio)
         try wav.write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
+        return try await transcribe(contentsOf: url)
+        #else
+        _ = audio
+        throw ChoirError.synthesisError(reason: "Speech framework unavailable on this platform")
+        #endif
+    }
 
+    /// Transcribes a WAV already on disk.
+    ///
+    /// Aligning a recording session against its reading sheet means
+    /// transcribing files that were never an `AudioBuffer`, and round-tripping
+    /// them through decode and re-encode would be pointless work on a path
+    /// that runs once per utterance across thousands of them.
+    func transcribe(contentsOf url: URL) async throws -> String {
+        #if canImport(Speech)
         guard let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable else {
             throw ChoirError.synthesisError(reason: "Speech recognizer unavailable")
         }
@@ -87,6 +101,7 @@ struct AppleSpeechTranscriber: SpeechTranscriber {
             }
         }
         #else
+        _ = url
         throw ChoirError.synthesisError(reason: "Speech framework unavailable on this platform")
         #endif
     }

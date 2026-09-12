@@ -23,6 +23,7 @@ struct Options {
     var voice: Voice = .isla
     var formant = false
     var sayText: String?
+    var transcribeDir: String?
 }
 
 func parseOptions() -> Options {
@@ -55,6 +56,10 @@ func parseOptions() -> Options {
             options.intelligibility = true
         case "--formant":
             options.formant = true
+        case "--transcribe":
+            guard let path = arguments.first else { break }
+            arguments.removeFirst()
+            options.transcribeDir = path
         case "--say":
             guard let text = arguments.first else { break }
             arguments.removeFirst()
@@ -90,6 +95,11 @@ func parseOptions() -> Options {
                                         only built-in path that produces
                                         speech, so it is the only one an
                                         intelligibility run can measure.
+              --transcribe DIR          Transcribe every .wav in DIR with the
+                                        on-device recognizer and write
+                                        "id<tab>transcript" lines to --output.
+                                        Used to align a recording session
+                                        against its reading sheet.
               --say TEXT                Synthesize TEXT and write a WAV to
                                         --output (default choir.wav), then
                                         exit. Combine with --formant to get
@@ -119,6 +129,11 @@ if device == nil {
 
 if BenchmarkReport.builtWithoutOptimization {
     FileHandle.standardError.write(Data("WARNING: this is an unoptimized build and its numbers are meaningless.\nRe-run with: swift run -c release choir-benchmark\n\n".utf8))
+}
+
+if let directory = options.transcribeDir {
+    await runTranscribe(directory: directory)
+    exit(0)
 }
 
 if let text = options.sayText {
@@ -278,5 +293,71 @@ func runSay(text: String, voice: Voice) async {
     } catch {
         FileHandle.standardError.write(Data("Synthesis failed: \(error)\n".utf8))
         exit(5)
+    }
+}
+
+
+/// Transcribes every WAV in a directory.
+///
+/// Splitting a session on silence produces utterances in order, but a re-take
+/// shifts every later utterance against the reading sheet, so position alone
+/// cannot say which line a file contains. Transcribing each one lets the
+/// alignment be checked rather than assumed.
+func runTranscribe(directory: String) async {
+    let transcriber = AppleSpeechTranscriber()
+    guard await transcriber.isAvailable else {
+        FileHandle.standardError.write(Data("""
+
+        Transcription cannot run here.
+
+        The recognizer '\(transcriber.identifier)' is unavailable. Speech \
+        authorization requires NSSpeechRecognitionUsageDescription in an \
+        Info.plist, which a SwiftPM executable does not have. Build the app \
+        bundle and launch it through LaunchServices:
+
+            Scripts/make_intelligibility_app.sh build
+            open build/ChoirIntelligibility.app --args \\
+                --transcribe DIR --output transcripts.tsv
+
+        """.utf8))
+        exit(3)
+    }
+
+    let url = URL(fileURLWithPath: directory)
+    let files = ((try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? [])
+        .filter { $0.lowercased().hasSuffix(".wav") }
+        .sorted()
+
+    guard !files.isEmpty else {
+        FileHandle.standardError.write(Data("No .wav files in \(directory)\n".utf8))
+        exit(4)
+    }
+
+    var lines: [String] = []
+    for (index, name) in files.enumerated() {
+        let id = (name as NSString).deletingPathExtension
+        let text: String
+        do {
+            text = try await transcriber.transcribe(
+                contentsOf: url.appendingPathComponent(name))
+        } catch {
+            // A file the recognizer cannot read is recorded as empty rather
+            // than aborting the run: one bad take should not cost the session.
+            text = ""
+        }
+        lines.append("\(id)\t\(text)")
+        if (index + 1) % 25 == 0 {
+            FileHandle.standardError.write(
+                Data("transcribed \(index + 1)/\(files.count)\n".utf8))
+        }
+    }
+
+    let output = lines.joined(separator: "\n") + "\n"
+    if let path = options.outputPath {
+        try? output.write(toFile: path, atomically: true, encoding: .utf8)
+        FileHandle.standardError.write(
+            Data("wrote \(files.count) transcripts to \(path)\n".utf8))
+    } else {
+        print(output, terminator: "")
     }
 }
