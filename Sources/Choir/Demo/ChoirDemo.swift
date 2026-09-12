@@ -18,10 +18,26 @@ actor ChunkCounter {
 /// This module demonstrates all major features and provides reference implementations
 /// for integrating Choir into applications.
 public struct ChoirDemo {
+    /// The pipeline every demo runs on.
+    ///
+    /// The rule-based formant path rather than the default mock one. A demo
+    /// exists to show what the engine does, and the default pipeline emits a
+    /// 200 Hz test tone, so every one of these demos was previously
+    /// demonstrating a sine wave. The formant path needs no trained model, no
+    /// bundled assets and no download, so it costs nothing to run here.
+    ///
+    /// It is not a production voice: measured at 8.2% word accuracy against a
+    /// 98% target (see `QUA004_FORMANT.md`). It is speech-structured audio and
+    /// audibly a machine, which is still a far better demonstration of the
+    /// pipeline than a tone.
+    static func demoEngine() -> ChoirEngine {
+        ChoirEngine(pipeline: .formant())
+    }
+
     /// Simple demonstration of basic synthesis.
     public static func basicSynthesisDemo() async throws {
         // Initialize engine
-        let engine = ChoirEngine()
+        let engine = demoEngine()
         try await engine.initialize()
 
         // Synthesize simple text
@@ -37,7 +53,7 @@ public struct ChoirDemo {
 
     /// Demonstrates prosody control with various parameters.
     public static func prosodyControlDemo() async throws {
-        let engine = ChoirEngine()
+        let engine = demoEngine()
         try await engine.initialize()
 
         let text = "This is a demonstration of prosody control in Choir."
@@ -60,7 +76,7 @@ public struct ChoirDemo {
 
     /// Demonstrates speaking style presets.
     public static func speakingStyleDemo() async throws {
-        let engine = ChoirEngine()
+        let engine = demoEngine()
         try await engine.initialize()
 
         let text = "Speaking styles make synthesis more expressive."
@@ -78,7 +94,7 @@ public struct ChoirDemo {
 
     /// Demonstrates voice blending between two voices.
     public static func voiceBlendingDemo() async throws {
-        let engine = ChoirEngine()
+        let engine = demoEngine()
         try await engine.initialize()
 
         let text = "Voice blending creates smooth transitions between voices."
@@ -104,7 +120,7 @@ public struct ChoirDemo {
 
     /// Demonstrates SSML markup for fine prosody control.
     public static func ssmlMarkupDemo() async throws {
-        let engine = ChoirEngine()
+        let engine = demoEngine()
         try await engine.initialize()
 
         let ssml = """
@@ -122,7 +138,7 @@ public struct ChoirDemo {
 
     /// Demonstrates phrase-progressive chunk delivery.
     public static func streamingSynthesisDemo() async throws {
-        let engine = ChoirEngine()
+        let engine = demoEngine()
         try await engine.initialize()
 
         print("Streaming synthesis demo:")
@@ -144,7 +160,7 @@ public struct ChoirDemo {
 
     /// Demonstrates audio post-processing.
     public static func audioPostProcessingDemo() async throws {
-        let engine = ChoirEngine()
+        let engine = demoEngine()
         try await engine.initialize()
 
         let audio = try await engine.synthesize(
@@ -171,7 +187,7 @@ public struct ChoirDemo {
 
     /// Demonstrates audio encoding to different formats.
     public static func audioEncodingDemo() async throws {
-        let engine = ChoirEngine()
+        let engine = demoEngine()
         try await engine.initialize()
 
         let audio = try await engine.synthesize(
@@ -195,7 +211,7 @@ public struct ChoirDemo {
 
     /// Demonstrates character voice synthesis for games/narration.
     public static func characterVoicesDemo() async throws {
-        let engine = ChoirEngine()
+        let engine = demoEngine()
         try await engine.initialize()
 
         let dialogues = [

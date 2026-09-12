@@ -28,6 +28,10 @@ audio output compatibility changes.
 
 ### Changed
 
+- `ChoirDemo` runs on the formant pipeline. Every demo previously built a
+  default `ChoirEngine()`, so all nine of them demonstrated a 200 Hz test tone.
+  The formant path needs no model, assets or download, so it costs nothing to
+  use here. The library default is unchanged.
 - Stops and fricatives no longer share one duration rule. Both were shortened
   as "obstruents", but they move in opposite directions: a stop is a closure
   plus a burst, while a fricative has to sustain turbulence long enough to be
