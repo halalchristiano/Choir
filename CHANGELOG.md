@@ -28,6 +28,10 @@ audio output compatibility changes.
 
 ### Changed
 
+- `AudioOutputFormat.isImplemented` and `.implemented`. Only WAV is actually
+  implemented; MP3, AAC and FLAC throw. They threw clearly, but a caller had no
+  way to find out except by attempting an export and catching the error. The
+  errors now name `encodeWAV` as the alternative.
 - `G2PDiagnostics` splits a TXT-020 evaluation by orthographic class, so a
   failing letter-to-sound rule appears as a failing row rather than as a
   fraction of one aggregate number. The aggregate said the fallback was wrong

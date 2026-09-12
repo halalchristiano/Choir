@@ -652,10 +652,29 @@ public actor ChoirEngine {
     }
 }
 
-/// Supported audio export formats.
-public enum AudioOutputFormat: Sendable {
+/// Audio export formats the API accepts.
+///
+/// Acceptance is not implementation. Only ``wav`` is implemented; the rest
+/// throw `ChoirError.audioEncodingFailed`. They remain in the enum because the
+/// engine's export paths are written against them and the SRS requires them,
+/// but a caller should ask ``isImplemented`` rather than discover the gap
+/// through an exception at run time.
+public enum AudioOutputFormat: Sendable, CaseIterable {
     case wav
     case mp3
     case aac
     case flac
+
+    /// Whether this build can actually produce the format.
+    public var isImplemented: Bool {
+        switch self {
+        case .wav: return true
+        case .mp3, .aac, .flac: return false
+        }
+    }
+
+    /// The formats this build can actually produce.
+    public static var implemented: [AudioOutputFormat] {
+        allCases.filter(\.isImplemented)
+    }
 }

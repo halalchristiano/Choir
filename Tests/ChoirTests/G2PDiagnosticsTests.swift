@@ -102,3 +102,33 @@ struct G2PDiagnosticsTests {
                 "G2P accuracy regressed: \(overall.summary)")
     }
 }
+
+/// SRS AUD-001 — export-format capability is queryable.
+///
+/// The unimplemented encoders throw a clear error, but a caller had no way to
+/// find out except by attempting an export and catching it.
+@Suite("Export format capability")
+struct AudioOutputFormatCapabilityTests {
+
+    @Test("Only WAV reports as implemented")
+    func testImplementedSet() {
+        #expect(AudioOutputFormat.wav.isImplemented)
+        #expect(!AudioOutputFormat.mp3.isImplemented)
+        #expect(!AudioOutputFormat.aac.isImplemented)
+        #expect(!AudioOutputFormat.flac.isImplemented)
+        #expect(AudioOutputFormat.implemented == [.wav])
+    }
+
+    /// The query must track the encoders, not drift from them.
+    @Test("Unimplemented formats actually throw")
+    func testUnimplementedThrow() {
+        let buffer = AudioBuffer(
+            samples: [0, 1, -1, 0], format: AudioFormat())
+        let encoder = AudioEncoder()
+
+        #expect(throws: ChoirError.self) { try encoder.encodeMP3(buffer) }
+        #expect(throws: ChoirError.self) { try encoder.encodeAAC(buffer) }
+        #expect(throws: ChoirError.self) { try encoder.encodeFLAC(buffer) }
+        #expect(throws: Never.self) { _ = try encoder.encodeWAV(buffer) }
+    }
+}

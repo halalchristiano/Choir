@@ -223,7 +223,7 @@ public struct AudioEncoder: Sendable {
         _ = buffer
         try validateBitrate(quality)
         throw ChoirError.audioEncodingFailed(
-            reason: "MP3 encoding is not available in this build")
+            reason: "MP3 encoding is not implemented. Use encodeWAV, or check AudioOutputFormat.isImplemented before requesting a format.")
     }
 
     /// Reports that AAC encoding is unavailable in the current package.
@@ -231,14 +231,14 @@ public struct AudioEncoder: Sendable {
         _ = buffer
         try validateBitrate(quality)
         throw ChoirError.audioEncodingFailed(
-            reason: "AAC encoding is not available in this build")
+            reason: "AAC encoding is not implemented. Use encodeWAV, or check AudioOutputFormat.isImplemented before requesting a format.")
     }
 
     /// Reports that FLAC encoding is unavailable in the current package.
     public func encodeFLAC(_ buffer: AudioBuffer) throws -> Data {
         _ = buffer
         throw ChoirError.audioEncodingFailed(
-            reason: "FLAC encoding is not available in this build")
+            reason: "FLAC encoding is not implemented. Use encodeWAV, or check AudioOutputFormat.isImplemented before requesting a format.")
     }
 
     private func validateBitrate(_ bitrate: Int) throws {
