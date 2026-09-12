@@ -32,6 +32,17 @@ audio output compatibility changes.
   implemented; MP3, AAC and FLAC throw. They threw clearly, but a caller had no
   way to find out except by attempting an export and catching the error. The
   errors now name `encodeWAV` as the alternative.
+- `Scripts/prepare_dataset.py` validates a recorded corpus and assembles it in
+  the LJSpeech layout every VITS-family recipe reads. It refuses to call a
+  corpus ready below 60 minutes, and rejects mixed sample rates, clipped takes,
+  empty transcripts and out-of-range durations. Most recipes accept all of
+  those silently, and each produces a voice that is subtly wrong on material
+  you cannot trace back.
+- `TRAINING.md` specifies the path from corpus to measured voice, including the
+  licensing trap that matters most here: fine-tuning inherits the licence of
+  the checkpoint it starts from, so a derivative of a research-only model
+  cannot ship in a commercial voice pack. It is marked as specified rather than
+  executed, because it needs a GPU and a corpus that does not exist yet.
 - The recording ingest pipeline. `Scripts/split_session.py` cuts a continuous
   session into single-utterance files at the silences, slicing byte offsets in
   the original so the 24-bit samples are bit-identical.
