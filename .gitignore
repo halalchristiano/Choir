@@ -6,3 +6,10 @@ DerivedData/
 .swiftpm/configuration/registries.json
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
+
+# Voice recordings: large binary assets, kept out of git history.
+recordings/raw/
+recordings/wav/
+recordings/*.csv
+*.wav
+!Tests/**/*.wav
