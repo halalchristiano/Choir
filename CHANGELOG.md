@@ -32,6 +32,12 @@ audio output compatibility changes.
   implemented; MP3, AAC and FLAC throw. They threw clearly, but a caller had no
   way to find out except by attempting an export and catching the error. The
   errors now name `encodeWAV` as the alternative.
+- `StressPredictor` marks primary stress on out-of-vocabulary words (TXT-021).
+  They previously carried no stress at all, so every syllable reached the
+  prosody model as equally prominent. The suffix table is measured from the
+  bundled lexicon's own stress marks over 116,586 words rather than invented,
+  and the predictor returns nil where the lexicon does not support a confident
+  answer instead of guessing.
 - `Scripts/prepare_dataset.py` validates a recorded corpus and assembles it in
   the LJSpeech layout every VITS-family recipe reads. It refuses to call a
   corpus ready below 60 minutes, and rejects mixed sample rates, clipped takes,

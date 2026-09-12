@@ -751,3 +751,27 @@ both are worse than the 71.9% with no rule at all. Positional heuristics are
 too blunt for English stress. Doing this properly needs a stress model, not a
 better guess about syllable position. Recorded so it is not attempted a third
 time.
+
+### 12 September 2026 (fourth pass) — stress prediction
+
+`StressPredictor` assigns primary stress to out-of-vocabulary words. The rule
+fallback previously produced no stress marks at all, so every syllable of an
+unknown word reached the prosody model as equally prominent and no accent could
+be placed (TXT-021).
+
+The table is measured from the bundled lexicon's own stress marks across
+116,586 words, not invented. English suffixes place stress relative to the end
+of the word: -ical two syllables back (99%), -ity two back (96%), -tion one
+back (96%), -ic one back (94%), -ation one back (94%). Two-syllable words take
+initial stress (89%). Three- and four-syllable words without a known suffix top
+out near 55% and 39%, so the predictor returns nil for them rather than
+guessing.
+
+**Rejected for the third time: schwa reduction.** Using this predictor to
+reduce unstressed vowels scored 71.3%, against 70.9% for medial-position
+reduction, 71.7% for an `a`-only variant, and 71.9% for not reducing at all.
+Three independent attempts, all worse than nothing. The conclusion is not that
+the stress model is wrong -- it is measured and tested -- but that marking
+stress and changing vowel quality are separate jobs, and on a phoneme-accuracy
+metric only the first one pays. Schwa should not be attempted again without a
+different measurement to justify it.

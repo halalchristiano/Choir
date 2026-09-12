@@ -106,6 +106,30 @@ public struct Phonemizer: Sendable {
         let chars = Array(word)
         var i = 0
 
+        // Which vowel group each position belongs to, and which group takes
+        // primary stress. Out-of-vocabulary words previously carried no stress
+        // marks at all, so every syllable reached the prosody model as equally
+        // prominent and nothing could place an accent (TXT-021).
+        //
+        // Stress is not used to reduce unstressed vowels to schwa. That was
+        // tried three times -- by position, by position restricted to `a`, and
+        // by this predictor -- and scored 70.9%, 71.7% and 71.3% against 71.9%
+        // for leaving the vowels alone. Marking stress is a separate job from
+        // changing vowel quality, and only the first one pays.
+        var groupAt = [Int: Int](minimumCapacity: chars.count)
+        var groupCount = 0
+        var inGroup = false
+        for (position, character) in chars.enumerated() {
+            if isCharVowel(character) {
+                if !inGroup { groupCount += 1; inGroup = true }
+                groupAt[position] = groupCount - 1
+            } else {
+                inGroup = false
+            }
+        }
+        let stressedGroup = StressPredictor().stressedSyllable(
+            of: word, syllableCount: groupCount)
+
         while i < chars.count {
             let char = chars[i]
             let nextChar = i + 1 < chars.count ? chars[i + 1] : nil
@@ -297,7 +321,33 @@ public struct Phonemizer: Sendable {
             }
         }
 
-        return phonemes
+        return applyStress(to: phonemes, chars: chars, groupAt: groupAt,
+                           stressedGroup: stressedGroup)
+    }
+
+    /// Marks the stressed vowel of a rule-derived pronunciation.
+    ///
+    /// Only the primary stress, and only when ``StressPredictor`` was confident
+    /// enough to name a syllable. An unmarked phoneme means "unknown", which is
+    /// what the prosody model should see rather than a guess presented as fact.
+    private func applyStress(
+        to phonemes: [Phoneme],
+        chars: [Character],
+        groupAt: [Int: Int],
+        stressedGroup: Int?
+    ) -> [Phoneme] {
+        guard let stressedGroup else { return phonemes }
+
+        var result = phonemes
+        var vowelIndex = 0
+        for (index, phoneme) in result.enumerated() where phoneme.isVowel {
+            if vowelIndex == stressedGroup {
+                result[index] = Phoneme(phoneme.symbol, stress: 1)
+                break
+            }
+            vowelIndex += 1
+        }
+        return result
     }
 
     /// Determines if a vowel should be pronounced as a long vowel.

@@ -191,3 +191,56 @@ struct G2PErrorAnalysisTests {
         }
     }
 }
+
+/// SRS TXT-021 — stress on out-of-vocabulary words.
+///
+/// The rule fallback produced no stress marks at all, so every syllable of an
+/// unknown word reached the prosody model as equally prominent.
+@Suite("SRS TXT-021 — predicted stress")
+struct StressPredictorTests {
+
+    private let predictor = StressPredictor()
+
+    @Test("Suffix rules place stress relative to the end of the word")
+    func testSuffixRules() {
+        // -tion: one syllable back from the last. in-for-MA-tion
+        #expect(predictor.stressedSyllable(of: "information", syllableCount: 4) == 2)
+        // -ity: two back. ac-TIV-i-ty
+        #expect(predictor.stressedSyllable(of: "activity", syllableCount: 4) == 1)
+        // -ic: one back. pho-TO-graph-ic -> graph
+        #expect(predictor.stressedSyllable(of: "photographic", syllableCount: 4) == 2)
+        // -ical: two back. eco-NOM-i-cal
+        #expect(predictor.stressedSyllable(of: "economical", syllableCount: 5) == 2)
+    }
+
+    @Test("Two-syllable words take initial stress")
+    func testTwoSyllable() {
+        #expect(predictor.stressedSyllable(of: "table", syllableCount: 2) == 0)
+    }
+
+    /// The rule that made the earlier attempts fail: say nothing when unsure.
+    @Test("Low-confidence cases return nil rather than guessing")
+    func testDeclinesToGuess() {
+        // Three and four syllables without a known suffix top out near 55% and
+        // 39% in the lexicon, well below the confidence floor.
+        #expect(predictor.stressedSyllable(of: "cinnamon", syllableCount: 3) == nil)
+        #expect(predictor.stressedSyllable(of: "alligator", syllableCount: 4) == nil)
+        #expect(predictor.stressedSyllable(of: "", syllableCount: 0) == nil)
+    }
+
+    @Test("Predicted stress reaches the phonemes")
+    func testStressIsApplied() {
+        let phonemizer = Phonemizer(builtInLexicon: nil)
+
+        let marked = phonemizer.phonemize("information")
+        #expect(marked.contains { $0.isVowel && $0.stress > 0 },
+                "a -tion word should carry a primary stress mark")
+        #expect(marked.filter { $0.stress > 0 }.count == 1,
+                "exactly one primary stress")
+
+        // A word the predictor declines on carries no invented stress.
+        let unmarked = phonemizer.phonemize("cinnamon")
+        #expect(!unmarked.contains { $0.stress > 0 },
+                "stress must not be invented where confidence is low")
+    }
+}
