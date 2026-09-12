@@ -11,5 +11,8 @@ DerivedData/
 recordings/raw/
 recordings/wav/
 recordings/*.csv
+# Reading sheets ARE tracked: they are the transcript of record for each
+# session, and a recording is worthless without knowing exactly what was read.
+!recordings/scripts/
 *.wav
 !Tests/**/*.wav
