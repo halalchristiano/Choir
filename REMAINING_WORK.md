@@ -33,8 +33,9 @@ acceptance criteria.
   it is not speech. `Sources/Choir/Models/Vocoder.swift:471` still hardcodes
   that frequency.
 - Since v0.16.0 there is a second, non-default path: `SynthesisPipeline
-  .formant()` renders intelligible rule-based formant speech with no trained
-  model. It is a development and demonstration baseline. It is audibly a
+  .formant()` renders speech-structured rule-based formant audio with no
+  trained model. It is not intelligible by the QUA-004 gate: 8.2% word accuracy
+  against a 98% target. It is a development and demonstration baseline. It is audibly a
   machine, it does not satisfy any naturalness, cleanliness, distinctness or
   fatigue requirement, and it is not a step toward satisfying them.
 - CoreMLAcousticModel now accepts and validates an injected inference closure;
@@ -706,7 +707,8 @@ render-then-chunk streaming path are both fixed. Conformance coverage moved from
 referenced by tests, so that item is now partial rather than open.
 
 Added to the truthful position: `SynthesisPipeline.formant()` exists and renders
-intelligible rule-based speech. It closes no audible requirement. The default
+speech-structured rule-based audio. It closes no audible requirement, and was
+later measured at 8.2% word accuracy against the QUA-004 98% target. The default
 path is still a 200 Hz sine tone.
 
 Unchanged and re-verified: OOV G2P accuracy 54.2% against 92%; theological

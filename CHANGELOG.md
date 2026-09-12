@@ -32,6 +32,18 @@ audio output compatibility changes.
   implemented; MP3, AAC and FLAC throw. They threw clearly, but a caller had no
   way to find out except by attempting an export and catching the error. The
   errors now name `encodeWAV` as the alternative.
+- `DocumentedFiguresTests` fails the build when a figure quoted in the
+  documentation disagrees with the figure the code produces. It checks the
+  library size, the theological lexicon size and the G2P accuracy, and it
+  refuses the word "intelligible" near the formant path unless a measurement
+  or a negation stands with it.
+
+  This repository has lost the same fight three times: PROJECT_STATUS.md
+  declared the project proprietary while LICENSE was MIT; seven files called
+  the formant output intelligible with nothing behind the word; and the G2P
+  figure lived in five documents that had to be hand-edited in step. The guard
+  found two further unqualified claims that had already crept into
+  REMAINING_WORK.md, which are corrected here.
 - `G2PErrorAnalysis` reconstructs the edit-distance alignment and counts the
   actual phoneme confusions, so a systematic error appears as one large count
   rather than spread across every class containing it.
