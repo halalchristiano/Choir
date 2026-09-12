@@ -32,6 +32,17 @@ audio output compatibility changes.
   implemented; MP3, AAC and FLAC throw. They threw clearly, but a caller had no
   way to find out except by attempting an export and catching the error. The
   errors now name `encodeWAV` as the alternative.
+- `RECORDING_PROTOCOL.md`: the session protocol and phonetically balanced
+  script for recording one voice (ML-A, ML-V). `RecordingScriptTests` verifies
+  it against the engine itself — every symbol in `PhonemeInventory` is
+  elicited, no sentence is drawn from the QUA-004 evaluation corpus, and no
+  utterance is too long to record in one take.
+
+  The corpus check earned itself immediately: the first draft opened with four
+  Harvard sentences, in a document whose own second section warns against
+  exactly that. Training on the evaluation set would have made the only quality
+  measurement this project has meaningless, and nobody would have noticed until
+  the model scored suspiciously well.
 - `DocumentedFiguresTests` fails the build when a figure quoted in the
   documentation disagrees with the figure the code produces. It checks the
   library size, the theological lexicon size and the G2P accuracy, and it
