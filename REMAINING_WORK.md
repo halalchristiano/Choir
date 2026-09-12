@@ -41,7 +41,7 @@ acceptance criteria.
   its default form still reports that no production model is bundled. It is no
   longer a bare throwing placeholder, and it is still not a working model.
 - The 32 voices are parameter profiles, not 32 audible voices.
-- OOV G2P accuracy is 66.2% against the 92% requirement, up from 54.2% at
+- OOV G2P accuracy is 71.9% against the 92% requirement, up from 54.2% at
   the previous audit.
 - The theological supplement contains 196 entries against the 2,500-entry
   target. Verified unchanged at this audit.
@@ -319,8 +319,9 @@ voices have passed it before a release advertises a 32-voice library.
 
 ## Priority 1 - Linguistic frontend completion
 
-- [ ] Raise held-out OOV phoneme accuracy from 66.2% to at least 92%.
-      **Partial.** 54.2% to 66.2% via per-class diagnostics; see
+- [ ] Raise held-out OOV phoneme accuracy from 71.9% to at least 92%.
+      **Partial.** 54.2% to 71.9% via per-class diagnostics and error
+      analysis; see
       `G2PDiagnostics` for the current worst classes.
 - [ ] Replace the simplistic fallback with a trained neural or serious
       rule-hybrid G2P model.
@@ -726,3 +727,25 @@ silent final e 44.5% to 63.1%, plural/3sg -s 48.3% to 63.5%, -ed 54.6% to 74.3%,
 
 Still open: -ough (8.3%, three words in the sample, needs a lookup table rather
 than a rule), and the 26-point gap to the 92% target.
+
+### 12 September 2026 (third pass) — G2P error analysis
+
+Aggregate OOV phoneme accuracy 66.2% to 71.9%; exact word accuracy 12.9% to
+19.2%. Driven by `G2PErrorAnalysis`, which reconstructs the edit-distance
+alignment instead of discarding it and counts the actual phoneme confusions.
+
+Two defects it named, which the per-class view could not:
+
+- `ɝ → r`, 402 occurrences, 9.3% of all errors. "er", "ir" and "ur" spell one
+  r-coloured vowel; the rules dropped the vowel and emitted only the /r/.
+- A silent `e` before a final `s` was pronounced: "makes" as /m eɪ k ɛ s/. The
+  largest single source of inserted phonemes.
+
+**Rejected: positional schwa reduction.** Schwa substitutions are the largest
+remaining error category at roughly 16%, so reducing unstressed vowels to /ə/
+looked like the obvious next rule. Reducing every medial vowel group in words
+of three or more groups scored 70.9%, and restricting it to `a` scored 71.7%;
+both are worse than the 71.9% with no rule at all. Positional heuristics are
+too blunt for English stress. Doing this properly needs a stress model, not a
+better guess about syllable position. Recorded so it is not attempted a third
+time.

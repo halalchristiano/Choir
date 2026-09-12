@@ -32,6 +32,12 @@ audio output compatibility changes.
   implemented; MP3, AAC and FLAC throw. They threw clearly, but a caller had no
   way to find out except by attempting an export and catching the error. The
   errors now name `encodeWAV` as the alternative.
+- `G2PErrorAnalysis` reconstructs the edit-distance alignment and counts the
+  actual phoneme confusions, so a systematic error appears as one large count
+  rather than spread across every class containing it.
+- R-coloured vowels: "er", "ir" and "ur" are one phoneme, /ɝ/. The rules
+  dropped the vowel and kept the /r/ — 402 occurrences, 9.3% of all errors and
+  the single most frequent substitution.
 - `G2PDiagnostics` splits a TXT-020 evaluation by orthographic class, so a
   failing letter-to-sound rule appears as a failing row rather than as a
   fraction of one aggregate number. The aggregate said the fallback was wrong
@@ -65,6 +71,9 @@ audio output compatibility changes.
   unmeasured claim in seven places, and the measurement contradicts it. The
   output is described as speech-structured, with the number beside it.
 
+- A silent `e` before a final `s` was pronounced. "makes" was /m eɪ k ɛ s/;
+  the word-final rule could not see it because the `s` is final, not the `e`.
+  This was the largest single source of inserted phonemes.
 - A word-final silent `e` was pronounced. "hope" came out as /h oʊ p iː/: the
   `e` marks the preceding vowel long and is not itself a sound.
 - Doubled consonants produced two phonemes. "hopping" had two /p/.

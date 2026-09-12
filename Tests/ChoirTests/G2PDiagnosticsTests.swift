@@ -98,7 +98,7 @@ struct G2PDiagnosticsTests {
         #expect(classes.count >= 8, "too few classes reported to be diagnostic")
         // A floor, not a band: this number is meant to climb, and a band
         // would fail the build for an improvement.
-        #expect(overall.phonemeAccuracy > 0.60,
+        #expect(overall.phonemeAccuracy > 0.68,
                 "G2P accuracy regressed: \(overall.summary)")
     }
 }
@@ -130,5 +130,64 @@ struct AudioOutputFormatCapabilityTests {
         #expect(throws: ChoirError.self) { try encoder.encodeAAC(buffer) }
         #expect(throws: ChoirError.self) { try encoder.encodeFLAC(buffer) }
         #expect(throws: Never.self) { _ = try encoder.encodeWAV(buffer) }
+    }
+}
+
+/// SRS TXT-020 — which phonemes the rules actually get wrong.
+@Suite("SRS TXT-020 — G2P error analysis")
+struct G2PErrorAnalysisTests {
+
+    private var rulesOnlyPhonemizer: Phonemizer {
+        Phonemizer(builtInLexicon: nil)
+    }
+
+    @Test("Alignment classifies each edit")
+    func testAlignment() {
+        #expect(G2PErrorAnalysis.align(predicted: ["a"], expected: ["a"]).isEmpty)
+
+        #expect(G2PErrorAnalysis.align(predicted: ["b"], expected: ["a"])
+            == [.substitute(from: "a", to: "b")])
+
+        // Prediction invented a phoneme.
+        #expect(G2PErrorAnalysis.align(predicted: ["a", "b"], expected: ["a"])
+            == [.insert("b")])
+
+        // Prediction dropped one the reference had.
+        #expect(G2PErrorAnalysis.align(predicted: ["a"], expected: ["a", "b"])
+            == [.delete("b")])
+    }
+
+    @Test("A perfect prediction records no errors")
+    func testNoErrors() {
+        let lexicon = BuiltInLexicon(entries: ["hello": "HH AH0 L OW1"])
+        let report = G2PErrorAnalysis().analyze(
+            words: ["hello"],
+            reference: { lexicon.arpabet(for: $0) },
+            phonemizer: Phonemizer(builtInLexicon: lexicon))
+        #expect(report.totalErrors == 0)
+        #expect(report.substitutions.isEmpty)
+    }
+
+    /// Prints the confusion tables so a suite run names the next defect.
+    @Test("TXT-020: most frequent phoneme errors")
+    func testConfusions() {
+        let lexicon = BuiltInLexicon.shared
+        let words = G2PEvaluator.sampleWords(from: lexicon, count: 2_000)
+        let analysis = G2PErrorAnalysis()
+        let report = analysis.analyze(
+            words: words,
+            reference: { lexicon.arpabet(for: $0) },
+            phonemizer: rulesOnlyPhonemizer)
+
+        print("\nTXT-020 phoneme error analysis (rules only, no lexicon):\n")
+        print(analysis.markdown(report))
+        print("")
+
+        #expect(report.totalErrors > 0)
+        #expect(!report.substitutions.isEmpty)
+        // Ordered most-frequent-first, so the first row is the next fix.
+        for (lhs, rhs) in zip(report.substitutions, report.substitutions.dropFirst()) {
+            #expect(lhs.count >= rhs.count)
+        }
     }
 }

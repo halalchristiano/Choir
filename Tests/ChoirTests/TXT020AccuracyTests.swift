@@ -72,7 +72,7 @@ struct G2PAccuracyTests {
         #expect(report.referencePhonemeCount > 5_000)
 
         // Regression floor, not the requirement. Raise it as the rules improve.
-        #expect(report.phonemeAccuracy > 0.60,
+        #expect(report.phonemeAccuracy > 0.68,
                 "G2P accuracy regressed below the recorded floor: \(report.summary)")
         #expect(report.phonemeAccuracy <= 1.0)
     }

@@ -185,6 +185,40 @@ public struct Phonemizer: Sendable {
                 continue
             }
 
+            // A silent 'e' before a final 's': "makes" is /m eɪ k s/, not
+            // /m eɪ k ɛ s/. The word-final rule above does not see it because
+            // the 's' is final, not the 'e'. This was the largest single
+            // source of inserted phonemes.
+            if char == "e", nextChar == "s", i + 2 == chars.count, i > 0,
+               !isCharVowel(chars[i - 1]) {
+                i += 1
+                continue
+            }
+
+            // R-coloured vowels. "er", "ir" and "ur" are one phoneme, /ɝ/, and
+            // the rules previously dropped the vowel and kept the /r/, which
+            // was the single most frequent substitution in the error analysis.
+            // "ar" and "or" keep their own vowel quality before the /r/.
+            if isCharVowel(char), let next = nextChar, next == "r" {
+                let followedByVowel = i + 2 < chars.count && isCharVowel(chars[i + 2])
+                if !followedByVowel {
+                    switch char {
+                    case "e", "i", "u":
+                        phonemes.append(Phoneme("ɝ"))
+                    case "a":
+                        phonemes.append(Phoneme("ɑ"))
+                        phonemes.append(Phoneme("r"))
+                    case "o":
+                        phonemes.append(Phoneme("ɔ"))
+                        phonemes.append(Phoneme("r"))
+                    default:
+                        phonemes.append(Phoneme("ɝ"))
+                    }
+                    i += 2
+                    continue
+                }
+            }
+
             // Vowels
             if isCharVowel(char) {
                 // Vowel digraphs, checked before the single-vowel rules.
