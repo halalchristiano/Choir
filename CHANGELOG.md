@@ -28,6 +28,17 @@ audio output compatibility changes.
 
 ### Changed
 
+- `G2PDiagnostics` splits a TXT-020 evaluation by orthographic class, so a
+  failing letter-to-sound rule appears as a failing row rather than as a
+  fraction of one aggregate number. The aggregate said the fallback was wrong
+  more often than right; it did not say which rule.
+- Eight missing English vowel digraphs (`ea ee ie oa oo ou ue ei` and others).
+  They fell through to the single-vowel path and spelled one vowel as two,
+  which made this the worst-scoring class at 43.2%.
+- Context-sensitive realization for word-final `-s` (/ɪz/, /s/, /z/ by
+  preceding voicing), past-tense `-ed` (/ɪd/, /t/, /d/), `-tion`/`-sion`
+  (/ʃən/, voiced to /ʒən/ after a vowel) and word-final `y`.
+
 - `ChoirDemo` runs on the formant pipeline. Every demo previously built a
   default `ChoirEngine()`, so all nine of them demonstrated a 200 Hz test tone.
   The formant path needs no model, assets or download, so it costs nothing to
@@ -49,6 +60,10 @@ audio output compatibility changes.
 - Documentation no longer calls the formant output "intelligible". That was an
   unmeasured claim in seven places, and the measurement contradicts it. The
   output is described as speech-structured, with the number beside it.
+
+- A word-final silent `e` was pronounced. "hope" came out as /h oʊ p iː/: the
+  `e` marks the preceding vowel long and is not itself a sound.
+- Doubled consonants produced two phonemes. "hopping" had two /p/.
 
 ### Fixed
 

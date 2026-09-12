@@ -1,0 +1,104 @@
+import Foundation
+import Testing
+@testable import Choir
+
+/// SRS TXT-020 — per-class G2P diagnostics.
+///
+/// The aggregate accuracy figure cannot be acted on. These tests exercise the
+/// breakdown that can be, and print it so a run of the suite leaves the current
+/// per-rule picture in the log.
+@Suite("SRS TXT-020 — G2P diagnostics by orthographic class")
+struct G2PDiagnosticsTests {
+
+    private var rulesOnlyPhonemizer: Phonemizer {
+        Phonemizer(builtInLexicon: nil)
+    }
+
+    @Test("Classes select the words they name")
+    func testClassMatching() {
+        func matcher(_ name: String) -> (String) -> Bool {
+            G2PDiagnostics.standardClasses.first { $0.name == name }!.matches
+        }
+
+        let tion = matcher("-tion / -sion / -cion")
+        #expect(tion("nation"))
+        #expect(tion("tension"))
+        #expect(!tion("national"))
+
+        let silentE = matcher("silent final e")
+        #expect(silentE("hope"))
+        #expect(silentE("rate"))
+        #expect(!silentE("see"), "a vowel before the e is not a silent-e pattern")
+        #expect(!silentE("be"), "too short to be the silent-e pattern")
+
+        let doubled = matcher("doubled consonant")
+        #expect(doubled("hopping"))
+        #expect(!doubled("hoping"))
+        #expect(!doubled("aardvark"), "a doubled vowel is not a doubled consonant")
+
+        let ough = matcher("-ough")
+        #expect(ough("thorough"))
+        #expect(!ough("though!".replacingOccurrences(of: "ough!", with: "xx")))
+    }
+
+    @Test("A perfect phonemizer scores 100% in every class")
+    func testPerfectControl() {
+        let lexicon = BuiltInLexicon(entries: [
+            "nation": "N EY1 SH AH0 N",
+            "hoping": "HH OW1 P IH0 NG",
+        ])
+        let diagnostics = G2PDiagnostics()
+        let (overall, classes) = diagnostics.evaluate(
+            words: ["nation", "hoping"],
+            reference: { lexicon.arpabet(for: $0) },
+            phonemizer: Phonemizer(builtInLexicon: lexicon))
+
+        #expect(overall.phonemeAccuracy == 1.0)
+        #expect(!classes.isEmpty)
+        for entry in classes {
+            #expect(entry.report.phonemeAccuracy == 1.0,
+                    "class '\(entry.name)' should be perfect: \(entry.report.summary)")
+            #expect(entry.shortfall == 0)
+        }
+    }
+
+    @Test("Worst class sorts first")
+    func testOrdering() {
+        let lexicon = BuiltInLexicon.shared
+        let words = G2PEvaluator.sampleWords(from: lexicon, count: 400)
+        let (_, classes) = G2PDiagnostics().evaluate(
+            words: words,
+            reference: { lexicon.arpabet(for: $0) },
+            phonemizer: rulesOnlyPhonemizer)
+
+        #expect(classes.count >= 2)
+        for (lhs, rhs) in zip(classes, classes.dropFirst()) {
+            #expect(lhs.report.phonemeAccuracy <= rhs.report.phonemeAccuracy,
+                    "classes are not ordered worst-first")
+        }
+    }
+
+    /// The measurement. Prints the table so every suite run records the
+    /// current per-rule picture rather than only the aggregate.
+    @Test("TXT-020: per-class accuracy breakdown")
+    func testBreakdown() {
+        let lexicon = BuiltInLexicon.shared
+        let words = G2PEvaluator.sampleWords(from: lexicon, count: 2_000)
+        let diagnostics = G2PDiagnostics()
+        let (overall, classes) = diagnostics.evaluate(
+            words: words,
+            reference: { lexicon.arpabet(for: $0) },
+            phonemizer: rulesOnlyPhonemizer)
+
+        print("\nTXT-020 per-class G2P breakdown (rules only, no lexicon):\n")
+        print(diagnostics.markdown(overall: overall, classes: classes))
+        print("")
+
+        #expect(overall.hasUsableSample)
+        #expect(classes.count >= 8, "too few classes reported to be diagnostic")
+        // A floor, not a band: this number is meant to climb, and a band
+        // would fail the build for an improvement.
+        #expect(overall.phonemeAccuracy > 0.60,
+                "G2P accuracy regressed: \(overall.summary)")
+    }
+}

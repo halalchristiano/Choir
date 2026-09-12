@@ -41,7 +41,8 @@ acceptance criteria.
   its default form still reports that no production model is bundled. It is no
   longer a bare throwing placeholder, and it is still not a working model.
 - The 32 voices are parameter profiles, not 32 audible voices.
-- OOV G2P accuracy is 54.2% against the 92% requirement.
+- OOV G2P accuracy is 66.2% against the 92% requirement, up from 54.2% at
+  the previous audit.
 - The theological supplement contains 196 entries against the 2,500-entry
   target. Verified unchanged at this audit.
 - CI and extensive tests validate substantial plumbing, not natural speech or
@@ -318,7 +319,9 @@ voices have passed it before a release advertises a 32-voice library.
 
 ## Priority 1 - Linguistic frontend completion
 
-- [ ] Raise held-out OOV phoneme accuracy from 54.2% to at least 92%.
+- [ ] Raise held-out OOV phoneme accuracy from 66.2% to at least 92%.
+      **Partial.** 54.2% to 66.2% via per-class diagnostics; see
+      `G2PDiagnostics` for the current worst classes.
 - [ ] Replace the simplistic fallback with a trained neural or serious
       rule-hybrid G2P model.
 - [ ] Add morphological handling for prefixes, suffixes, compounds, and
@@ -709,3 +712,17 @@ Unchanged and re-verified: OOV G2P accuracy 54.2% against 92%; theological
 supplement 196 entries against 2,500; the default engine is mock-backed; the 32
 voices are parameter profiles. The suite grew to 833 tests in 94 suites and
 still measures no audible quality.
+
+### 12 September 2026 (second pass) — G2P rules
+
+Aggregate OOV phoneme accuracy 54.2% to 66.2% and exact word accuracy 4.2% to
+12.9%, measured on the same 2,000-word held-out sample. Driven by `G2PDiagnostics`, which splits the sample by
+orthographic class so a failing rule appears as a failing row instead of a
+fraction of one number.
+
+Per class: vowel digraphs 43.2% to 68.5%, doubled consonants 47.5% to 70.6%,
+silent final e 44.5% to 63.1%, plural/3sg -s 48.3% to 63.5%, -ed 54.6% to 74.3%,
+-tion/-sion 49.0% to 80.3%.
+
+Still open: -ough (8.3%, three words in the sample, needs a lookup table rather
+than a rule), and the 26-point gap to the 92% target.

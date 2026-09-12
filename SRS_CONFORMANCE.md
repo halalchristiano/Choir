@@ -170,7 +170,7 @@ Status meanings:
 | `REL-005` | S | Partial | Typed privacy-safe diagnostics exist; a complete opt-in structured logging facility does not. |
 | `SPA-001` | M | Open | The `SpatialSpeaker` playback layer is not implemented. |
 | `SPA-005` | M | Open | An optional `CHOIRSpatial` module does not exist. |
-| `TXT-020` | M | Partial | The lexicon has 126,052 indexed word forms, but measured held-out OOV phoneme accuracy is 54.2% against 92%. |
+| `TXT-020` | M | Partial | The lexicon has 126,052 indexed word forms, but measured held-out OOV phoneme accuracy is 66.2% against 92%. |
 | `TXT-023` | S | Partial | The theological/biblical supplement has 196 curated entries against 2,500. |
 | `VOX-G-003` | M | External gate | ≥90% perceptual distinctness needs 32 production voices and an ABX study. |
 | `VOX-G-006` | M | External gate | Stable conditioning IDs exist, but shared production model weights do not. |
@@ -253,7 +253,7 @@ validation.
 | `TXT-011` Scripture reference formats | MUST | Implemented | 14 tests in `ScriptureNormalizationTests` |
 | `TXT-012` configurable `NormalizationPolicy` | SHOULD | Implemented | `testConfigurableStyle`, `testCanBeDisabled`, `testVerbatimMode` |
 | `TXT-013` typography (smart quotes, dashes, ellipses, caps) | SHOULD | Implemented | 4 tests in `AllCapsTests` plus typography coverage in `NormalizationInventoryTests` |
-| `TXT-020` 120,000-word lexicon, ≥92% OOV accuracy | MUST | **Partial — now measured** | Lexicon indexes 126,052 distinct forms. OOV accuracy **measured at 54.2%** against a 92% target; see below |
+| `TXT-020` 120,000-word lexicon, ≥92% OOV accuracy | MUST | **Partial — now measured** | Lexicon indexes 126,052 distinct forms. OOV accuracy **measured at 66.2%** against a 92% target; see below |
 | `TXT-021` ≥60 heteronyms disambiguated by part of speech | MUST | Implemented | 79 heteronyms, 7 tests in `HeteronymTests` |
 | `TXT-022` runtime user lexicon API | MUST | Implemented | 9 tests in `UserLexiconTests` |
 | `TXT-023` biblical/theological proper-noun supplement (≥2,500) | SHOULD | **Partial** | 196 curated entries against a target of 2,500 |
@@ -377,7 +377,7 @@ lowercase continuation as reported speech, so `"Stop there!" she cried.` is one
 sentence rather than two.
 
 
-### TXT-020 measured: G2P accuracy is 54.2% against a 92% target
+### TXT-020 measured: G2P accuracy is 66.2% against a 92% target
 
 The lexicon half of `TXT-020` shipped in v0.7.0. The other half — "≥ 92%
 phoneme accuracy on a held-out OOV test set" — was recorded as unmeasured
@@ -390,8 +390,8 @@ distance against CMUdict.
 
 | Metric | Measured | Target |
 |---|---|---|
-| Phoneme accuracy | **54.2%** | ≥ 92% |
-| Word accuracy (exact) | **4.2%** | — |
+| Phoneme accuracy | **66.2%** | ≥ 92% |
+| Word accuracy (exact) | **12.9%** | — |
 
 Four percent of out-of-vocabulary words are pronounced exactly right.
 
@@ -409,8 +409,20 @@ Four percent of out-of-vocabulary words are pronounced exactly right.
   writes it as unstressed AH and conflating the two makes "about" rhyme with
   "hut".
 
-Fixing these raised the figure from 50.1% to 54.2%. The remaining 38-point gap
-is genuine G2P quality, not measurement error.
+Fixing these raised the figure from 50.1% to 54.2%. A later pass on the
+letter-to-sound rules raised it again to 66.2%, guided by a per-orthographic-class
+breakdown (`G2PDiagnostics`) rather than by the aggregate:
+
+- Eight of the twelve English vowel digraphs had no rule and fell through to the
+  single-vowel path, spelling one vowel as two.
+- A word-final silent `e` was pronounced, so "hope" was /h oʊ p iː/.
+- Doubled consonants produced two phonemes.
+- Word-final `-s`, past-tense `-ed`, `-tion`/`-sion` and word-final `y` had no
+  context-sensitive realization.
+
+The remaining 26-point gap is genuine G2P quality, not measurement error. The
+worst remaining classes are silent-e words at 63.1% and plural/3sg `-s` at
+63.5%; `-ough` is worst of all at 8.3% but covers three words in the sample.
 
 **What this means.** English orthography is not tractable by the kind of
 letter-to-sound rules currently implemented; reaching 92% needs either a

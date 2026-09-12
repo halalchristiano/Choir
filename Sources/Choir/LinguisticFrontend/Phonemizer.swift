@@ -110,8 +110,93 @@ public struct Phonemizer: Sendable {
             let char = chars[i]
             let nextChar = i + 1 < chars.count ? chars[i + 1] : nil
 
+            // A final 'e' after a consonant is orthographic, not a sound. It
+            // marks the preceding vowel long and is not itself pronounced.
+            // Emitting it appended a spurious vowel to every silent-e word:
+            // "hope" came out as /h oʊ p iː/.
+            if char == "e", i == chars.count - 1, chars.count >= 3,
+               let previous = i > 0 ? chars[i - 1] : nil,
+               !isCharVowel(previous) {
+                i += 1
+                continue
+            }
+
+            // A doubled consonant is one sound. "hopping" has one /p/, not two.
+            // The pair still shortens the preceding vowel, which isVowelLong
+            // already handles by seeing a consonant in the following position.
+            if let next = nextChar, next == char, !isCharVowel(char),
+               char != "n" || i + 2 >= chars.count || chars[i + 2] != "g" {
+                if let phoneme = consonantPhoneme(char) {
+                    phonemes.append(Phoneme(phoneme))
+                }
+                i += 2
+                continue
+            }
+
+            // A word-final 's' assimilates to the voicing of what precedes it:
+            // /ɪz/ after a sibilant, /s/ after a voiceless consonant, /z/
+            // otherwise. It was previously always /s/.
+            if char == "s", i == chars.count - 1, let last = phonemes.last?.symbol {
+                if Self.sibilants.contains(last) {
+                    phonemes.append(Phoneme("ɪ"))
+                    phonemes.append(Phoneme("z"))
+                } else if Self.voicelessConsonants.contains(last) {
+                    phonemes.append(Phoneme("s"))
+                } else {
+                    phonemes.append(Phoneme("z"))
+                }
+                i += 1
+                continue
+            }
+
+            // -tion / -sion / -cion. The suffix is one syllable, /ʃən/, and
+            // -sion is voiced to /ʒən/ after a vowel ("vision" but "mission").
+            if i + 4 == chars.count, nextChar == "i",
+               chars[i + 2] == "o", chars[i + 3] == "n",
+               char == "t" || char == "s" || char == "c" {
+                let voiced = char == "s" && i > 0 && isCharVowel(chars[i - 1])
+                phonemes.append(Phoneme(voiced ? "ʒ" : "ʃ"))
+                phonemes.append(Phoneme("ə"))
+                phonemes.append(Phoneme("n"))
+                i += 4
+                continue
+            }
+
+            // Past-tense -ed: /ɪd/ after an alveolar stop, /t/ after a
+            // voiceless consonant, /d/ otherwise. It was three phonemes.
+            if char == "e", nextChar == "d", i + 2 == chars.count,
+               let last = phonemes.last?.symbol {
+                if last == "t" || last == "d" {
+                    phonemes.append(Phoneme("ɪ"))
+                    phonemes.append(Phoneme("d"))
+                } else if Self.voicelessConsonants.contains(last) || Self.sibilants.contains(last) {
+                    phonemes.append(Phoneme("t"))
+                } else {
+                    phonemes.append(Phoneme("d"))
+                }
+                i += 2
+                continue
+            }
+
+            // A word-final 'y' is the vowel in "happy", not the /ɪ/ in "myth".
+            if char == "y", i == chars.count - 1, i > 0 {
+                phonemes.append(Phoneme("iː"))
+                i += 1
+                continue
+            }
+
             // Vowels
             if isCharVowel(char) {
+                // Vowel digraphs, checked before the single-vowel rules.
+                // Only ai, au, ey and oi existed; the rest fell through to the
+                // single-vowel path and produced two vowels where English has
+                // one, which is why this was the worst-scoring class.
+                if let next = nextChar,
+                   let digraph = Self.vowelDigraphs[String([char, next])] {
+                    phonemes.append(Phoneme(digraph))
+                    i += 2
+                    continue
+                }
                 if char == "a" {
                     if nextChar == "i" {
                         phonemes.append(Phoneme("aɪ"))
@@ -214,6 +299,24 @@ public struct Phonemizer: Sendable {
 
         return false
     }
+
+    /// English vowel digraphs and the single vowel each spells.
+    ///
+    /// Values are the most frequent realization, which is what a fallback rule
+    /// can justify; the lexicon carries the exceptions.
+    private static let vowelDigraphs: [String: String] = [
+        "ai": "eɪ", "ay": "eɪ", "ei": "eɪ", "ey": "iː",
+        "ea": "iː", "ee": "iː", "ie": "iː",
+        "oa": "oʊ", "oe": "oʊ", "ow": "oʊ",
+        "oo": "uː", "ue": "uː", "ui": "uː", "ew": "uː",
+        "ou": "aʊ", "au": "ɔ", "aw": "ɔ", "oi": "ɔɪ", "oy": "ɔɪ",
+    ]
+
+    /// Phonemes after which a word-final 's' is realized /ɪz/.
+    private static let sibilants: Set<String> = ["s", "z", "ʃ", "ʒ", "tʃ", "dʒ"]
+
+    /// Phonemes after which a word-final 's' is realized /s/.
+    private static let voicelessConsonants: Set<String> = ["p", "t", "k", "f", "θ"]
 
     /// Maps a consonant character to its phoneme.
     private func consonantPhoneme(_ char: Character) -> String? {
