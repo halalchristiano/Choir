@@ -1,16 +1,16 @@
 # CHOIR Master Remaining-Work Backlog
 
 **Status:** Pre-alpha engineering infrastructure
-**Repository baseline:** v0.15.0 / commit 244ecd20db29cd833e2ebe037cf7504ef3fb78e3
+**Repository baseline:** v0.17.0 / commit 49e4602
 **SRS baseline:** CHOIR-SRS-001 v1.0, 239 numbered requirements
-**Last audited:** 21 August 2026
+**Last audited:** 12 September 2026 (previous audit: 21 August 2026, v0.15.0)
 
-> **Stale baseline.** This ledger was audited against v0.15.0 and has not been
-> reconciled with the work merged since, which includes the rule-based formant
-> synthesis path, contextual NLP speech planning, and the recovered audio-safety
-> fixes. Where it disagrees with [`PROJECT_STATUS.md`](./PROJECT_STATUS.md) or
-> [`SRS_CONFORMANCE.md`](./SRS_CONFORMANCE.md), those files are authoritative.
-> Its standard of evidence, not its counts, is the reason it is kept.
+Items closed since the v0.15.0 audit are struck through and annotated with the
+evidence that closed them, rather than deleted, so the ledger keeps showing what
+was once wrong. An item is closed here only when the repository can demonstrate
+it. Code-level defects close on a passing test; anything whose acceptance
+criterion is audible does not close until it is exercised through a production
+model and vocoder, however many tests surround it.
 
 This is the canonical backlog for work that genuinely remains before CHOIR can
 be described as a production-quality, fully on-device neural text-to-speech
@@ -30,20 +30,39 @@ acceptance criteria.
   end are real and worth preserving.
 - The default engine uses MockAcousticModel and MockVocoder.
 - The default output is a 200 Hz sine tone whose duration follows the request;
-  it is not speech.
-- CoreMLAcousticModel is a throwing placeholder.
+  it is not speech. `Sources/Choir/Models/Vocoder.swift:471` still hardcodes
+  that frequency.
+- Since v0.16.0 there is a second, non-default path: `SynthesisPipeline
+  .formant()` renders intelligible rule-based formant speech with no trained
+  model. It is a development and demonstration baseline. It is audibly a
+  machine, it does not satisfy any naturalness, cleanliness, distinctness or
+  fatigue requirement, and it is not a step toward satisfying them.
+- CoreMLAcousticModel now accepts and validates an injected inference closure;
+  its default form still reports that no production model is bundled. It is no
+  longer a bare throwing placeholder, and it is still not a working model.
 - The 32 voices are parameter profiles, not 32 audible voices.
-- Voice selection currently collapses to four age-band IDs, and the default
-  mock vocoder ignores even those IDs.
-- The advertised streaming path renders the complete utterance before dividing
-  it into chunks.
-- The existing conformance report discusses only part of the 239-requirement
-  SRS and does not cover whole requirement families.
 - OOV G2P accuracy is 54.2% against the 92% requirement.
 - The theological supplement contains 196 entries against the 2,500-entry
-  target.
+  target. Verified unchanged at this audit.
 - CI and extensive tests validate substantial plumbing, not natural speech or
-  release conformance.
+  release conformance. The suite is now 833 tests in 94 suites; none of them
+  measures audible quality.
+
+Corrected since the v0.15.0 audit:
+
+- ~~Voice selection collapses to four age-band IDs, and the default mock vocoder
+  ignores even those IDs.~~ **Closed.** `Voice.conditioningID` is now one-to-one
+  with `Voice`; `ImprovementSprintTests` asserts the 32 IDs are distinct and
+  equal `0..<32`. This does not make the voices audibly distinct.
+- ~~The advertised streaming path renders the complete utterance before dividing
+  it into chunks.~~ **Closed.** Delivery is phrase-progressive; `STR-001: first
+  delivery precedes inference for later phrases` proves later phrases are not
+  inferred before the first is delivered.
+- ~~The conformance report discusses only part of the 239-requirement SRS and
+  does not cover whole requirement families.~~ **Partly closed.**
+  `SRS_CONFORMANCE.md` now carries a reconciled 143-item ledger and tests
+  reference 75 distinct requirement IDs. The remaining families are still
+  uncovered, so the traceability item in Priority 0 stays open.
 
 ## Definition of done
 
@@ -88,7 +107,9 @@ voices have passed it before a release advertises a 32-voice library.
 
 ## Priority 0 - Project truth, scope, and governance
 
-- [ ] Mark all current 0.x builds as pre-alpha engineering releases.
+- [x] ~~Mark all current 0.x builds as pre-alpha engineering releases.~~
+      **Closed.** README leads with "Pre-alpha (v0.17.0) — not a speech product
+      yet"; PROJECT_STATUS.md opens with the same status.
 - [ ] Remove production-ready language from public and internal documentation.
 - [ ] Re-audit all 239 numbered SRS requirements.
 - [ ] Give every requirement exactly one status: complete, partial, failed,
@@ -98,7 +119,9 @@ voices have passed it before a release advertises a 32-voice library.
       requirement.
 - [ ] Create a machine-checkable requirement-to-code-to-test traceability map.
 - [ ] Make this file and the traceability map the canonical planning sources.
-- [ ] Reconcile PROJECT_STATUS.md with actual behaviour.
+- [x] ~~Reconcile PROJECT_STATUS.md with actual behaviour.~~ **Closed.** It
+      now states plainly that the default path is mock-backed and not
+      intelligible speech, and carries the 143-item classification.
 - [ ] Reconcile IMPROVEMENTS.md with actual behaviour.
 - [ ] Keep SRS_CONFORMANCE.md as conformance evidence rather than a product
       marketing document.
@@ -117,8 +140,12 @@ voices have passed it before a release advertises a 32-voice library.
       natural voice.
 - [ ] Resolve the conflict between VoiceSampleLibrary and the SRS prohibition
       on real-person cloning capability.
-- [ ] Decide whether the runtime is MIT/open source, proprietary, or split into
-      an open runtime and separately licensed model assets.
+- [ ] Decide whether the runtime is MIT/open source, proprietary, or split
+      into an open runtime and separately licensed model assets. **Partial.**
+      The runtime is MIT (`LICENSE`), and `NOTICE` keeps every third-party
+      dependency licence-clean for closed-source commercial distribution of
+      assets, which is the split in practice. No single document states that
+      policy; write it down before any asset ships.
 - [ ] Document that previously distributed MIT versions cannot be clawed back.
 - [ ] Correct the SRS contradiction that says six villains in one section and
       eight elsewhere.
@@ -126,7 +153,9 @@ voices have passed it before a release advertises a 32-voice library.
 - [ ] Repair the release history in which an old v1.0.0 predates newer v0.x
       releases.
 - [ ] Establish separate package, engine, model, voice-asset, and cache-format
-      versions.
+      versions. **Partial.** `Choir.version` (package) and `Choir.engineVersion`
+      (audio-output/cache compatibility, bumped to 2 in 0.17.0) are separate and
+      enforced; model and voice-asset versions do not exist yet.
 - [ ] Prevent any new public feature claim without an executable acceptance
       test or documented manual quality gate.
 
@@ -231,30 +260,52 @@ voices have passed it before a release advertises a 32-voice library.
 - [ ] Remove any unused or deceptive pseudo-vocoder code.
 - [ ] Fix a request containing one voice run so it honours that requested
       voice.
-- [ ] Execute SSML pitch, rate, and volume attributes.
-- [ ] Execute break events rather than discarding them.
+- [ ] Execute SSML pitch, rate, and volume attributes. **Partial.** Parsed and
+      carried into prosody (`TXT-040: prosody pitch, rate and volume`); the
+      audible effect is unproven while the default path is mock-backed.
+- [x] ~~Execute break events rather than discarding them.~~ **Closed.** Pauses
+      render at exact PCM frame boundaries; `Batch synthesis renders consecutive
+      breaks once at frame accuracy` and `Seeded batch and progressive streaming
+      include identical pause PCM`.
 - [ ] Decode phoneme-tag content as phonemes rather than ordinary graphemes.
 - [ ] Preserve SSML styling through multi-voice rendering.
-- [ ] Make every public synthesis entry point use an explicit input mode.
+- [x] ~~Make every public synthesis entry point use an explicit input mode.~~
+      **Closed.** `SynthesisInput` carries explicit plain-text, markup and
+      phoneme modes through every entry point.
 - [ ] Implement production pre-phonemized synthesis.
 - [ ] Support optional duration and pitch targets in expert input.
 - [ ] Validate streaming chunk size; reject zero and invalid values.
-- [ ] Fix engine reentrancy so a second request does not receive a misleading
-      not-initialized error.
-- [ ] Put cancellation checks inside long front-end, model, vocoder, and export
-      loops.
+- [x] ~~Fix engine reentrancy so a second request does not receive a
+      misleading not-initialized error.~~ **Closed.** `SYN-007: the engine is
+      reusable after a cancellation`, and `SYN-006: one engine runs at least two
+      jobs concurrently`.
+- [x] ~~Put cancellation checks inside long front-end, model, vocoder, and
+      export loops.~~ **Closed.** CON-002 suite: cancellation surfaces as
+      `ChoirError.cancelled`, `CancellationError` is mapped into the taxonomy,
+      and an uncancelled task is not disturbed.
 - [ ] Demonstrate compute stops within the required cancellation window.
-- [ ] Integrate AssetCache with ChoirEngine or stop claiming engine caching.
-- [ ] Fix cache replacement size double-counting.
-- [ ] Fix eviction when only transcription or prosody entries occupy the cache.
+- [x] ~~Integrate AssetCache with ChoirEngine or stop claiming engine
+      caching.~~ **Closed.** `CCH-011 lazy assets coalesce, unload, and reload`;
+      an obsolete load cannot remove its replacement.
+- [x] ~~Fix cache replacement size double-counting.~~ **Closed.** `CCH-002
+      cache actors share one coherent capacity and LRU view`, and oversized
+      entries can no longer violate configured limits.
+- [x] ~~Fix eviction when only transcription or prosody entries occupy the
+      cache.~~ **Closed.** `CCH-002 coordinated scans reclaim unaddressable
+      cache orphans`.
 - [ ] Integrate RealTimeController with live synthesis or remove it from the
       advertised API.
 - [ ] Integrate SynthesisSession with actual jobs.
-- [ ] Integrate custom pronunciation dictionaries end to end.
+- [x] ~~Integrate custom pronunciation dictionaries end to end.~~ **Closed.**
+      TXT-022 suite: registrations take precedence over the built-in lexicon and
+      lookup is case-insensitive.
 - [ ] Integrate ToBI output end to end.
 - [ ] Integrate audio-effect chains end to end.
-- [ ] Implement ChoirEngine.clearCache.
-- [ ] Implement ChoirEngine.exportAudio.
+- [x] ~~Implement ChoirEngine.clearCache.~~ **Closed.** Implemented; CCH-001/
+      002/003 cover persist, pin, inspect and purge.
+- [ ] Implement ChoirEngine.exportAudio. **Partial.** Implemented for WAV and
+      raw PCM, with per-line JSON/SRT/WebVTT (`AUD-040`); MP3, AAC, FLAC, CAF
+      and ALAC remain unimplemented.
 - [ ] Stop returning empty Data for unimplemented encoders.
 - [ ] Remove unsupported formats from public API until functional.
 - [ ] If sample synthesis remains, resample every recording to the engine rate.
@@ -626,3 +677,35 @@ The next meaningful milestone is not another API or another metadata profile.
 It is one real, beautiful, intelligible voice running entirely on-device through
 the complete production pipeline, with genuine streaming, export, and objective
 quality evidence.
+
+## Audit log
+
+### 12 September 2026 — reconciled v0.15.0 → v0.17.0
+
+Re-baselined against commit `49e4602`. 419 items carried forward: 11 closed on
+demonstrable evidence, 4 annotated partial, 404 untouched and still open.
+
+Closed: break-event execution, cancellation inside long loops, engine
+reentrancy, explicit input modes on every entry point, end-to-end custom
+pronunciation dictionaries, `clearCache`, cache replacement double-counting,
+transcription/prosody-only eviction, `AssetCache` engine integration, pre-alpha
+release marking, and the PROJECT_STATUS.md reconciliation.
+
+Annotated partial: SSML pitch/rate/volume execution (parsed and carried, audible
+effect unproven), `exportAudio` (WAV and raw PCM only), runtime licensing (MIT
+runtime plus licence-clean assets, policy unwritten), and version separation
+(package and engine versions exist, model and voice-asset versions do not).
+
+Corrected as factually wrong: the four-age-band voice-ID collapse and the
+render-then-chunk streaming path are both fixed. Conformance coverage moved from
+"only part of the SRS" to a reconciled 143-item ledger with 75 requirement IDs
+referenced by tests, so that item is now partial rather than open.
+
+Added to the truthful position: `SynthesisPipeline.formant()` exists and renders
+intelligible rule-based speech. It closes no audible requirement. The default
+path is still a 200 Hz sine tone.
+
+Unchanged and re-verified: OOV G2P accuracy 54.2% against 92%; theological
+supplement 196 entries against 2,500; the default engine is mock-backed; the 32
+voices are parameter profiles. The suite grew to 833 tests in 94 suites and
+still measures no audible quality.
