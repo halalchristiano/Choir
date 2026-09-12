@@ -97,6 +97,17 @@ struct AppleSpeechTranscriber: SpeechTranscriber {
         case .authorized:
             return true
         case .notDetermined:
+            // Asking for authorization without NSSpeechRecognitionUsageDescription
+            // does not return `.denied`; TCC kills the process with SIGABRT. A
+            // plain SwiftPM executable has no Info.plist at all, so the most
+            // ordinary way to run this tool — `swift run choir-benchmark
+            // --intelligibility` — aborted instead of reporting that it could
+            // not measure. Unavailable is the honest answer, and the harness is
+            // built to distinguish that from a score of zero.
+            guard Bundle.main.object(
+                forInfoDictionaryKey: "NSSpeechRecognitionUsageDescription") != nil
+            else { return false }
+
             return await withCheckedContinuation { continuation in
                 SFSpeechRecognizer.requestAuthorization { status in
                     continuation.resume(returning: status == .authorized)

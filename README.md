@@ -150,6 +150,15 @@ cleanliness, distinctness or listening-fatigue requirements in the SRS, and it
 is not a step on the path to satisfying them — those still require trained
 acoustic and vocoder models behind the Core ML adapters.
 
+### Hearing it from the command line
+
+```bash
+swift run choir-benchmark --formant --voice orion --say "Hello world." --output hello.wav
+```
+
+Drop `--formant` and you get the default pipeline's 200 Hz test tone instead,
+which is a quick way to hear the difference the formant path makes.
+
 ## Installation
 
 Add CHOIR to your `Package.swift`:

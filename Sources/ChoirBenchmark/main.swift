@@ -21,6 +21,8 @@ struct Options {
     var json = false
     var intelligibility = false
     var voice: Voice = .isla
+    var formant = false
+    var sayText: String?
 }
 
 func parseOptions() -> Options {
@@ -51,6 +53,12 @@ func parseOptions() -> Options {
             options.json = true
         case "--intelligibility":
             options.intelligibility = true
+        case "--formant":
+            options.formant = true
+        case "--say":
+            guard let text = arguments.first else { break }
+            arguments.removeFirst()
+            options.sayText = text
         case "--voice":
             guard let raw = arguments.first else { break }
             arguments.removeFirst()
@@ -77,6 +85,15 @@ func parseOptions() -> Options {
               --json                    Emit JSON instead of Markdown.
               --intelligibility         Run the QUA-004 intelligibility harness
                                         instead of the performance benchmark.
+              --formant                 Use the rule-based formant pipeline
+                                        instead of the mock one. This is the
+                                        only built-in path that produces
+                                        speech, so it is the only one an
+                                        intelligibility run can measure.
+              --say TEXT                Synthesize TEXT and write a WAV to
+                                        --output (default choir.wav), then
+                                        exit. Combine with --formant to get
+                                        audible speech rather than a test tone.
               --voice NAME              Voice to measure (default ISLA).
               --help                    Show this message.
             """)
@@ -102,6 +119,11 @@ if device == nil {
 
 if BenchmarkReport.builtWithoutOptimization {
     FileHandle.standardError.write(Data("WARNING: this is an unoptimized build and its numbers are meaningless.\nRe-run with: swift run -c release choir-benchmark\n\n".utf8))
+}
+
+if let text = options.sayText {
+    await runSay(text: text, voice: options.voice)
+    exit(0)
 }
 
 if options.intelligibility {
@@ -151,11 +173,17 @@ func runIntelligibility(voice: Voice) async {
 
         This is a failure to measure, not a score of zero.
 
+        A plain SwiftPM executable has no Info.plist, so it cannot hold the \
+        NSSpeechRecognitionUsageDescription that speech authorization \
+        requires. Run this from a host app bundle that declares that key, or \
+        pre-authorize speech recognition for the binary, to obtain a QUA-004 \
+        number.
+
         """.utf8))
         exit(3)
     }
 
-    let engine = ChoirEngine()
+    let engine = ChoirEngine(pipeline: options.formant ? .formant() : nil)
     do {
         try await engine.initialize()
     } catch {
@@ -184,10 +212,56 @@ func runIntelligibility(voice: Voice) async {
                          score.wordAccuracy * 100))
         }
         print("")
-        print("> The acoustic model is currently a mock and the vocoder is Griffin-Lim.")
-        print("> A near-zero score here is the correct result: the audio is not speech.")
+        if options.formant {
+            print("> Measured through the rule-based formant pipeline. This is a")
+            print("> development baseline, not a production voice: it says nothing")
+            print("> about the naturalness, distinctness or fatigue gates, which")
+            print("> still require trained models.")
+        } else {
+            print("> The acoustic model is currently a mock and the vocoder is Griffin-Lim.")
+            print("> A near-zero score here is the correct result: the audio is not")
+            print("> speech. Re-run with --formant to measure the path that speaks.")
+        }
     } catch {
         FileHandle.standardError.write(Data("Intelligibility run failed: \(error)\n".utf8))
+        exit(5)
+    }
+}
+
+
+/// Renders text to a WAV file.
+///
+/// The package had no way to produce an audio file from the command line, so
+/// the only evidence that any of this makes sound was a unit test asserting a
+/// buffer was non-empty. Pair this with `--formant` to hear speech; without it
+/// the default pipeline writes its 200 Hz test tone.
+func runSay(text: String, voice: Voice) async {
+    let engine = ChoirEngine(pipeline: options.formant ? .formant() : nil)
+    do {
+        try await engine.initialize()
+    } catch {
+        FileHandle.standardError.write(Data("Engine failed to initialize: \(error)\n".utf8))
+        exit(4)
+    }
+
+    let path = options.outputPath ?? "choir.wav"
+    do {
+        let audio = try await engine.synthesize(text: text, voice: voice)
+        let data = try AudioEncoder().encodeWAV(audio)
+        try data.write(to: URL(fileURLWithPath: path))
+
+        let seconds = Double(audio.samples.count)
+            / Double(audio.format.sampleRate * audio.format.channels)
+        print(String(format: "Wrote %@ — %.2fs, %@, %@ pipeline",
+                     path,
+                     seconds,
+                     voice.displayName,
+                     options.formant ? "formant" : "mock"))
+        if !options.formant {
+            print("This is a 200 Hz test tone, not speech. Re-run with --formant.")
+        }
+    } catch {
+        FileHandle.standardError.write(Data("Synthesis failed: \(error)\n".utf8))
         exit(5)
     }
 }

@@ -4,6 +4,29 @@ All notable changes to CHOIR are recorded here. Versions follow Semantic
 Versioning; the separate audio engine version remains unchanged unless seeded
 audio output compatibility changes.
 
+## Unreleased
+
+### Added
+
+- `choir-benchmark --say TEXT` renders text to a WAV file. The package had no
+  way to produce an audio file from the command line, so the only evidence that
+  any of it made sound was a unit test asserting a buffer was non-empty.
+- `choir-benchmark --formant` runs either mode through the rule-based formant
+  pipeline. `--intelligibility` previously always measured the mock pipeline,
+  where the only possible result is a near-zero score against a 200 Hz tone, so
+  QUA-004 could not be measured against the one path that produces speech.
+
+### Fixed
+
+- `--intelligibility` no longer aborts with SIGABRT when speech authorization
+  has not been granted. A SwiftPM executable has no Info.plist, so it cannot
+  carry `NSSpeechRecognitionUsageDescription`, and requesting authorization
+  without it is a TCC violation that kills the process rather than returning
+  `.denied`. The harness is built to distinguish a failure to measure from a
+  score of zero, and this defeated that on the most ordinary invocation. It now
+  reports the recognizer as unavailable and explains what would make it
+  measurable.
+
 ## 0.17.0 - 11 September 2026
 
 ### Added
