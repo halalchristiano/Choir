@@ -16,10 +16,12 @@ An experimental on-device text-to-speech Swift package for Apple platforms.
 > The 32 voices are metadata profiles with unique conditioning IDs, not 32
 > trained or perceptually distinct voices.
 >
-> `SynthesisPipeline.formant()` does render intelligible speech, without any
+> `SynthesisPipeline.formant()` renders speech-structured audio without any
 > trained model — see [Hearing it speak](#hearing-it-speak). It is a rule-based
 > formant synthesizer: a working demonstration and a development baseline, and
-> audibly a robot.
+> audibly a robot. It is **not** intelligible by the QUA-004 gate: measured at
+> 8.2% word accuracy against Apple's on-device recognizer, where the target is
+> 98%. See [QUA004_FORMANT.md](./QUA004_FORMANT.md).
 >
 > Treat this as a foundation to build on, not a drop-in replacement for AVSpeechSynthesizer.
 > The API may change before 1.0.
@@ -136,8 +138,13 @@ This is a rule-based [formant
 synthesizer](https://en.wikipedia.org/wiki/Speech_synthesis#Formant_synthesis):
 a glottal source and three formant resonators, driven by a table of measured
 formant targets for every phoneme in the inventory. It is the same family of
-technique as the speech synthesizers of the 1980s, and it sounds like it —
-clearly intelligible, clearly a machine.
+technique as the speech synthesizers of the 1980s, and it sounds like it.
+
+How well it can be understood is now measured rather than asserted: 8.2% word
+accuracy over the 20-sentence Harvard corpus, transcribed by Apple's on-device
+recognizer, against a 98% target. That is a machine-listener score and a human
+listener may well do better, but nothing here justifies calling the output
+intelligible.
 
 It exists because it is the one synthesis path that needs no training data. It
 lets the linguistic front end, prosody prediction, timing metadata, streaming

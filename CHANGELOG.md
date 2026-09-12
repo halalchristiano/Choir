@@ -16,6 +16,22 @@ audio output compatibility changes.
   where the only possible result is a near-zero score against a 200 Hz tone, so
   QUA-004 could not be measured against the one path that produces speech.
 
+- `Scripts/make_intelligibility_app.sh` builds a minimal app bundle around the
+  benchmark tool so QUA-004 can be measured at all. Speech authorization needs
+  `NSSpeechRecognitionUsageDescription` in an `Info.plist`, which a SwiftPM
+  executable cannot have, and the bundle must be launched through LaunchServices
+  or TCC attributes the request to the terminal and kills the process.
+- `--intelligibility --output PATH` writes the report to a file. A run that can
+  actually measure is launched by `open`, which discards stdout.
+- `QUA004_FORMANT.md` records the first intelligibility measurement this project
+  has ever had: 8.2% word accuracy for the formant path against a 98% target.
+
+### Changed
+
+- Documentation no longer calls the formant output "intelligible". That was an
+  unmeasured claim in seven places, and the measurement contradicts it. The
+  output is described as speech-structured, with the number beside it.
+
 ### Fixed
 
 - `--intelligibility` no longer aborts with SIGABRT when speech authorization
@@ -33,9 +49,9 @@ audio output compatibility changes.
 
 - A rule-based formant synthesis path — `FormantAcousticModel`, `FormantVocoder`
   and `FormantTable` — reachable as `SynthesisPipeline.formant()`. It renders
-  intelligible, unmistakably synthetic speech with no trained model, no bundled
-  voice assets and no recorded audio, so the front end, prosody, timing and
-  output stages can be exercised against real speech structure instead of a
+  speech-structured, unmistakably synthetic audio with no trained model, no
+  bundled voice assets and no recorded audio, so the front end, prosody, timing
+  and output stages can be exercised against real speech structure instead of a
   test tone. It is a development and demonstration path, not a production
   voice: the SRS naturalness, distinctness and fatigue gates still require
   trained models.

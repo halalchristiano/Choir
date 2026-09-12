@@ -16,10 +16,11 @@ extension SynthesisPipeline {
     /// let audio = try await engine.synthesize(text: "Hello world.", voice: .orion)
     /// ```
     ///
-    /// - Important: This is a development and demonstration path. It is
-    ///   intelligible and unmistakably synthetic, and it does not satisfy the
-    ///   naturalness, distinctness or listening-fatigue gates in the SRS. Those
-    ///   still require trained models.
+    /// - Important: This is a development and demonstration path. It produces
+    ///   speech-structured, unmistakably synthetic audio, and it satisfies no
+    ///   SRS quality gate. Measured intelligibility is 8.2% word accuracy
+    ///   against a 98% target (QUA-004), so it should not be described as
+    ///   intelligible without that number beside it.
     public static func formant(
         linguisticFrontend: LinguisticFrontend = LinguisticFrontend(),
         prosodyPredictor: ProsodyPredictor = ProsodyPredictor(),

@@ -135,7 +135,7 @@ public struct FormantDefinition: Sendable, Equatable {
 /// have to learn from recordings. Vowel values follow the classic Peterson and
 /// Barney measurements of General American English; consonant values use the
 /// standard locus and turbulence frequencies for each place of articulation.
-/// The result is intelligible rather than natural, and is intended as the
+/// The result is speech-structured rather than natural, and is intended as the
 /// data-free path that proves the pipeline end to end.
 public enum FormantTable {
 

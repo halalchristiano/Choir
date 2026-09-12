@@ -195,32 +195,47 @@ func runIntelligibility(voice: Voice) async {
     do {
         let report = try await harness.evaluate(
             voice: voice, engine: engine, transcriber: transcriber)
-        print("# CHOIR Intelligibility Report (QUA-004)")
-        print("")
-        print("- **Voice:** \(report.voice.displayName)")
-        print("- **Recognizer:** \(report.transcriberIdentifier)")
-        print("- **Corpus:** \(harness.sentences.count) Harvard sentences")
-        print("")
-        print(report.summary)
-        print("")
-        print("| Reference | Transcribed | Accuracy |")
-        print("|---|---|---:|")
+
+        var lines: [String] = []
+        lines.append("# CHOIR Intelligibility Report (QUA-004)")
+        lines.append("")
+        lines.append("- **Voice:** \(report.voice.displayName)")
+        lines.append("- **Recognizer:** \(report.transcriberIdentifier)")
+        lines.append("- **Corpus:** \(harness.sentences.count) Harvard sentences")
+        lines.append("- **Pipeline:** \(options.formant ? "rule-based formant" : "mock")")
+        lines.append("")
+        lines.append(report.summary)
+        lines.append("")
+        lines.append("| Reference | Transcribed | Accuracy |")
+        lines.append("|---|---|---:|")
         for score in report.scores {
-            print(String(format: "| %@ | %@ | %.0f%% |",
-                         score.reference,
-                         score.hypothesis.isEmpty ? "_(nothing)_" : score.hypothesis,
-                         score.wordAccuracy * 100))
+            lines.append(String(format: "| %@ | %@ | %.0f%% |",
+                                score.reference,
+                                score.hypothesis.isEmpty ? "_(nothing)_" : score.hypothesis,
+                                score.wordAccuracy * 100))
         }
-        print("")
+        lines.append("")
         if options.formant {
-            print("> Measured through the rule-based formant pipeline. This is a")
-            print("> development baseline, not a production voice: it says nothing")
-            print("> about the naturalness, distinctness or fatigue gates, which")
-            print("> still require trained models.")
+            lines.append("> Measured through the rule-based formant pipeline. This is a")
+            lines.append("> development baseline, not a production voice: it says nothing")
+            lines.append("> about the naturalness, distinctness or fatigue gates, which")
+            lines.append("> still require trained models.")
         } else {
-            print("> The acoustic model is currently a mock and the vocoder is Griffin-Lim.")
-            print("> A near-zero score here is the correct result: the audio is not")
-            print("> speech. Re-run with --formant to measure the path that speaks.")
+            lines.append("> The acoustic model is currently a mock and the vocoder is")
+            lines.append("> Griffin-Lim. A near-zero score here is the correct result: the")
+            lines.append("> audio is not speech. Re-run with --formant to measure the path")
+            lines.append("> that speaks.")
+        }
+
+        let text = lines.joined(separator: "\n")
+        // The report has to be writable to a file, not just stdout. Speech
+        // authorization is only granted to a bundle launched through
+        // LaunchServices, and `open` discards stdout, so a run that can
+        // actually measure is a run whose output would otherwise be lost.
+        if let path = options.outputPath {
+            try text.write(toFile: path, atomically: true, encoding: .utf8)
+        } else {
+            print(text)
         }
     } catch {
         FileHandle.standardError.write(Data("Intelligibility run failed: \(error)\n".utf8))

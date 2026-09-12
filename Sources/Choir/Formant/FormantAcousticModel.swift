@@ -45,7 +45,7 @@ public enum FormantChannel: Int, Sendable, CaseIterable {
 /// returns a fixed test tone, so nothing downstream is ever exercised against
 /// real speech structure.
 ///
-/// The result is intelligible and clearly synthetic, in the tradition of the
+/// The result is speech-structured and clearly synthetic, in the tradition of the
 /// formant synthesizers that preceded concatenative and neural systems. It is
 /// a working baseline and a reference implementation of the model interface,
 /// not a replacement for the trained models the SRS requires.

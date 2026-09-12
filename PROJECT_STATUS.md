@@ -46,7 +46,9 @@ produce speech. It pairs `FormantAcousticModel` with `FormantVocoder`: a
 rule-based source-filter synthesizer driven by a table of formant targets for
 every phoneme in the inventory. It needs no trained weights, no recordings and
 no bundled assets, and it renders every voice profile through that profile's
-own vocal-tract scale. The output is intelligible and plainly synthetic. It
+own vocal-tract scale. The output is speech-structured and plainly synthetic,
+and measured at 8.2% word accuracy against the QUA-004 98% target, so it is not
+intelligible by that gate. It
 demonstrates the pipeline end to end and gives the front end, prosody and audio
 stages something real to be judged against; it does not satisfy any acoustic
 quality gate, and it is not the production path.
