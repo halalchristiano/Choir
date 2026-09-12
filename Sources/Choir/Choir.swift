@@ -16,5 +16,5 @@ public struct Choir {
     /// Increment this only when identical seeded inputs intentionally produce
     /// different audio. Ordinary source, API, or documentation releases do
     /// not invalidate cached renders (DST-001).
-    public static let engineVersion: UInt64 = 2
+    public static let engineVersion: UInt64 = 3
 }

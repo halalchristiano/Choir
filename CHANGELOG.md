@@ -28,6 +28,20 @@ audio output compatibility changes.
 
 ### Changed
 
+- Stops and fricatives no longer share one duration rule. Both were shortened
+  as "obstruents", but they move in opposite directions: a stop is a closure
+  plus a burst, while a fricative has to sustain turbulence long enough to be
+  identified. At 40 ms an /s/ is a click. Sibilants are now longest, then other
+  fricatives, then affricates; stops are unchanged.
+
+  This did not move the QUA-004 score: 8.2% before and after. Individual
+  sentences changed substantially in both directions and cancelled out, which
+  says the bottleneck is formant transitions and coarticulation rather than
+  segment length. Kept because it is phonetically correct, and recorded here so
+  the next person does not re-run the same experiment.
+- `Choir.engineVersion` is now 3. The duration change alters audio for identical
+  seeded inputs, so caches written by 0.17.0 must not be reused (DST-001).
+
 - Documentation no longer calls the formant output "intelligible". That was an
   unmeasured claim in seven places, and the measurement contradicts it. The
   output is described as speech-structured, with the number beside it.

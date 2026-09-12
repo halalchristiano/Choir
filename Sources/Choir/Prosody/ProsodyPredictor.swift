@@ -293,9 +293,20 @@ public struct ProsodyPredictor: Sendable {
 
             // Consonant adjustments
             if !phoneme.isVowel {
-                // Obstruents (stops, fricatives) are shorter
-                if isObstruent(phoneme.symbol) {
+                // Stops and fricatives are both obstruents and were both
+                // shortened, but they behave in opposite directions. A stop is
+                // brief: closure plus a burst. A fricative has to sustain
+                // turbulence long enough to be identified, and sibilants need
+                // the most; at 40 ms an /s/ is a click. Measured against the
+                // Harvard corpus, collapsing the two was costing intelligibility.
+                if isStop(phoneme.symbol) {
                     duration *= 0.8
+                } else if isSibilant(phoneme.symbol) {
+                    duration *= 2.4
+                } else if isFricative(phoneme.symbol) {
+                    duration *= 2.0
+                } else if isAffricate(phoneme.symbol) {
+                    duration *= 1.8
                 }
 
                 // More precise articulation preserves additional consonant
@@ -517,7 +528,26 @@ public struct ProsodyPredictor: Sendable {
 
     /// Checks if a phoneme is an obstruent (stop or fricative).
     private func isObstruent(_ phoneme: String) -> Bool {
-        let obstruents = Set(["p", "b", "t", "d", "k", "g", "f", "v", "θ", "ð", "s", "z", "ʃ", "ʒ", "tʃ", "dʒ"])
-        return obstruents.contains(phoneme)
+        isStop(phoneme) || isFricative(phoneme) || isSibilant(phoneme)
+            || isAffricate(phoneme)
+    }
+
+    /// Closure plus burst, so short by nature.
+    private func isStop(_ phoneme: String) -> Bool {
+        ["p", "b", "t", "d", "k", "g"].contains(phoneme)
+    }
+
+    /// Sibilants carry the most spectral information and need the most time.
+    private func isSibilant(_ phoneme: String) -> Bool {
+        ["s", "z", "ʃ", "ʒ"].contains(phoneme)
+    }
+
+    /// Non-sibilant fricatives: still sustained, but less so.
+    private func isFricative(_ phoneme: String) -> Bool {
+        ["f", "v", "θ", "ð"].contains(phoneme)
+    }
+
+    private func isAffricate(_ phoneme: String) -> Bool {
+        ["tʃ", "dʒ"].contains(phoneme)
     }
 }
