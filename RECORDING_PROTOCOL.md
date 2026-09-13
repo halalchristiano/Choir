@@ -22,9 +22,11 @@ redistribution**. `NOTICE` already commits the project to this under PKG-005.
 - **A public dataset** — most are research-only. Check before you train, not
   after. This is unrecoverable if you get it wrong.
 
-For bulk reading material, the **King James Bible is public domain** in the US.
-It is licence-clean, it is enormous, and it is your actual domain. That solves
-the "where do I get 1,500 sentences" problem and the licensing problem at once.
+For bulk reading material, use the **World English Bible (WEB)**. It is
+dedicated to the public domain, it is modern English, and it is your actual
+domain. `Scripts/make_reading_sheets.py` turns it into numbered 30-minute
+sheets. The King James Bible is also public domain, but its archaic forms
+("thee", "cometh") would skew the voice toward speech nobody uses.
 
 ---
 
@@ -62,10 +64,14 @@ The model learns whatever is consistent, including your mistakes.
 - **One mic, one position, one gain setting** across every session. Mark the
   mic and chair positions. Mouth about 20 cm from the mic, slightly off-axis,
   pop filter in place.
+- **One speaker per voice.** Never combine two people's sessions into one
+  corpus: the model learns a blend of both and sounds like neither.
+  `prepare_dataset.py` refuses to assemble sessions whose `SPEAKER` files
+  disagree.
 - **One room.** Different rooms sound like different voices.
 - **One time of day if you can.** Voices change between morning and evening.
-- **Short sessions.** 45–60 minutes maximum. Fatigue changes timbre and pace,
-  and the model will learn the fatigue.
+- **Short sessions.** 30 minutes maximum, one per day. Fatigue changes timbre
+  and pace, and the model will learn the fatigue.
 - **Consistent pace and energy.** Read as if explaining something to one
   attentive person. Not performing, not announcing, not lulling.
 - **Re-record the whole utterance**, never punch in. A spliced file has a seam
@@ -210,8 +216,8 @@ parsing (TXT-011) and the number handling (TXT-013) all at once.
 Parts B–D are about 10 minutes of speech. You need 1–3 hours, so you need
 roughly 800–1,500 utterances in total.
 
-Take the rest from the King James Bible: public domain, licence-clean, in your
-domain, and effectively unlimited. Split it into single sentences of 5–20 words,
+Take the rest from the World English Bible: public domain, modern English, in
+your domain, and effectively unlimited. Split it into single sentences of 5–20 words,
 skip anything over 25 words (long utterances are harder to align), and record
 in the same voice and setting as Parts B–D.
 

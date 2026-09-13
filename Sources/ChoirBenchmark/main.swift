@@ -346,9 +346,18 @@ func runTranscribe(directory: String) async {
             text = ""
         }
         lines.append("\(id)\t\(text)")
-        if (index + 1) % 25 == 0 {
-            FileHandle.standardError.write(
-                Data("transcribed \(index + 1)/\(files.count)\n".utf8))
+        if (index + 1) % 25 == 0 || index + 1 == files.count {
+            let progress = "\(index + 1)/\(files.count)\n"
+            FileHandle.standardError.write(Data("transcribed \(progress)".utf8))
+            // A run that can transcribe at all was launched through
+            // LaunchServices, which discards stderr, so progress is also
+            // written beside the output where a waiting script can read it.
+            // A 1,033-clip session ran for twenty minutes with no sign of
+            // life before this existed.
+            if let path = options.outputPath {
+                try? progress.write(toFile: path + ".progress",
+                                    atomically: true, encoding: .utf8)
+            }
         }
     }
 

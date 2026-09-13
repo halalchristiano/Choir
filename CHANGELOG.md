@@ -32,6 +32,21 @@ audio output compatibility changes.
   implemented; MP3, AAC and FLAC throw. They threw clearly, but a caller had no
   way to find out except by attempting an export and catching the error. The
   errors now name `encodeWAV` as the alternative.
+- `Scripts/ingest_session.sh SPEAKER SESSION recording.wav [sheet]` turns one
+  recorded session into validated training data in a single command. The first
+  real session took seven hand-run commands, including a twenty-minute
+  transcription with no sign of progress; each was a chance to get a path or a
+  flag wrong on the next session.
+- `prepare_dataset.py` assembles several sessions into one corpus, and refuses
+  to mix speakers. Every session directory carries a `SPEAKER` file. Two
+  people's recordings trained together produce a blend that sounds like neither,
+  and nothing errors to warn you. Utterance names are prefixed with their
+  session so identically numbered clips cannot overwrite each other.
+- `--transcribe` writes its progress beside its output, because the run that
+  can transcribe is launched through LaunchServices, which discards stderr.
+- `Scripts/test_pipeline.py`: 18 tests over synthetic audio for the splitter,
+  aligner, joiner, manifest builder and corpus assembly, run in CI with the
+  existing Python tests.
 - `StressPredictor` marks primary stress on out-of-vocabulary words (TXT-021).
   They previously carried no stress at all, so every syllable reached the
   prosody model as equally prominent. The suffix table is measured from the

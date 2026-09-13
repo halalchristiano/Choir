@@ -23,3 +23,6 @@ recordings/*.csv
 recordings/*
 !recordings/README.md
 !recordings/scripts/
+
+# App bundles from Scripts/make_intelligibility_app.sh
+/build
