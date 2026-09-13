@@ -96,17 +96,24 @@ def read_sheet(path):
 
 
 def find_utterances(data, rate, bits):
-    """Segments of speech, as (start_sample, end_sample) pairs."""
-    audio = samples(data, bits)
+    """Segments of speech, as (start_sample, end_sample) pairs.
+
+    Frame energy is computed by audioop in C, directly on the PCM bytes. The
+    first version decoded every sample into a Python list, which was fine for a
+    six-minute test and hopeless for a real session: 52 minutes at 48 kHz is
+    150 million samples, gigabytes of Python integers, and minutes of looping
+    before a single cut is made.
+    """
+    import audioop
+
+    step = bits // 8
     full = float(1 << (bits - 1))
     win = int(rate * FRAME_SECONDS)
+    win_bytes = win * step
 
     energies = []
-    for i in range(0, len(audio) - win, win):
-        acc = 0
-        for s in audio[i:i + win]:
-            acc += s * s
-        rms = math.sqrt(acc / win)
+    for offset in range(0, len(data) - win_bytes + 1, win_bytes):
+        rms = audioop.rms(data[offset:offset + win_bytes], step)
         energies.append(20 * math.log10(rms / full) if rms > 0 else -999)
 
     finite = sorted(e for e in energies if e > -999)
@@ -135,33 +142,39 @@ def find_utterances(data, rate, bits):
     pad = int(PAD_SECONDS / FRAME_SECONDS)
     out = []
     for a, b in segments:
-        seconds = (b - a) * FRAME_SECONDS
-        if seconds < MIN_UTTERANCE:
+        if (b - a) * FRAME_SECONDS < MIN_UTTERANCE:
             continue
         a = max(0, a - pad)
         b = min(len(voiced), b + pad)
         out.append((a * win, b * win))
-    return out, noise, audio, full
+    return out, noise, full
 
 
 def main():
+    import audioop
     if len(sys.argv) < 3:
         print(__doc__)
         return 1
     wav_path, sheet_path = sys.argv[1], sys.argv[2]
     outdir = sys.argv[3] if len(sys.argv) > 3 else "recordings"
+    # "-" means there is no reading sheet: the reader chose their own
+    # material, and the recognizer's transcripts will supply the text.
+    has_sheet = sheet_path != "-"
     wav_dir = os.path.join(outdir, "wav")
     os.makedirs(wav_dir, exist_ok=True)
 
     data, rate, _, bits = read_wav(wav_path)
     step = bits // 8
-    sheet = read_sheet(sheet_path)
-    segments, noise, audio, full = find_utterances(data, rate, bits)
+    sheet = read_sheet(sheet_path) if has_sheet else []
+    segments, noise, full = find_utterances(data, rate, bits)
 
     print(f"{os.path.basename(wav_path)}: {len(data)/step/rate/60:.1f} min, "
           f"{rate} Hz, {bits}-bit")
     print(f"noise floor {noise:+.1f} dBFS")
-    print(f"{len(segments)} utterances detected, sheet has {len(sheet)} lines\n")
+    if has_sheet:
+        print(f"{len(segments)} utterances detected, sheet has {len(sheet)} lines\n")
+    else:
+        print(f"{len(segments)} utterances detected (no reading sheet)\n")
 
     stem = os.path.splitext(os.path.basename(wav_path))[0]
     manifest, warnings = [], []
@@ -169,8 +182,7 @@ def main():
     for index, (a, b) in enumerate(segments):
         chunk = data[a * step:b * step]
         seconds = (b - a) / rate
-        window = audio[a:b]
-        peak = max(max(window), -min(window)) if window else 0
+        peak = audioop.max(chunk, step) if chunk else 0
         peak_db = 20 * math.log10(peak / full) if peak else -999
 
         name = f"{stem}_{index+1:04d}"
@@ -185,7 +197,7 @@ def main():
             warnings.append(f"{name}: only {peak_db:+.1f} dBFS, unusually quiet")
         if seconds > MAX_UTTERANCE:
             warnings.append(f"{name}: {seconds:.1f}s, probably two lines run together")
-        if not text:
+        if has_sheet and not text:
             warnings.append(f"{name}: no sheet line for this utterance")
 
     manifest_path = os.path.join(outdir, "metadata.csv")
@@ -195,7 +207,7 @@ def main():
     print(f"wrote {len(segments)} files to {wav_dir}/")
     print(f"wrote {manifest_path}")
 
-    if len(segments) != len(sheet):
+    if has_sheet and len(segments) != len(sheet):
         print(f"\nCOUNT MISMATCH: {len(segments)} utterances against "
               f"{len(sheet)} sheet lines.")
         print("Every line after the first extra or missing take is paired with")

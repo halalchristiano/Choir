@@ -16,3 +16,10 @@ recordings/*.csv
 !recordings/scripts/
 *.wav
 !Tests/**/*.wav
+
+# Everything under recordings/ is private working data -- audio, manifests,
+# and transcripts that may contain copyrighted text -- except the README and
+# the public-domain reading sheets.
+recordings/*
+!recordings/README.md
+!recordings/scripts/
