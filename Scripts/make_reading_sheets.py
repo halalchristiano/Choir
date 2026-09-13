@@ -14,7 +14,7 @@ Gospels, Acts, Psalms and Proverbs give narrative, dialogue, question forms and
 poetic rhythm, which is what the prosody model has to learn.
 
 Usage:
-    python3 Scripts/make_reading_sheets.py path/to/web.txt [outdir]
+    python3 Scripts/make_reading_sheets.py path/to/web.txt [outdir] [--books "1 Corinthians,2 Corinthians"]
 """
 import os
 import re
@@ -96,8 +96,14 @@ def main():
     if len(sys.argv) < 2:
         print(__doc__)
         return 1
-    source = sys.argv[1]
-    outdir = sys.argv[2] if len(sys.argv) > 2 else "recordings/scripts"
+    global BOOKS
+    args = sys.argv[1:]
+    if "--books" in args:
+        index = args.index("--books")
+        BOOKS = [b.strip() for b in args[index + 1].split(",") if b.strip()]
+        del args[index:index + 2]
+    source = args[0]
+    outdir = args[1] if len(args) > 1 else "recordings/scripts"
     os.makedirs(outdir, exist_ok=True)
 
     by_book = {}
