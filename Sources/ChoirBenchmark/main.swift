@@ -24,6 +24,8 @@ struct Options {
     var formant = false
     var sayText: String?
     var transcribeDir: String?
+    var jobs = 3
+    var verifyPack: String?
 }
 
 func parseOptions() -> Options {
@@ -60,6 +62,14 @@ func parseOptions() -> Options {
             guard let path = arguments.first else { break }
             arguments.removeFirst()
             options.transcribeDir = path
+        case "--verify-pack":
+            guard let path = arguments.first else { break }
+            arguments.removeFirst()
+            options.verifyPack = path
+        case "--jobs":
+            guard let raw = arguments.first, let value = Int(raw) else { break }
+            arguments.removeFirst()
+            options.jobs = min(8, max(1, value))
         case "--say":
             guard let text = arguments.first else { break }
             arguments.removeFirst()
@@ -100,6 +110,13 @@ func parseOptions() -> Options {
                                         "id<tab>transcript" lines to --output.
                                         Used to align a recording session
                                         against its reading sheet.
+              --verify-pack PATH        Verify a .choirvoice bundle with the
+                                        engine's own loader: manifest, engine
+                                        and phoneme-set compatibility, file
+                                        checksums, and consent. Exits non-zero
+                                        if it would be refused.
+              --jobs N                  Clips transcribed at once (default 3,
+                                        maximum 8). Output order is unchanged.
               --say TEXT                Synthesize TEXT and write a WAV to
                                         --output (default choir.wav), then
                                         exit. Combine with --formant to get
@@ -116,6 +133,12 @@ func parseOptions() -> Options {
 }
 
 let options = parseOptions()
+
+// Verifying a pack needs no reference device and no speech authorization, so it
+// runs before anything that prints benchmark notes.
+if let path = options.verifyPack {
+    exit(runVerifyPack(path: path))
+}
 let device = options.device ?? ReferenceDevice.current
 
 if device == nil {
@@ -333,32 +356,71 @@ func runTranscribe(directory: String) async {
         exit(4)
     }
 
-    var lines: [String] = []
-    for (index, name) in files.enumerated() {
-        let id = (name as NSString).deletingPathExtension
-        let text: String
-        do {
-            text = try await transcriber.transcribe(
-                contentsOf: url.appendingPathComponent(name))
-        } catch {
-            // A file the recognizer cannot read is recorded as empty rather
-            // than aborting the run: one bad take should not cost the session.
-            text = ""
+    // Clips are independent, so several are recognised at once. One at a time,
+    // Evan's 1,033-clip session took about twenty minutes. Results are stored
+    // by index, so output order never depends on which clip finished first.
+    let jobs = min(options.jobs, files.count)
+    var transcripts = [String](repeating: "", count: files.count)
+    var failed: [Int] = []
+    var completed = 0
+
+    func reportProgress() {
+        guard completed % 25 == 0 || completed == files.count else { return }
+        let progress = "\(completed)/\(files.count)\n"
+        FileHandle.standardError.write(Data("transcribed \(progress)".utf8))
+        // A run that can transcribe at all was launched through
+        // LaunchServices, which discards stderr, so progress is also written
+        // beside the output where a waiting script can read it.
+        if let path = options.outputPath {
+            try? progress.write(toFile: path + ".progress", atomically: true, encoding: .utf8)
         }
-        lines.append("\(id)\t\(text)")
-        if (index + 1) % 25 == 0 || index + 1 == files.count {
-            let progress = "\(index + 1)/\(files.count)\n"
-            FileHandle.standardError.write(Data("transcribed \(progress)".utf8))
-            // A run that can transcribe at all was launched through
-            // LaunchServices, which discards stderr, so progress is also
-            // written beside the output where a waiting script can read it.
-            // A 1,033-clip session ran for twenty minutes with no sign of
-            // life before this existed.
-            if let path = options.outputPath {
-                try? progress.write(toFile: path + ".progress",
-                                    atomically: true, encoding: .utf8)
+    }
+
+    await withTaskGroup(of: (Int, String?).self) { group in
+        var next = 0
+        func submit(_ index: Int) {
+            let fileURL = url.appendingPathComponent(files[index])
+            group.addTask {
+                (index, try? await transcriber.transcribe(contentsOf: fileURL))
             }
         }
+        while next < jobs {
+            submit(next)
+            next += 1
+        }
+        while let (index, text) = await group.next() {
+            if let text {
+                transcripts[index] = text
+            } else {
+                failed.append(index)
+            }
+            completed += 1
+            reportProgress()
+            if next < files.count {
+                submit(next)
+                next += 1
+            }
+        }
+    }
+
+    // A clip that failed while others were running is retried on its own.
+    // Recognition under concurrency can be refused where a single request
+    // succeeds, and speed must never cost a transcript.
+    var retried = 0
+    for index in failed.sorted() {
+        if let text = try? await transcriber.transcribe(
+            contentsOf: url.appendingPathComponent(files[index])) {
+            transcripts[index] = text
+            retried += 1
+        }
+    }
+    if !failed.isEmpty {
+        FileHandle.standardError.write(Data(
+            "retried \(failed.count) failed clips one at a time; \(retried) recovered\n".utf8))
+    }
+
+    let lines = files.indices.map { index in
+        "\((files[index] as NSString).deletingPathExtension)\t\(transcripts[index])"
     }
 
     let output = lines.joined(separator: "\n") + "\n"
@@ -368,5 +430,41 @@ func runTranscribe(directory: String) async {
             Data("wrote \(files.count) transcripts to \(path)\n".utf8))
     } else {
         print(output, terminator: "")
+    }
+}
+
+
+/// Verifies a voice pack exactly as the engine will when it loads one.
+///
+/// The builder script mirrors the loader's rules to fail early, but the loader
+/// is the authority; this is how a pack is known to be accepted before it
+/// ships, rather than when a user's app refuses it.
+func runVerifyPack(path: String) -> Int32 {
+    let url = URL(fileURLWithPath: path)
+    do {
+        let pack = try VoicePack.load(from: url)
+        let manifest = pack.manifest
+        print("ACCEPTED  \(manifest.packID) \(manifest.packVersion)")
+        print("  speaker    \(manifest.speaker.displayName) (\(manifest.speaker.kind.rawValue))")
+        if let consent = manifest.speaker.consent {
+            print("  release    \(consent.releaseReference), signed \(consent.signedOn)")
+            print("  permits    \(consent.permittedUses.joined(separator: "; "))")
+        }
+        print("  voices     \(pack.voices.map(\.displayName).joined(separator: ", "))")
+        for file in manifest.files {
+            print("  \(file.role.rawValue.padding(toLength: 13, withPad: " ", startingAt: 0)) \(file.path)  sha256 verified")
+        }
+        print("  engine     \(manifest.engineVersion), phoneme inventory \(manifest.phonemeInventoryVersion)")
+        if let label = pack.syntheticDisclosure {
+            print("  exports are labelled: \(label)")
+        }
+        print("  identity   \(pack.identity)")
+        return 0
+    } catch let error as VoicePackError {
+        print("REFUSED  \(url.lastPathComponent): \(error.description)")
+        return 1
+    } catch {
+        print("REFUSED  \(url.lastPathComponent): \(error)")
+        return 1
     }
 }

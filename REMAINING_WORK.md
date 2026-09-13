@@ -155,9 +155,11 @@ voices have passed it before a release advertises a 32-voice library.
 - [ ] Repair the release history in which an old v1.0.0 predates newer v0.x
       releases.
 - [ ] Establish separate package, engine, model, voice-asset, and cache-format
-      versions. **Partial.** `Choir.version` (package) and `Choir.engineVersion`
-      (audio-output/cache compatibility, bumped to 2 in 0.17.0) are separate and
-      enforced; model and voice-asset versions do not exist yet.
+      versions. **Partial.** `Choir.version` (package), `Choir.engineVersion`
+      (audio-output and cache compatibility, now 3), `PhonemeInventory.version`,
+      and each voice pack's own `packVersion` are separate and enforced at pack
+      load. A model file's identity is its SHA-256 inside the pack manifest
+      rather than a separate version number.
 - [ ] Prevent any new public feature claim without an executable acceptance
       test or documented manual quality gate.
 
@@ -775,3 +777,29 @@ the stress model is wrong -- it is measured and tested -- but that marking
 stress and changing vowel quality are separate jobs, and on a phoneme-accuracy
 metric only the first one pays. Schwa should not be attempted again without a
 different measurement to justify it.
+
+### 13 September 2026 — voice packs
+
+A trained voice now has somewhere to live. `.choirvoice` bundles carry a
+manifest (MaintenanceManual section 9) that the engine verifies before using a
+single model byte: schema, engine version, phoneme inventory version, minimum
+package version, known and unique voice IDs, a streaming SHA-256 of every file,
+paths that cannot escape the bundle even through a symlink, and a vocoder.
+
+A pack built from a real person must carry a consent record -- release
+reference, signing date not in the future, permitted uses, and mandatory
+synthetic disclosure -- or it is refused. Every WAV exported from such a pack is
+labelled synthetic in its comment tag, and a caller's metadata cannot remove
+the label. This is the code side of reconciling VOX-G-002 with a consented
+real-person voice; the SRS text itself has not been amended and still needs to
+be.
+
+Engines report their `SynthesisSource`, so a mock-backed engine cannot be
+mistaken for a trained voice (MaintenanceManual section 10), and
+`ChoirEngine.preferred` picks a verified pack or the formant synthesizer, never
+the test tone, without hiding a broken binding. Synthesis cache keys accept a
+pack identity so a retrained voice is not served stale audio; keys without one
+keep their previous digests.
+
+Still open: no trained model exists, so no binding from pack files to Core ML
+tensors has been written or run.

@@ -161,22 +161,43 @@ conversion smoke test.
 
 ## 9. Build runtime asset packs
 
-Create a deterministic manifest for every pack:
+Every pack is a `.choirvoice` directory holding `manifest.json` and the files
+it names. `VoicePackManifest` is the schema; build packs with
+`Scripts/build_voice_pack.py` rather than by hand:
 
 ```json
 {
   "schemaVersion": 1,
-  "engineVersion": 1,
-  "modelID": "acoustic-quality-v1",
-  "modelSHA256": "…",
-  "vocoderID": "vocoder-quality-v1",
-  "vocoderSHA256": "…",
-  "voiceIDs": ["choir.child.male.finch"],
+  "packID": "studio.bothmade.evan",
+  "packVersion": "1.0.0",
+  "engineVersion": 3,
+  "minimumPackageVersion": "0.17.0",
+  "sampleRate": 22050,
   "phonemeInventoryVersion": 1,
-  "lexiconVersion": "…",
-  "minimumPackageVersion": "…"
+  "voiceIDs": ["choir.ya.male.orion"],
+  "files": [
+    { "path": "models/vocoder.mlmodelc.zip", "role": "vocoder", "sha256": "…" }
+  ],
+  "speaker": {
+    "kind": "realPerson",
+    "displayName": "Evan",
+    "consent": {
+      "releaseReference": "Evan voice release, signed PDF",
+      "signedOn": "2026-09-20",
+      "permittedUses": ["commercial CHOIR voice pack"],
+      "requiresSyntheticDisclosure": true
+    }
+  }
 }
 ```
+
+`VoicePack.load(from:)` refuses a pack whose schema, engine version or phoneme
+inventory version differs from the engine's; whose minimum package version is
+newer than the running package; that names an unknown or duplicate voice; whose
+files are missing, corrupt, duplicated, or reachable only through a path or
+symlink that escapes the bundle; that has no vocoder; or that is built from a
+real person without a complete consent record requiring synthetic disclosure.
+Verify a finished pack with `choir-benchmark --verify-pack PATH`.
 
 The build must verify every input hash, reject unknown/duplicate IDs, stage to
 a fresh directory, sign/package where required, compute final hashes, and

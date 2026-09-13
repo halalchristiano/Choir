@@ -12,13 +12,17 @@ dataset validation — *has* been run against real audio.
 ## Before spending GPU time
 
 ```bash
-python3 Scripts/prepare_dataset.py recordings --out dataset
+python3 Scripts/prepare_dataset.py recordings/evan/*/ --out dataset
 ```
 
 It refuses to call a corpus ready below 60 minutes, and that threshold is the
 point. Training on four minutes produces a model that imitates a handful of
 sentences; it does not produce something that speaks. The GPU hours are the
 same either way, so the cheap check comes first.
+
+Each argument is one session directory; every session must name the same
+speaker in its `SPEAKER` file, because a model trained on two people learns a
+blend of both.
 
 It also fails the corpus for mixed sample rates, clipped takes, empty
 transcripts and utterances that are too short or too long. Most recipes would
@@ -118,6 +122,44 @@ two-stage boundary. Two options:
 
 Option 1 first, to get a voice out and measurable. Option 2 once there is
 something worth refining.
+
+## Packaging it as a voice pack
+
+A converted model ships inside a `.choirvoice` bundle. Build it with the script,
+which hashes every file and reads the engine's version constants from the
+Swift sources, then verify it with the engine's own loader:
+
+```bash
+python3 Scripts/build_voice_pack.py build/Evan.choirvoice \
+    --pack-id studio.bothmade.evan --pack-version 1.0.0 \
+    --voice choir.ya.male.orion --sample-rate 22050 \
+    --vocoder converted/evan.mlmodelc.zip \
+    --speaker-name "Evan" --kind real-person \
+    --release-ref "Evan voice release, signed PDF" \
+    --signed-on 2026-09-20 --use "commercial CHOIR voice pack"
+
+swift run choir-benchmark --verify-pack build/Evan.choirvoice
+```
+
+A real person's pack is refused without a release reference, a signing date,
+and permitted uses, and every export from it is labelled synthetic. The date is
+when the release was actually signed; the builder refuses one in the future.
+
+The pack format cannot know the model's tensor names, so the last piece is a
+`VoicePackModelBinding` that turns the verified pack's files into an
+`AcousticModelProtocol` and a `VocoderProtocol`. It receives only packs that
+have already passed verification:
+
+```swift
+let binding = VoicePackModelBinding { pack in
+    let vocoderURL = pack.url(for: .vocoder)!
+    // load the compiled model at vocoderURL and wrap it
+    return (acoustic: PassThroughAcoustic(), vocoder: EvanVocoder(url: vocoderURL))
+}
+let library = VoicePackLibrary(directory: voicePacksDirectory)
+let engine = try ChoirEngine.preferred(for: .orion, library: library, binding: binding)
+print(engine.synthesisSource)   // .voicePack(id: "studio.bothmade.evan", version: "1.0.0")
+```
 
 ## Then measure it
 

@@ -19,6 +19,15 @@ public actor ChoirEngine {
     /// Module-visible so same-module API adapters can preserve custom formats.
     let audioFormat: AudioFormat
     private let configuredPipeline: SynthesisPipeline?
+
+    /// What this engine renders with. A mock-backed engine and a trained voice
+    /// both return an `AudioBuffer`; this is how the two are told apart
+    /// (MaintenanceManual §10).
+    public nonisolated let synthesisSource: SynthesisSource
+
+    /// The verified voice pack in use, if any. Include `voicePack?.identity` in
+    /// any synthesis cache key so a retrained voice is not served stale audio.
+    public nonisolated let voicePack: VoicePack?
     private var pipeline: SynthesisPipeline?
     public nonisolated let maximumConcurrentJobs: Int
     private var activeSynthesisJobs = 0
@@ -43,9 +52,77 @@ public actor ChoirEngine {
         pipeline: SynthesisPipeline? = nil,
         maximumConcurrentJobs: Int = 2
     ) {
+        self.init(
+            audioFormat: audioFormat,
+            pipeline: pipeline,
+            maximumConcurrentJobs: maximumConcurrentJobs,
+            source: pipeline == nil ? .developmentMock : .customPipeline,
+            voicePack: nil)
+    }
+
+    init(
+        audioFormat: AudioFormat,
+        pipeline: SynthesisPipeline?,
+        maximumConcurrentJobs: Int,
+        source: SynthesisSource,
+        voicePack: VoicePack?
+    ) {
         self.audioFormat = audioFormat
         self.configuredPipeline = pipeline
         self.maximumConcurrentJobs = max(2, maximumConcurrentJobs)
+        self.synthesisSource = source
+        self.voicePack = voicePack
+    }
+
+    /// An engine rendering through a verified voice pack.
+    ///
+    /// - Throws: `ChoirError.modelLoadFailed` if the binding cannot build models
+    ///   from the pack.
+    public init(
+        voicePack: VoicePack,
+        binding: VoicePackModelBinding,
+        audioFormat: AudioFormat = AudioFormat(),
+        maximumConcurrentJobs: Int = 2
+    ) throws {
+        let pipeline = try SynthesisPipeline.voicePack(
+            voicePack, binding: binding, audioFormat: audioFormat)
+        self.init(
+            audioFormat: audioFormat,
+            pipeline: pipeline,
+            maximumConcurrentJobs: maximumConcurrentJobs,
+            source: .voicePack(id: voicePack.manifest.packID,
+                               version: voicePack.manifest.packVersion),
+            voicePack: voicePack)
+    }
+
+    /// The best engine available for `voice`.
+    ///
+    /// Uses the highest-version verified pack in `library` that renders the
+    /// voice, when a binding is supplied. Otherwise it uses the formant
+    /// synthesizer, which speaks, rather than the development mock, which emits
+    /// a test tone; a caller asking for the preferred engine wants speech.
+    ///
+    /// It does not fall back silently on failure. If a matching pack exists and
+    /// the binding throws, that error is thrown: a voice that is installed but
+    /// broken should be reported, not quietly replaced with a robot.
+    public static func preferred(
+        for voice: Voice,
+        library: VoicePackLibrary?,
+        binding: VoicePackModelBinding?,
+        audioFormat: AudioFormat = AudioFormat(),
+        maximumConcurrentJobs: Int = 2
+    ) throws -> ChoirEngine {
+        if let binding, let pack = library?.pack(for: voice) {
+            return try ChoirEngine(
+                voicePack: pack, binding: binding,
+                audioFormat: audioFormat, maximumConcurrentJobs: maximumConcurrentJobs)
+        }
+        return ChoirEngine(
+            audioFormat: audioFormat,
+            pipeline: .formant(audioFormat: audioFormat),
+            maximumConcurrentJobs: maximumConcurrentJobs,
+            source: .formant,
+            voicePack: nil)
     }
 
     /// Initializes the engine, loading necessary models and resources.
@@ -504,13 +581,15 @@ public actor ChoirEngine {
     public func exportAudio(
         _ audio: AudioBuffer,
         format: AudioOutputFormat,
-        preset: AudioExportPreset = .unprocessed
+        preset: AudioExportPreset = .unprocessed,
+        metadata: AudioFileMetadata? = nil
     ) throws -> AudioOutput {
         let processedAudio = try preset.process(audio)
         let encoder = AudioEncoder()
         switch format {
         case .wav:
-            return .wav(try encoder.encodeWAV(processedAudio))
+            return .wav(try encoder.encodeWAV(
+                processedAudio, metadata: Self.labelled(metadata, for: voicePack)))
         case .mp3:
             return .mp3(try encoder.encodeMP3(processedAudio))
         case .aac:
@@ -676,5 +755,26 @@ public enum AudioOutputFormat: Sendable, CaseIterable {
     /// The formats this build can actually produce.
     public static var implemented: [AudioOutputFormat] {
         allCases.filter(\.isImplemented)
+    }
+}
+
+
+extension ChoirEngine {
+    /// Metadata with the pack's synthetic-speech disclosure applied.
+    ///
+    /// A caller can add tags but cannot remove the label: a pack that requires
+    /// disclosure gets it on every export whatever metadata is passed in,
+    /// because a voice built from a real person can be made to say anything.
+    nonisolated static func labelled(
+        _ metadata: AudioFileMetadata?,
+        for pack: VoicePack?
+    ) -> AudioFileMetadata? {
+        guard let disclosure = pack?.syntheticDisclosure else { return metadata }
+        var result = metadata ?? AudioFileMetadata()
+        result.syntheticDisclosure = disclosure
+        if result.voice == nil {
+            result.voice = pack?.manifest.speaker.displayName
+        }
+        return result
     }
 }

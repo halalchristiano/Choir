@@ -32,6 +32,33 @@ audio output compatibility changes.
   implemented; MP3, AAC and FLAC throw. They threw clearly, but a caller had no
   way to find out except by attempting an export and catching the error. The
   errors now name `encodeWAV` as the alternative.
+- Voice packs. A `.choirvoice` bundle holds a trained voice's model files and a
+  manifest the engine verifies before using any of them: schema, engine version,
+  phoneme inventory version (`PhonemeInventory.version`, new), minimum package
+  version, known and unique voice IDs, a streaming SHA-256 of every file, and
+  paths that cannot escape the bundle, including through a symlink.
+  `VoicePackLibrary` scans a directory, keeps the highest version per voice, and
+  reports refused packs with their reason instead of dropping them.
+  `Scripts/build_voice_pack.py` builds a pack the loader accepts, and
+  `choir-benchmark --verify-pack` checks one with the engine's own loader.
+- Consent for real-person voices. A pack built from an identifiable person must
+  carry a release reference, a signing date that is not in the future, permitted
+  uses, and mandatory synthetic disclosure, or it is refused. Every WAV exported
+  through such a pack is labelled synthetic in its comment tag, and metadata
+  passed by the caller cannot remove the label.
+- `ChoirEngine.synthesisSource` says what an engine renders with: the
+  development mock, the formant synthesizer, a voice pack, or a caller's
+  pipeline. `ChoirEngine(voicePack:binding:)` renders through a pack, and
+  `ChoirEngine.preferred(for:library:binding:)` picks a verified pack or the
+  formant synthesizer, never the test tone, and throws rather than hiding a
+  pack whose binding fails.
+- `SynthesisCacheKey` accepts `voicePackIdentity`, so a retrained voice is not
+  served audio cached from the previous one. Keys built without it keep exactly
+  the digests they had.
+- `choir-benchmark --transcribe` recognises clips concurrently (`--jobs`,
+  default 3). On the 103-clip test session: 79.5 s one at a time, 33.9 s with
+  three, byte-identical transcripts. Clips that fail under concurrency are
+  retried alone.
 - `Scripts/ingest_session.sh SPEAKER SESSION recording.wav [sheet]` turns one
   recorded session into validated training data in a single command. The first
   real session took seven hand-run commands, including a twenty-minute
@@ -150,6 +177,9 @@ audio output compatibility changes.
 
 ### Fixed
 
+- The transcription app bundle was left unsigned when built from `.build`:
+  copied files carried extended attributes that codesign rejects, so the
+  speech-recognition grant was liable not to persist. They are stripped first.
 - `--intelligibility` no longer aborts with SIGABRT when speech authorization
   has not been granted. A SwiftPM executable has no Info.plist, so it cannot
   carry `NSSpeechRecognitionUsageDescription`, and requesting authorization

@@ -17,21 +17,27 @@ public struct AudioFileMetadata: Sendable, Equatable, Codable {
     public var artist: String?
     public var voice: String?
     public var chapters: [AudioChapterMark]
+    /// A statement that the audio is synthetic, written into the file's comment
+    /// tag ahead of the voice name. Set automatically by an engine whose voice
+    /// pack requires disclosure.
+    public var syntheticDisclosure: String?
 
     public init(
         title: String? = nil,
         artist: String? = nil,
         voice: String? = nil,
-        chapters: [AudioChapterMark] = []
+        chapters: [AudioChapterMark] = [],
+        syntheticDisclosure: String? = nil
     ) {
         self.title = title
         self.artist = artist
         self.voice = voice
         self.chapters = chapters
+        self.syntheticDisclosure = syntheticDisclosure
     }
 
     public var isEmpty: Bool {
-        [title, artist, voice].allSatisfy { value in
+        [title, artist, voice, syntheticDisclosure].allSatisfy { value in
             value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
         } && chapters.isEmpty
     }
@@ -262,7 +268,14 @@ public struct AudioEncoder: Sendable {
         var informationPayload = Data("INFO".utf8)
         appendINFO(tag: "INAM", value: metadata.title, to: &informationPayload)
         appendINFO(tag: "IART", value: metadata.artist, to: &informationPayload)
-        appendINFO(tag: "ICMT", value: metadata.voice.map { "Voice: \($0)" }, to: &informationPayload)
+        // The disclosure leads the comment so a player that truncates the tag
+        // still shows it. Without one the comment is exactly "Voice: …", as it
+        // always was.
+        let comment = [metadata.syntheticDisclosure, metadata.voice.map { "Voice: \($0)" }]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        appendINFO(tag: "ICMT", value: comment.isEmpty ? nil : comment, to: &informationPayload)
         if informationPayload.count > 4 {
             appendRIFFChunk(id: "LIST", payload: informationPayload, to: &chunks)
         }

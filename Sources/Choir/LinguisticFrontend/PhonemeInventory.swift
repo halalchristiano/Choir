@@ -24,6 +24,15 @@ public enum StressLevel: Int, Sendable, Equatable, Codable, CaseIterable {
 ///   version.
 public enum PhonemeInventory {
 
+    /// Version of this inventory's symbol set and index order.
+    ///
+    /// A trained model addresses phonemes by index, so a voice pack built
+    /// against one inventory must not load against another: the indices would
+    /// silently name different sounds. TXT-024 lets symbols be added in a minor
+    /// release; any change that adds, removes or reorders an entry increments
+    /// this, and every voice pack built before it is refused at load.
+    public static let version = 1
+
     /// A conversion result that preserves unsupported input instead of
     /// silently discarding it.
     public struct ARPAbetConversion: Sendable, Equatable {

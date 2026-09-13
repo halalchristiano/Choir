@@ -65,6 +65,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
+# Files copied out of .build carry extended attributes (provenance, Finder
+# info) that codesign rejects as "detritus", which left the bundle unsigned and
+# the speech-recognition grant liable not to persist. Strip them first.
+xattr -cr "$APP" 2>/dev/null || true
 codesign --force --sign - --identifier "$BUNDLE_ID" "$APP" >/dev/null 2>&1 \
     || echo "warning: ad-hoc codesign failed; authorization may not persist" >&2
 
