@@ -26,3 +26,7 @@ recordings/*
 
 # App bundles from Scripts/make_intelligibility_app.sh
 /build
+
+# Local Python preprocessing and training caches.
+__pycache__/
+*.pyc
