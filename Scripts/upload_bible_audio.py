@@ -10,7 +10,7 @@ import json
 import secrets
 import time
 from pathlib import Path
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -68,8 +68,21 @@ def main():
     def call(query, data=b''):
         request = Request(BASE+'/functions/v1/'+FUNCTION+'?'+urlencode(query),data=data,
             headers={'x-import-token':token_file.read_text(),'Content-Type':'application/octet-stream','Content-Length':str(len(data))},method='POST')
-        with urlopen(request,timeout=180) as response:
-            return json.load(response)
+        # Writes are idempotent: the server accepts only the allowlisted hash
+        # and upserts those same bytes at the same path on a retry.
+        for attempt in range(4):
+            try:
+                with urlopen(request,timeout=180) as response:
+                    return json.load(response)
+            except HTTPError as error:
+                if error.code not in (429, 500, 502, 503, 504) or attempt == 3:
+                    raise
+                error.close()
+            except (URLError, OSError):
+                if attempt == 3:
+                    raise
+            print(f'Retrying identical upload after a temporary connection failure ({attempt+1}/3)',flush=True)
+            time.sleep(2**attempt)
     print(call({'action':'init'}),flush=True)
     receipts=[]
     for item in files:
