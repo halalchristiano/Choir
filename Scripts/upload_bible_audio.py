@@ -22,14 +22,17 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def jobs(root):
-    catalog_path = root/'catalog.json'
-    catalog = json.loads(catalog_path.read_text())
+def jobs(root, catalog_path='evan-bsb/current.json'):
+    catalog_file = root/'catalog.json'
+    catalog = json.loads(catalog_file.read_text())
     assert catalog['schemaVersion'] == 1 and catalog['voiceID'] == 'evan-bsb-v1' and catalog['translation'] == 'BSB'
     scope = json.loads((root/'publication-scope.json').read_text())
     expected = {(item['book'], number) for item in scope['books'] for number in item['chapters']}
     actual = [(entry['book'], entry['chapter']) for entry in catalog['chapters']]
     assert expected and len(actual) == len(expected) and set(actual) == expected, 'Publish exactly the completed requested scope'
+    assert catalog_path in ('evan-bsb/current.json', 'evan-bsb/current-v2.json')
+    if catalog_path == 'evan-bsb/current.json':
+        assert len(actual) <= 89, 'Older app builds reject larger catalogs; publish current-v2.json instead'
     result=[]
     for entry in catalog['chapters']:
         folder = root/'chapters'/f'{entry["book"].lower().replace(" ", "-")}-{entry["chapter"]:02d}'
@@ -38,8 +41,8 @@ def jobs(root):
         file = Path(receipt['local_audio'])
         assert file.stat().st_size == entry['byteCount'] and digest(file.read_bytes()) == entry['audioSHA256']
         result.append(dict(file=str(file), path=entry['audioPath'], bytes=entry['byteCount'], sha256=entry['audioSHA256'], mime='audio/mp4'))
-    result.append(dict(file=str(catalog_path),path='evan-bsb/current.json',bytes=catalog_path.stat().st_size,
-        sha256=digest(catalog_path.read_bytes()),mime='application/json'))
+    result.append(dict(file=str(catalog_file),path=catalog_path,bytes=catalog_file.stat().st_size,
+        sha256=digest(catalog_file.read_bytes()),mime='application/json'))
     return result
 
 
@@ -47,9 +50,10 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('root', type=Path)
     p.add_argument('action', choices=['prepare','upload'])
+    p.add_argument('--catalog-path', choices=['evan-bsb/current.json', 'evan-bsb/current-v2.json'], default='evan-bsb/current.json')
     args = p.parse_args()
     root = args.root.resolve()/'gospels-v1'
-    files = jobs(root)
+    files = jobs(root, args.catalog_path)
     token_file = root/'private-upload-token'
     if args.action == 'prepare':
         if not token_file.exists():
