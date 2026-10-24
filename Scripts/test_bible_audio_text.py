@@ -80,6 +80,8 @@ class BibleAudioTextChecks(unittest.TestCase):
         self.assertEqual(words('sheepshearers'), words('sheep shearers'))
         self.assertEqual(words('a laughingstock'), words('a laughing stock'))
         self.assertEqual(words('Beeri'), words('Be-eh-ree'))
+        self.assertEqual(words('evil men and imposters'), words('evil men and impostors'))
+        self.assertNotEqual(words('imposters'), words('imposter'))
         self.assertNotEqual(words('Beeri'), words('Be-er'))
         self.assertEqual(words("the king's cup"), words('the kings cup'))
         self.assertNotEqual(words("the king's cup"), words('the king cup'))

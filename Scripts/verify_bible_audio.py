@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 21
+NORMALIZATION_VERSION = 22
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -84,7 +84,9 @@ def words(text):
                 'shuah': ['shua'], 'anah': ['ana'], 'zibion': ['zibeon'],
                 # ASR may transcribe the three audible syllables of Beeri separately.
                 # ISBE be-e'-ri: https://classic.net.bible.org/dictionary.php?word=Beeri
-                'beeri': ['be', 'eh', 'ree']}
+                'beeri': ['be', 'eh', 'ree'],
+                # Standard spelling variants with identical spoken form.
+                'impostors': ['imposters']}
     return [part for token in tokens for part in spelling.get(token, [token])]
 
 
