@@ -20,6 +20,8 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
+NORMALIZATION_VERSION = 12
+
 
 def number_words(n):
     small = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'.split()
@@ -49,7 +51,10 @@ def words(text):
                 'turtledove': ['turtle', 'dove'], 'facedown': ['face', 'down'], 'borne': ['born'],
                 'o': ['oh'], 'adah': ['ada'], 'admah': ['adma'], 'arioch': ['ariok'],
                 'casluhites': ['kasluhites'], 'caphtorites': ['kaphtorites'],
-                'rodanites': ['rhodanites'], 'goiim': ['goyim']}
+                'rodanites': ['rhodanites'], 'goiim': ['goyim'],
+                'bowshot': ['bow', 'shot'], 'sometime': ['some', 'time'],
+                'worshipped': ['worshiped'], 'rebekah': ['rebecca'], 'advisor': ['adviser'],
+                'asshur': ['ashur'], 'asshurites': ['ashurites'], 'plain': ['plane'], 'benoni': ['ben', 'oni']}
     return [part for token in tokens for part in spelling.get(token, [token])]
 
 
@@ -147,12 +152,12 @@ def scan(args, directory, source, model):
             if audit.exists():
                 old = json.loads(audit.read_text())
                 if old['sha256'] == digest and not args.recheck:
-                    if old.get('normalization_version') != 7:
+                    if old.get('normalization_version') != NORMALIZATION_VERSION:
                         old['earlier_normalization_changes'] = old['changes']
                         old['changes'] = differences(old['expected'], old['recognized'])
                         old['automatic_exact_match'] = not old['changes']
                         old['words'] = len(words(old['expected']))
-                        old['normalization_version'] = 7
+                        old['normalization_version'] = NORMALIZATION_VERSION
                         write_json(audit, old)
                     continue
                 if args.recheck:
@@ -184,7 +189,7 @@ def scan(args, directory, source, model):
                 expected=chunk['text'], recognized=recognized, changes=changes, words=len(expected_words),
                 seconds=len(wav)/rate, peak=float(np.abs(wav).max()), rms=float(np.sqrt(np.mean(wav**2))),
                 clipped_fraction=float(np.mean(np.abs(wav)>=.999)), word_times=word_times,
-                automatic_exact_match=not changes, human_listening_review_completed=False, normalization_version=7,
+                automatic_exact_match=not changes, human_listening_review_completed=False, normalization_version=NORMALIZATION_VERSION,
                 recognizer='mlx-community/whisper-large-v3-turbo@a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb',
                 recognition_temperature=args.temperature, proper_name_context=args.name_context, recognition_window_boundaries=boundaries)
             write_json(audit, result)

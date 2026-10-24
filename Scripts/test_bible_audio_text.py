@@ -40,17 +40,24 @@ class BibleAudioTextChecks(unittest.TestCase):
         self.assertEqual(words('a turtledove'), words('a turtle dove'))
         self.assertEqual(words('fell facedown'), words('fell face down'))
         self.assertEqual(words('had borne'), words('had born'))
+        self.assertEqual(words('a bowshot away'), words('a bow shot away'))
+        self.assertEqual(words('sometime later'), words('some time later'))
+        self.assertEqual(words('worshiped'), words('worshipped'))
+        self.assertEqual(words('an adviser'), words('an advisor'))
+        self.assertEqual(words('plane trees'), words('plain trees'))
+        self.assertEqual(words('Ben-oni'), words('Benoni'))
         self.assertEqual(number_words(969), 'nine hundred sixty nine')
         self.assertEqual(ordinal_words(103), 'one hundred third')
 
     def test_name_transcription_spelling_preserves_distinct_readings(self):
         for source, spelling in [('Adah', 'Ada'), ('Admah', 'Adma'), ('Arioch', 'Ariok'),
                                  ('Casluhites', 'Kasluhites'), ('Caphtorites', 'Kaphtorites'),
-                                 ('Rodanites', 'Rhodanites'), ('Goiim', 'Goyim'), ('O', 'Oh')]:
+                                 ('Rodanites', 'Rhodanites'), ('Goiim', 'Goyim'), ('O', 'Oh'),
+                                 ('Rebekah', 'Rebecca'), ('Asshur', 'Ashur'), ('Asshurites', 'Ashurites')]:
             with self.subTest(source=source):
                 self.assertEqual(words(source), words(spelling))
         for source, other in [('Asshur', 'Asher'), ('Irad', 'Erad'), ('Raamah', 'Rama'),
-                              ('seahs', 'seeds'), ('in', 'and')]:
+                              ('seahs', 'seeds'), ('in', 'and'), ('Rebekah', 'Rachel')]:
             with self.subTest(source=source):
                 self.assertNotEqual(words(source), words(other))
 
