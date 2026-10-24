@@ -65,6 +65,7 @@ def main():
     parser.add_argument('root', type=Path)
     parser.add_argument('--limit', type=int)
     parser.add_argument('--chapter')
+    parser.add_argument('--books', nargs='+', help='Restrict verification to these book names.')
     parser.add_argument('--watch', action='store_true')
     parser.add_argument('--recheck', nargs='+')
     parser.add_argument('--temperature', type=float, default=0.)
@@ -82,8 +83,13 @@ def main():
         audits = [json.loads(path.read_text()) for path in (directory/'chapters').glob('*/passages/*.check.json')]
         issues = [dict(id=audit['id'],changes=audit['changes']) for audit in audits if not audit['automatic_exact_match']]
         write_json(directory/'verification-progress.json', dict(checked=len(audits), exact_matches=len(audits)-len(issues), issues=issues))
-        expected = sum(len(chapter['chunks']) for chapter in source['chapters'])
-        if not args.watch or len(audits) == expected:
+        expected = sum(len(chapter['chunks']) for chapter in source['chapters']
+            if (not args.books or chapter['book'] in args.books)
+            and (not args.chapter or chapter['id'] == args.chapter))
+        relevant = [audit for audit in audits if any(audit['id'].startswith(chapter['id']+'-')
+            for chapter in source['chapters'] if (not args.books or chapter['book'] in args.books)
+            and (not args.chapter or chapter['id'] == args.chapter))]
+        if not args.watch or len(relevant) == expected:
             return
         time.sleep(20)
 
@@ -92,6 +98,8 @@ def scan(args, directory, source, model):
     checked = 0
     started = time.time()
     for chapter in source['chapters']:
+        if args.books and chapter['book'] not in args.books:
+            continue
         if args.chapter and chapter['id'] != args.chapter:
             continue
         for chunk in chapter['chunks']:
