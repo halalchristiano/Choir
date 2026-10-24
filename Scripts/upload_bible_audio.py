@@ -32,7 +32,7 @@ def jobs(root):
     assert expected and len(actual) == len(expected) and set(actual) == expected, 'Publish exactly the completed requested scope'
     result=[]
     for entry in catalog['chapters']:
-        folder = root/'chapters'/f'{entry["book"].lower()}-{entry["chapter"]:02d}'
+        folder = root/'chapters'/f'{entry["book"].lower().replace(" ", "-")}-{entry["chapter"]:02d}'
         receipt = json.loads((folder/'recording.json').read_text())
         assert receipt['catalog_entry'] == entry
         file = Path(receipt['local_audio'])
