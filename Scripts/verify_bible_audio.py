@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 22
+NORMALIZATION_VERSION = 23
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -86,7 +86,13 @@ def words(text):
                 # ISBE be-e'-ri: https://classic.net.bible.org/dictionary.php?word=Beeri
                 'beeri': ['be', 'eh', 'ree'],
                 # Standard spelling variants with identical spoken form.
-                'impostors': ['imposters']}
+                'impostors': ['imposters'],
+                # ASR spellings of the attested jan'-ez, jam'-brez and
+                # o-ne-sif'-o-rus pronunciations; distinct names remain distinct.
+                # https://www.biblegateway.com/resources/encyclopedia-of-the-bible/Jannes-Jambres
+                # https://classic.net.bible.org/dictionary.php?word=Onesiphorus
+                'jannez': ['jannes'], 'jambrez': ['jambres'],
+                'onisiphorus': ['onesiphorus']}
     return [part for token in tokens for part in spelling.get(token, [token])]
 
 

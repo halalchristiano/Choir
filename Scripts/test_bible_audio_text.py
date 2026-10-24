@@ -96,12 +96,15 @@ class BibleAudioTextChecks(unittest.TestCase):
                                  ('Hirah', 'Hira'), ('Malchiel', 'Malkiel'),
                                  ('Potiphera', 'Potipherah'), ('Puvah', 'Puva'), ('Ammi', 'Ammy'),
                                  ('Raamah', 'Ramah'), ('Raamah', 'Rama'), ('Shua', 'Shuah'),
-                                 ('Anah', 'Ana'), ('Zibeon', 'Zibion')]:
+                                 ('Anah', 'Ana'), ('Zibeon', 'Zibion'),
+                                 ('Jannes', 'Jannez'), ('Jambres', 'Jambrez'), ('Onesiphorus', 'Onisiphorus')]:
             with self.subTest(source=source):
                 self.assertEqual(words(source), words(spelling))
         for source, other in [('Asshur', 'Asher'), ('Irad', 'Erad'),
                               ('seahs', 'seeds'), ('in', 'and'), ('Rebekah', 'Rachel'), ('Hirah', 'Hera'),
-                              ('Potiphera', 'Potiphar'), ('Serah', 'Sarah'), ('Ammi', 'Amy')]:
+                              ('Potiphera', 'Potiphar'), ('Serah', 'Sarah'), ('Ammi', 'Amy'),
+                              ('Jannes', 'Jonas'), ('Jannes', 'Jambres'), ('Onesiphorus', 'Onesimus'),
+                              ('Dishon', 'Dishan')]:
             with self.subTest(source=source):
                 self.assertNotEqual(words(source), words(other))
 
