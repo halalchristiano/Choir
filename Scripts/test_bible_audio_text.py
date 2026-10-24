@@ -43,6 +43,17 @@ class BibleAudioTextChecks(unittest.TestCase):
         self.assertEqual(number_words(969), 'nine hundred sixty nine')
         self.assertEqual(ordinal_words(103), 'one hundred third')
 
+    def test_name_transcription_spelling_preserves_distinct_readings(self):
+        for source, spelling in [('Adah', 'Ada'), ('Admah', 'Adma'), ('Arioch', 'Ariok'),
+                                 ('Casluhites', 'Kasluhites'), ('Caphtorites', 'Kaphtorites'),
+                                 ('Rodanites', 'Rhodanites'), ('Goiim', 'Goyim'), ('O', 'Oh')]:
+            with self.subTest(source=source):
+                self.assertEqual(words(source), words(spelling))
+        for source, other in [('Asshur', 'Asher'), ('Irad', 'Erad'), ('Raamah', 'Rama'),
+                              ('seahs', 'seeds'), ('in', 'and')]:
+            with self.subTest(source=source):
+                self.assertNotEqual(words(source), words(other))
+
 
 if __name__ == '__main__':
     unittest.main()
