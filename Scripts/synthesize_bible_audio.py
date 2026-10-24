@@ -40,6 +40,8 @@ def main():
     p.add_argument('--books', nargs='+', default=['Mark', 'John', 'Matthew', 'Luke'])
     p.add_argument('--seed-offset', type=int, default=0)
     p.add_argument('--chapter')
+    p.add_argument('--from-chapter', type=int, default=1,
+                   help='Start at this chapter number, preserving earlier imported recordings.')
     p.add_argument('--only', nargs='+')
     p.add_argument('--prompt-overrides', type=Path)
     p.add_argument('--temperature', type=float, default=.7)
@@ -53,6 +55,8 @@ def main():
     for book in args.books:
         for chapter in source['chapters']:
             if chapter['book'] != book:
+                continue
+            if chapter['chapter'] < args.from_chapter:
                 continue
             if args.chapter and chapter['id'] != args.chapter:
                 continue
