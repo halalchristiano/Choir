@@ -49,7 +49,11 @@ def main():
     p.add_argument('--only', nargs='+')
     p.add_argument('--prompt-overrides', type=Path)
     p.add_argument('--temperature', type=float, default=.7)
+    p.add_argument('--cache-limit-mb', type=int, default=512,
+                   help='Bound unused MLX buffers so long batches do not pressure system swap.')
     args = p.parse_args()
+    assert args.cache_limit_mb >= 0
+    mx.set_cache_limit(args.cache_limit_mb * 1024 * 1024)
     root = args.root.resolve()
     out = root / 'gospels-v1'
     source = json.loads((out/'source.json').read_text())
