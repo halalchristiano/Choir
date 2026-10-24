@@ -18,6 +18,7 @@ import numpy as np
 from mlx_audio.tts.utils import load_model
 
 from voice_finetune_mlx import add_lora
+from verify_bible_audio import number_words, words
 
 ADAPTER_SHA = '96e1746c34d634a4cc2a60a90cd91697de67aa846029af2823867480037c969b'
 
@@ -42,6 +43,8 @@ def main():
     p.add_argument('--chapter')
     p.add_argument('--from-chapter', type=int, default=1,
                    help='Start at this chapter number, preserving earlier imported recordings.')
+    p.add_argument('--expand-numbers', action='store_true',
+                   help='Spell numeric quantities in full to avoid abbreviated ages and counts.')
     p.add_argument('--only', nargs='+')
     p.add_argument('--prompt-overrides', type=Path)
     p.add_argument('--temperature', type=float, default=.7)
@@ -68,8 +71,9 @@ def main():
                     continue
                 signature=hashlib.sha256((ADAPTER_SHA+'\n'+chunk['text']).encode()).hexdigest()
                 prompt = overrides.get(identity, chunk['text'])
-                normalize = lambda text: re.findall(r"\w+", text.lower())
-                assert normalize(prompt) == normalize(chunk['text']), 'A prosody override cannot change source words'
+                if args.expand_numbers:
+                    prompt = re.sub(r'\b\d[\d,]*\b', lambda m: number_words(int(m[0].replace(',', ''))), prompt)
+                assert words(prompt) == words(chunk['text']), 'A generation prompt cannot change source words or numeric quantities'
                 if prompt != chunk['text']:
                     signature = hashlib.sha256((signature+'\n'+prompt).encode()).hexdigest()
                 job=dict(chunk,book=book,chapter=chapter['chapter'],chapter_id=chapter['id'],
