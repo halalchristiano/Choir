@@ -39,7 +39,8 @@ def words(text):
     tokens = re.findall(r"[a-z0-9]+(?:'[a-z]+)?", text.lower().replace('’', "'"))
     # Audible spelling equivalents only. These do not waive missing words or
     # different readings. Raw transcripts remain in every verification record.
-    spelling = {'grainfields': ['grain', 'fields'], 'thaddeus': ['thaddaeus']}
+    spelling = {'grainfields': ['grain', 'fields'], 'thaddeus': ['thaddaeus'],
+                'team': ['teem'], 'teamed': ['teemed']}
     return [part for token in tokens for part in spelling.get(token, [token])]
 
 
@@ -105,12 +106,12 @@ def scan(args, directory, source, model):
             if audit.exists():
                 old = json.loads(audit.read_text())
                 if old['sha256'] == digest and not args.recheck:
-                    if old.get('normalization_version') != 2:
+                    if old.get('normalization_version') != 3:
                         old['earlier_normalization_changes'] = old['changes']
                         old['changes'] = differences(old['expected'], old['recognized'])
                         old['automatic_exact_match'] = not old['changes']
                         old['words'] = len(words(old['expected']))
-                        old['normalization_version'] = 2
+                        old['normalization_version'] = 3
                         write_json(audit, old)
                     continue
                 if args.recheck:
@@ -142,7 +143,7 @@ def scan(args, directory, source, model):
                 expected=chunk['text'], recognized=recognized, changes=changes, words=len(expected_words),
                 seconds=len(wav)/rate, peak=float(np.abs(wav).max()), rms=float(np.sqrt(np.mean(wav**2))),
                 clipped_fraction=float(np.mean(np.abs(wav)>=.999)), word_times=word_times,
-                automatic_exact_match=not changes, human_listening_review_completed=False, normalization_version=2,
+                automatic_exact_match=not changes, human_listening_review_completed=False, normalization_version=3,
                 recognizer='mlx-community/whisper-large-v3-turbo@a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb',
                 recognition_temperature=args.temperature, proper_name_context=args.name_context, recognition_window_boundaries=boundaries)
             write_json(audit, result)
