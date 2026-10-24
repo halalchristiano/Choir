@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Back-transcribe saved passages and retain word timestamps for verse cues.
 
-Initial passes use no prompt. Optional proper-name spelling hints are recorded
+Initial passes use no prompt. Optional isolated name and term spelling hints are recorded
 and must never contain the passage text. Differences are reported for review;
 an ASR match is not a human assessment of likeness or pronunciation.
 """
@@ -20,7 +20,24 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 12
+NORMALIZATION_VERSION = 15
+# Preserve across watcher reloads. The final publication audit independently
+# hashes every file; this avoids rereading the entire book on every live scan.
+_AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
+
+
+def audio_digest(path):
+    def identity():
+        stat = path.stat()
+        return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+    before = identity()
+    cached = _AUDIO_DIGEST_CACHE.get(path)
+    if cached and cached[0] == before:
+        return cached[1]
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    assert before == identity(), 'Recording changed during verification: '+str(path)
+    _AUDIO_DIGEST_CACHE[path] = (before, digest)
+    return digest
 
 
 def number_words(n):
@@ -44,6 +61,8 @@ def words(text):
     number_tail = 'zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|thirtieth|fortieth|fiftieth|sixtieth|seventieth|eightieth|ninetieth'
     text = re.sub(r'\b(hundred|thousand|million|billion)\s+and\s+(?=(?:'+number_tail+r')\b)', r'\1 ', text, flags=re.IGNORECASE)
     tokens = re.findall(r"[a-z0-9]+(?:'[a-z]+)?", text.lower().replace('’', "'"))
+    # A possessive apostrophe does not change the spoken final s.
+    tokens = [token[:-2]+'s' if token.endswith("'s") else token for token in tokens]
     # Audible spelling equivalents only. These do not waive missing words or
     # different readings. Raw transcripts remain in every verification record.
     spelling = {'grainfields': ['grain', 'fields'], 'thaddeus': ['thaddaeus'],
@@ -54,7 +73,8 @@ def words(text):
                 'rodanites': ['rhodanites'], 'goiim': ['goyim'],
                 'bowshot': ['bow', 'shot'], 'sometime': ['some', 'time'],
                 'worshipped': ['worshiped'], 'rebekah': ['rebecca'], 'advisor': ['adviser'],
-                'asshur': ['ashur'], 'asshurites': ['ashurites'], 'plain': ['plane'], 'benoni': ['ben', 'oni']}
+                'asshur': ['ashur'], 'asshurites': ['ashurites'], 'plain': ['plane'], 'benoni': ['ben', 'oni'],
+                'sheepshearers': ['sheep', 'shearers'], 'hirah': ['hira']}
     return [part for token in tokens for part in spelling.get(token, [token])]
 
 
@@ -107,7 +127,7 @@ def main():
     parser.add_argument('--watch', action='store_true')
     parser.add_argument('--recheck', nargs='+')
     parser.add_argument('--temperature', type=float, default=0.)
-    parser.add_argument('--name-context', help='Spelling hints for proper names only; never supply the passage text.')
+    parser.add_argument('--name-context', help='Isolated name or term spelling hints only; never supply the passage text.')
     parser.add_argument('--split-at', type=float, nargs='+', help='Recheck one passage in independent time windows when recognition stops early; does not edit the recording.')
     args = parser.parse_args()
     if args.split_at:
@@ -147,7 +167,7 @@ def scan(args, directory, source, model):
             path = directory/'chapters'/chapter['id']/'passages'/f'{chunk["index"]:03d}.wav'
             if not path.exists() or not path.with_suffix('.json').exists():
                 continue
-            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            digest = audio_digest(path)
             audit = path.with_suffix('.check.json')
             if audit.exists():
                 old = json.loads(audit.read_text())
