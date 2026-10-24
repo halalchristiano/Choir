@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from verify_bible_audio import words, write_json
+from verify_bible_audio import words, write_json, timed_words as normalized_word_times
 
 
 def sha(path):
@@ -75,7 +75,7 @@ def main():
             fade = min(int(.005*sample_rate), len(trimmed)//2)
             trimmed[:fade] *= np.linspace(0,1,fade)
             trimmed[-fade:] *= np.linspace(1,0,fade)
-            timed_words = [(token, item['start'], item['end']) for item in check['word_times'] for token in words(item['word'])]
+            timed_words = normalized_word_times(check['word_times'])
             expected = words(chunk['text'])
             assert [t[0] for t in timed_words] == expected, 'Word timestamps do not match source: '+check['id']
             first = 0

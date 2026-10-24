@@ -58,6 +58,22 @@ def differences(expected, recognized):
     return changes
 
 
+def timed_words(word_times):
+    """Keep timestamps while removing only optional conjunctions inside numbers."""
+    flattened = [(token, item['start'], item['end']) for item in word_times for token in words(item['word'])]
+    target = words(' '.join(item['word'] for item in word_times))
+    result = []
+    position = 0
+    for index, item in enumerate(flattened):
+        if position < len(target) and item[0] == target[position]:
+            result.append(item)
+            position += 1
+        else:
+            assert item[0] == 'and' and index > 0 and flattened[index-1][0] in ('hundred', 'thousand', 'million', 'billion'), 'Unexpected word-timestamp normalization'
+    assert position == len(target), 'Word timestamps do not cover the normalized transcript'
+    return result
+
+
 def write_json(path, data):
     temporary = path.with_suffix('.tmp')
     temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2)+'\n')
