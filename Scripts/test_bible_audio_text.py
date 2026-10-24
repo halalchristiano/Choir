@@ -91,7 +91,8 @@ class BibleAudioTextChecks(unittest.TestCase):
                                  ('Rebekah', 'Rebecca'), ('Asshur', 'Ashur'), ('Asshurites', 'Ashurites'),
                                  ('Hirah', 'Hira'), ('Malchiel', 'Malkiel'),
                                  ('Potiphera', 'Potipherah'), ('Puvah', 'Puva'), ('Ammi', 'Ammy'),
-                                 ('Raamah', 'Ramah'), ('Raamah', 'Rama')]:
+                                 ('Raamah', 'Ramah'), ('Raamah', 'Rama'), ('Shua', 'Shuah'),
+                                 ('Anah', 'Ana'), ('Zibeon', 'Zibion')]:
             with self.subTest(source=source):
                 self.assertEqual(words(source), words(spelling))
         for source, other in [('Asshur', 'Asher'), ('Irad', 'Erad'),

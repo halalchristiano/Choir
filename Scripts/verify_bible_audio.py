@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 19
+NORMALIZATION_VERSION = 20
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -79,7 +79,9 @@ def words(text):
                 'laughingstock': ['laughing', 'stock'], 'ammy': ['ammi'],
                 # The same name/transliteration, Strong's H7484 (rah-maw):
                 # https://biblehub.com/hebrew/7484.htm
-                'raamah': ['ramah'], 'rama': ['ramah']}
+                'raamah': ['ramah'], 'rama': ['ramah'],
+                # Silent final h and alternative spelling of the same spoken name.
+                'shuah': ['shua'], 'anah': ['ana'], 'zibion': ['zibeon']}
     return [part for token in tokens for part in spelling.get(token, [token])]
 
 
