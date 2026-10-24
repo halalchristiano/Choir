@@ -5,9 +5,21 @@ import unittest
 from pathlib import Path
 
 from verify_bible_audio import words, number_words, ordinal_words, timed_words, audio_digest
+from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_pronunciation_hints_cannot_change_source_words(self):
+        entries = [dict(source='Irad', spoken='I-rad', reference='https://classic.net.bible.org/dictionary.php?word=Irad')]
+        restored, used = restore_source_spellings('I-rad was born. I-rad lived 100 years.', entries)
+        self.assertEqual(words(restored), words('Irad was born. Irad lived 100 years.'))
+        self.assertEqual(used[0]['occurrences'], 2)
+        changed, _ = restore_source_spellings('I-rad lived 101 years.', entries)
+        self.assertNotEqual(words(changed), words('Irad lived 100 years.'))
+        untouched, used = restore_source_spellings('Tirad was born.', entries)
+        self.assertEqual(untouched, 'Tirad was born.')
+        self.assertFalse(used)
+
     def test_replaced_recording_cannot_reuse_an_old_digest(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)/'recording.wav'
@@ -66,6 +78,7 @@ class BibleAudioTextChecks(unittest.TestCase):
         self.assertEqual(words('plane trees'), words('plain trees'))
         self.assertEqual(words('Ben-oni'), words('Benoni'))
         self.assertEqual(words('sheepshearers'), words('sheep shearers'))
+        self.assertEqual(words('a laughingstock'), words('a laughing stock'))
         self.assertEqual(words("the king's cup"), words('the kings cup'))
         self.assertNotEqual(words("the king's cup"), words('the king cup'))
         self.assertEqual(number_words(969), 'nine hundred sixty nine')
@@ -76,11 +89,14 @@ class BibleAudioTextChecks(unittest.TestCase):
                                  ('Casluhites', 'Kasluhites'), ('Caphtorites', 'Kaphtorites'),
                                  ('Rodanites', 'Rhodanites'), ('Goiim', 'Goyim'), ('O', 'Oh'),
                                  ('Rebekah', 'Rebecca'), ('Asshur', 'Ashur'), ('Asshurites', 'Ashurites'),
-                                 ('Hirah', 'Hira')]:
+                                 ('Hirah', 'Hira'), ('Malchiel', 'Malkiel'),
+                                 ('Potiphera', 'Potipherah'), ('Puvah', 'Puva'), ('Ammi', 'Ammy'),
+                                 ('Raamah', 'Ramah'), ('Raamah', 'Rama')]:
             with self.subTest(source=source):
                 self.assertEqual(words(source), words(spelling))
-        for source, other in [('Asshur', 'Asher'), ('Irad', 'Erad'), ('Raamah', 'Rama'),
-                              ('seahs', 'seeds'), ('in', 'and'), ('Rebekah', 'Rachel'), ('Hirah', 'Hera')]:
+        for source, other in [('Asshur', 'Asher'), ('Irad', 'Erad'),
+                              ('seahs', 'seeds'), ('in', 'and'), ('Rebekah', 'Rachel'), ('Hirah', 'Hera'),
+                              ('Potiphera', 'Potiphar'), ('Serah', 'Sarah'), ('Ammi', 'Amy')]:
             with self.subTest(source=source):
                 self.assertNotEqual(words(source), words(other))
 

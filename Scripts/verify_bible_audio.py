@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 15
+NORMALIZATION_VERSION = 19
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -74,7 +74,12 @@ def words(text):
                 'bowshot': ['bow', 'shot'], 'sometime': ['some', 'time'],
                 'worshipped': ['worshiped'], 'rebekah': ['rebecca'], 'advisor': ['adviser'],
                 'asshur': ['ashur'], 'asshurites': ['ashurites'], 'plain': ['plane'], 'benoni': ['ben', 'oni'],
-                'sheepshearers': ['sheep', 'shearers'], 'hirah': ['hira']}
+                'sheepshearers': ['sheep', 'shearers'], 'hirah': ['hira'],
+                'malchiel': ['malkiel'], 'potipherah': ['potiphera'], 'puvah': ['puva'],
+                'laughingstock': ['laughing', 'stock'], 'ammy': ['ammi'],
+                # The same name/transliteration, Strong's H7484 (rah-maw):
+                # https://biblehub.com/hebrew/7484.htm
+                'raamah': ['ramah'], 'rama': ['ramah']}
     return [part for token in tokens for part in spelling.get(token, [token])]
 
 
@@ -127,15 +132,19 @@ def main():
     parser.add_argument('--watch', action='store_true')
     parser.add_argument('--recheck', nargs='+')
     parser.add_argument('--temperature', type=float, default=0.)
+    parser.add_argument('--model-path', type=Path, help='Pinned local recognition model for an independent second opinion.')
+    parser.add_argument('--recognizer-id', help='Exact repository and revision corresponding to --model-path.')
     parser.add_argument('--name-context', help='Isolated name or term spelling hints only; never supply the passage text.')
     parser.add_argument('--split-at', type=float, nargs='+', help='Recheck one passage in independent time windows when recognition stops early; does not edit the recording.')
     args = parser.parse_args()
+    assert bool(args.model_path) == bool(args.recognizer_id), 'A custom recognizer requires both its local path and pinned identity'
     if args.split_at:
         assert args.recheck and len(args.recheck) == 1, 'Time-window rechecks require exactly one passage'
     root = args.root.resolve()
     directory = root/'gospels-v1'
     source = json.loads((directory/'source.json').read_text())
-    model = root/'cache/huggingface/hub/models--mlx-community--whisper-large-v3-turbo/snapshots/a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb'
+    model = args.model_path or root/'cache/huggingface/hub/models--mlx-community--whisper-large-v3-turbo/snapshots/a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb'
+    args.recognizer_id = args.recognizer_id or 'mlx-community/whisper-large-v3-turbo@a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb'
     while True:
         scan(args, directory, source, model)
         audits = [json.loads(path.read_text()) for path in (directory/'chapters').glob('*/passages/*.check.json')]
@@ -210,7 +219,7 @@ def scan(args, directory, source, model):
                 seconds=len(wav)/rate, peak=float(np.abs(wav).max()), rms=float(np.sqrt(np.mean(wav**2))),
                 clipped_fraction=float(np.mean(np.abs(wav)>=.999)), word_times=word_times,
                 automatic_exact_match=not changes, human_listening_review_completed=False, normalization_version=NORMALIZATION_VERSION,
-                recognizer='mlx-community/whisper-large-v3-turbo@a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb',
+                recognizer=args.recognizer_id,
                 recognition_temperature=args.temperature, proper_name_context=args.name_context, recognition_window_boundaries=boundaries)
             write_json(audit, result)
             checked += 1

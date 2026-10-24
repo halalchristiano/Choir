@@ -19,6 +19,7 @@ from mlx_audio.tts.utils import load_model
 
 from voice_finetune_mlx import add_lora
 from verify_bible_audio import number_words, words
+from bible_audio_pronunciation import restore_source_spellings
 
 ADAPTER_SHA = '96e1746c34d634a4cc2a60a90cd91697de67aa846029af2823867480037c969b'
 
@@ -54,6 +55,8 @@ def main():
     source = json.loads((out/'source.json').read_text())
     override_path = args.prompt_overrides or out/'prosody-overrides.json'
     overrides = json.loads(override_path.read_text()) if override_path.exists() else {}
+    pronunciation_path = out/'pronunciation-overrides.json'
+    pronunciations = json.loads(pronunciation_path.read_text()) if pronunciation_path.exists() else []
     jobs=[]
     for book in args.books:
         for chapter in source['chapters']:
@@ -73,11 +76,13 @@ def main():
                 prompt = overrides.get(identity, chunk['text'])
                 if args.expand_numbers:
                     prompt = re.sub(r'\b\d[\d,]*\b', lambda m: number_words(int(m[0].replace(',', ''))), prompt)
-                assert words(prompt) == words(chunk['text']), 'A generation prompt cannot change source words or numeric quantities'
+                canonical_prompt, used_pronunciations = restore_source_spellings(prompt, pronunciations)
+                assert words(canonical_prompt) == words(chunk['text']), 'A generation prompt cannot change source words or numeric quantities'
                 if prompt != chunk['text']:
                     signature = hashlib.sha256((signature+'\n'+prompt).encode()).hexdigest()
                 job=dict(chunk,book=book,chapter=chapter['chapter'],chapter_id=chapter['id'],
-                         id=identity,signature=signature,directory=directory,generation_text=prompt)
+                         id=identity,signature=signature,directory=directory,generation_text=prompt,
+                         pronunciation_respellings=used_pronunciations)
                 audio_path=directory/f'{chunk["index"]:03d}.wav'
                 metadata_path=audio_path.with_suffix('.json')
                 if metadata_path.exists() and audio_path.exists():
