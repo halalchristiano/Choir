@@ -37,6 +37,9 @@ class BibleAudioTextChecks(unittest.TestCase):
     def test_spelling_and_number_helpers(self):
         self.assertEqual(words('an ark'), words('an arc'))
         self.assertEqual(words('seedtime'), words('seed time'))
+        self.assertEqual(words('a turtledove'), words('a turtle dove'))
+        self.assertEqual(words('fell facedown'), words('fell face down'))
+        self.assertEqual(words('had borne'), words('had born'))
         self.assertEqual(number_words(969), 'nine hundred sixty nine')
         self.assertEqual(ordinal_words(103), 'one hundred third')
 
