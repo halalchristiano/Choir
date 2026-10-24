@@ -79,6 +79,8 @@ class BibleAudioTextChecks(unittest.TestCase):
         self.assertEqual(words('Ben-oni'), words('Benoni'))
         self.assertEqual(words('sheepshearers'), words('sheep shearers'))
         self.assertEqual(words('a laughingstock'), words('a laughing stock'))
+        self.assertEqual(words('Beeri'), words('Be-eh-ree'))
+        self.assertNotEqual(words('Beeri'), words('Be-er'))
         self.assertEqual(words("the king's cup"), words('the kings cup'))
         self.assertNotEqual(words("the king's cup"), words('the king cup'))
         self.assertEqual(number_words(969), 'nine hundred sixty nine')
