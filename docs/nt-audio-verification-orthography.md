@@ -223,3 +223,7 @@ Normalization 59 also recognizes `Sufah` as the same /soo-fa/ phonetic
 spelling already covered by `Sufa` and `Supha`. Final h is silent; this adds
 no vowel or syllable equivalence. The Suph/Suphah negative control remains.
 Reference: https://biblehub.com/topical/s/suphah.htm
+
+Normalization 60 handles the recognizer splitting `Eleazar` as `El eazar`.
+This only removes a token boundary inside the identical letters. It does not
+permit `Eliezer` or `El iyazar`, and raw recognized text/timestamps remain saved.
