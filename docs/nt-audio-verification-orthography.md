@@ -105,3 +105,8 @@ equates Nazirite, https://biblehub.com/topical/n/nazarite.htm), Mali (ISBE
 ma-li, https://biblehub.com/topical/m/mahli.htm), and Malites (ISBE ma-lits,
 https://classic.net.bible.org/dictionary.php/dictionary.php?word=Mahlites).
 Changed vowels, missing syllables, plurals, and distinct names remain errors.
+
+Version 48 accepts the explicitly documented Zikri/Zicri transliterations of
+Zichri (https://biblehub.com/hebrew/2147.htm; ISBE zik-ri at
+https://biblehub.com/topical/z/zichri.htm). The different consonant in Zitri
+remains rejected.

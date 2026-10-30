@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 47
+NORMALIZATION_VERSION = 48
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -133,6 +133,8 @@ def words(text):
                 # Published spellings / English pronunciations; preserve changed vowels and syllables.
                 'okran': ['ocran'], 'eshkol': ['eshcol'], 'nazarite': ['nazirite'],
                 'mali': ['mahli'], 'malites': ['mahlites'],
+                # Strong H2147 explicitly transliterates Zichri as Zikri / Zicri.
+                'zikri': ['zichri'], 'zicri': ['zichri'],
                 'aminadab': ['amminadab'],
                 'turtledoves': ['turtle', 'doves'], 'thornbushes': ['thorn', 'bushes'],
                 'onto': ['on', 'to'], 'sun': ['son'],

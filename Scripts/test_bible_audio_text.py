@@ -14,13 +14,14 @@ class BibleAudioTextChecks(unittest.TestCase):
                     ('Ammishaddai','Amishadai'), ('Zurishaddai','Zurishadai'),
                     ('Ammihud','Amihud'), ('Shammua','Shamua'), ('Uzzielites','Uzielites'),
                     ('Ocran','Okran'), ('Eshcol','Eshkol'), ('Nazirite','Nazarite'),
-                    ('Mahli','Mali'), ('Mahlites','Malites')]:
+                    ('Mahli','Mali'), ('Mahlites','Malites'), ('Zichri','Zikri'), ('Zichri','Zicri')]:
             self.assertEqual(words(a), words(b))
             items=[dict(word=w,start=float(i),end=i+.5) for i,w in enumerate(b.split())]
             self.assertEqual([w[0] for w in timed_words(items)], words(a))
         for a,b in [('Zurishaddai','Zurushadai'), ('Ammihud','Amehud'),
                     ('Shammua','Shammual'), ('Mahli','Mahi'), ('Ocran','Ocren'),
-                    ('Uzzielites','Uzielite'), ('Nazirite','Nazarene'), ('Elizur','Elizar')]:
+                    ('Uzzielites','Uzielite'), ('Nazirite','Nazarene'), ('Elizur','Elizar'),
+                    ('Zichri','Zitri')]:
             self.assertNotEqual(words(a), words(b))
 
     def test_leviticus_spacing_and_homophones_preserve_word_changes(self):
