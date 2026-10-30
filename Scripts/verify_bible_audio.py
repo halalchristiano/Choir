@@ -56,13 +56,13 @@ def words(text):
     # Numerals and their spoken English form represent the same source words.
     text = re.sub(r'\b(\d[\d,]*)(?:st|nd|rd|th)\b', lambda m: ordinal_words(int(m[1].replace(',', ''))), text, flags=re.IGNORECASE)
     text = re.sub(r'\b\d[\d,]*\b', lambda m: number_words(int(m[0].replace(',', ''))), text)
-    # The article in a cardinal magnitude denotes one, including ASR digits.
-    text = re.sub(r'\ba\s+(?=(?:hundred|thousand|million|billion)\b)', 'one ', text, flags=re.IGNORECASE)
     # English permits "one hundred and twenty" for the same number as 120.
     # Only the conjunction inside a number is optional; other words stay exact.
     number_tail = 'zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|thirtieth|fortieth|fiftieth|sixtieth|seventieth|eightieth|ninetieth'
     text = re.sub(r'\b(hundred|thousand|million|billion)\s+and\s+(?=(?:'+number_tail+r')\b)', r'\1 ', text, flags=re.IGNORECASE)
     tokens = re.findall(r"[a-z0-9]+(?:'[a-z]+)?", text.lower().replace('’', "'"))
+    # Cardinal articles denote one, including punctuation-separated readings.
+    tokens = ['one' if token == 'a' and i+1 < len(tokens) and tokens[i+1] in ('hundred', 'thousand', 'million', 'billion') else token for i,token in enumerate(tokens)]
     # A possessive apostrophe does not change the spoken final s.
     tokens = [token[:-2]+'s' if token.endswith("'s") else token for token in tokens]
     # Audible spelling equivalents only. These do not waive missing words or
