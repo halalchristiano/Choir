@@ -216,7 +216,6 @@ class BibleAudioTextChecks(unittest.TestCase):
             self.assertEqual(words(a),words(b))
         for a,b in [('a silver platter','one silver platter'),('a hundred','hundred'),('a hundred','200'),('a hundredth','one hundredth')]:
             self.assertNotEqual(words(a),words(b))
-        from verify_bible_audio import timed_words
         sample=[dict(word=w,start=i,end=i+1) for i,w in enumerate('a hundred and thirty'.split())]
         aligned=timed_words(sample)
         self.assertEqual([w[0] for w in aligned],words('130'))
