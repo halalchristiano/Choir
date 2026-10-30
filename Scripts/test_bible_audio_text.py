@@ -97,6 +97,8 @@ class BibleAudioTextChecks(unittest.TestCase):
         self.assertEqual(ordinal_words(103), 'one hundred third')
 
     def test_name_transcription_spelling_preserves_distinct_readings(self):
+        self.assertEqual(words('Amminadab'), words('Aminadab'))
+        self.assertNotEqual(words('Amminadab'), words('Ammonadab'))
         for source, spelling in [('Adah', 'Ada'), ('Admah', 'Adma'), ('Arioch', 'Ariok'),
                                  ('Casluhites', 'Kasluhites'), ('Caphtorites', 'Kaphtorites'),
                                  ('Rodanites', 'Rhodanites'), ('Goiim', 'Goyim'), ('O', 'Oh'),
