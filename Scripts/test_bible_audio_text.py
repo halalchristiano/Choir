@@ -13,7 +13,7 @@ class BibleAudioTextChecks(unittest.TestCase):
         for a, b in [("Maath", "Ma'ath"), ("Syrtis", "Sirtis"), ("Rhegium", "Regium"),
                      ("Aenon", "Enon"), ("Mnason", "Nason"), ("Akeldama", "a keldama"),
                      ("Manaen", "man a en"), ("Mitylene", "miti lini"),
-                     ("Mitylene", "Mitilini"), ("Gallio", "Galio"), ("Attalia", "Atalia"), ("Chuza", "Chusa"), ("forever", "for ever"),
+                     ("Mitylene", "Mytilene"), ("Mitylene", "Mitilini"), ("Gallio", "Galio"), ("Attalia", "Atalia"), ("Chuza", "Chusa"), ("forever", "for ever"),
                      ("Nicolas", "Nicholas"), ("Cnidus", "Nidus"), ("traveling", "travelling"),
                      ("foreseeing", "for seeing"), ("there", "their")]:
             self.assertEqual(words(a), words(b))

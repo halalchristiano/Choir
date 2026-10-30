@@ -43,3 +43,6 @@ Version 37 also compares the explicitly generated, reference-supported syllables
 `man-a-en` (https://biblehub.com/topical/m/manaen.htm) and `mit-i-le-ne`
 (https://biblehub.com/topical/m/mitylene.htm). Different vowels or extra
 syllables such as Manahein, Midulene, and Metellim still fail.
+
+Version 38 also accepts Mytilene, the explicitly documented alternate spelling
+of Mitylene in Strong G3412: https://biblehub.com/greek/3412.htm.
