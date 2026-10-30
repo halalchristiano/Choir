@@ -96,3 +96,12 @@ https://biblehub.com/topical/n/nahshon.htm), Phineas/Phinehas (ISBE fin-e-as,
 https://biblehub.com/topical/p/phinehas.htm), and Asir/Assir (H617 ah-seer,
 https://biblehub.com/strongs/hebrew/617.htm), plus firepans/fire pans spacing.
 Assir/Asher, Nahshon/Nason, and missing plural endings remain rejected.
+
+Version 47 adds firstborn/stillborn spacing and consonant-doubling-only forms
+Amishadai, Zurishadai, Amihud, Shamua, and Uzielites. It also accepts Okran
+(H5918, https://biblehub.com/strongs/hebrew/5918.htm), Eshkol (ISBE esh-kol,
+https://biblehub.com/topical/e/eshcol.htm), Nazarite (Easton's explicitly
+equates Nazirite, https://biblehub.com/topical/n/nazarite.htm), Mali (ISBE
+ma-li, https://biblehub.com/topical/m/mahli.htm), and Malites (ISBE ma-lits,
+https://classic.net.bible.org/dictionary.php/dictionary.php?word=Mahlites).
+Changed vowels, missing syllables, plurals, and distinct names remain errors.

@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 46
+NORMALIZATION_VERSION = 47
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -127,6 +127,12 @@ def words(text):
                 # ISBE na-shon / fin-e-as; Strong H617 ah-seer.
                 'nashon': ['nahshon'], 'phineas': ['phinehas'], 'asir': ['assir'],
                 'firepans': ['fire', 'pans'],
+                'firstborn': ['first', 'born'], 'stillborn': ['still', 'born'],
+                'amishadai': ['ammishaddai'], 'zurishadai': ['zurishaddai'],
+                'amihud': ['ammihud'], 'shamua': ['shammua'], 'uzielites': ['uzzielites'],
+                # Published spellings / English pronunciations; preserve changed vowels and syllables.
+                'okran': ['ocran'], 'eshkol': ['eshcol'], 'nazarite': ['nazirite'],
+                'mali': ['mahli'], 'malites': ['mahlites'],
                 'aminadab': ['amminadab'],
                 'turtledoves': ['turtle', 'doves'], 'thornbushes': ['thorn', 'bushes'],
                 'onto': ['on', 'to'], 'sun': ['son'],

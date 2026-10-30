@@ -9,6 +9,20 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_numbers_spelling_equivalents_preserve_wrong_names(self):
+        for a,b in [('firstborn','first born'), ('stillborn','still born'),
+                    ('Ammishaddai','Amishadai'), ('Zurishaddai','Zurishadai'),
+                    ('Ammihud','Amihud'), ('Shammua','Shamua'), ('Uzzielites','Uzielites'),
+                    ('Ocran','Okran'), ('Eshcol','Eshkol'), ('Nazirite','Nazarite'),
+                    ('Mahli','Mali'), ('Mahlites','Malites')]:
+            self.assertEqual(words(a), words(b))
+            items=[dict(word=w,start=float(i),end=i+.5) for i,w in enumerate(b.split())]
+            self.assertEqual([w[0] for w in timed_words(items)], words(a))
+        for a,b in [('Zurishaddai','Zurushadai'), ('Ammihud','Amehud'),
+                    ('Shammua','Shammual'), ('Mahli','Mahi'), ('Ocran','Ocren'),
+                    ('Uzzielites','Uzielite'), ('Nazirite','Nazarene'), ('Elizur','Elizar')]:
+            self.assertNotEqual(words(a), words(b))
+
     def test_leviticus_spacing_and_homophones_preserve_word_changes(self):
         for a,b in [('earlobe','ear lobe'), ('reexamine','re examine'), ('reexamines','re examines'),
                     ('reenter','re enter'), ('anything','any thing'), ('windblown','wind blown'),
