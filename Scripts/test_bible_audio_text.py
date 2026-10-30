@@ -12,12 +12,14 @@ class BibleAudioTextChecks(unittest.TestCase):
     def test_remaining_nt_orthography_preserves_reading_errors(self):
         for a, b in [("Maath", "Ma'ath"), ("Syrtis", "Sirtis"), ("Rhegium", "Regium"),
                      ("Aenon", "Enon"), ("Mnason", "Nason"), ("Akeldama", "a keldama"),
-                     ("Gallio", "Galio"), ("Attalia", "Atalia"), ("Chuza", "Chusa"), ("forever", "for ever"),
+                     ("Manaen", "man a en"), ("Mitylene", "miti lini"),
+                     ("Mitylene", "Mitilini"), ("Gallio", "Galio"), ("Attalia", "Atalia"), ("Chuza", "Chusa"), ("forever", "for ever"),
                      ("Nicolas", "Nicholas"), ("Cnidus", "Nidus"), ("traveling", "travelling"),
                      ("foreseeing", "for seeing"), ("there", "their")]:
             self.assertEqual(words(a), words(b))
             self.assertEqual([w[0] for w in timed_words([dict(word=b, start=0., end=1.)])], words(a))
-        for a, b in [("Gallio", "Galileo"), ("Maath", "Maathah"), ("Maath", "Matthat"), ("and", "in"),
+        for a, b in [("Manaen", "Manahein"), ("Mitylene", "Metellim"), ("Mitylene", "Midulene"),
+                     ("Gallio", "Galileo"), ("Maath", "Maathah"), ("Maath", "Matthat"), ("and", "in"),
                      ("ask", "asked"), ("stop", "stopped"), ("I am", "I'm"),
                      ("craftsmen", "craftsman")]:
             self.assertNotEqual(words(a), words(b))

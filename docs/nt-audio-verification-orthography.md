@@ -37,3 +37,9 @@ Tests explicitly reject distinct readings including Maathah, Matthat, Galileo,
 `craftsmen`/`craftsman`. No whole-passage text is supplied as a recognition hint;
 where used, hints contain isolated proper names only. Automated checks are not
 a human listening or voice-likeness review.
+
+Version 37 also compares the explicitly generated, reference-supported syllables
+`man a en` with Manaen and `miti lini`/`Mitilini` with Mitylene. ISBE gives
+`man-a-en` (https://biblehub.com/topical/m/manaen.htm) and `mit-i-le-ne`
+(https://biblehub.com/topical/m/mitylene.htm). Different vowels or extra
+syllables such as Manahein, Midulene, and Metellim still fail.

@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 36
+NORMALIZATION_VERSION = 37
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -78,6 +78,9 @@ def words(text):
                 'nidus': ['cnidus'],
                 # ISBE Aenon e-non; Mnason na-son; Akeldama a-kel-da-ma.
                 'enon': ['aenon'], 'nason': ['mnason'], 'akeldama': ['a', 'keldama'],
+                # ISBE syllables man-a-en and mit-i-le-ne; preserve vowel/syllable errors.
+                'manaen': ['man', 'a', 'en'], 'mitylene': ['miti', 'lini'],
+                'mitilini': ['miti', 'lini'],
                 'galio': ['gallio'], 'atalia': ['attalia'], 'chusa': ['chuza'], 'forever': ['for', 'ever'],
                 'joannan': ['joanan'], "mele'ah": ['melea'], 'meleah': ['melea'],
                 'worshipping': ['worshiping'], 'worshippers': ['worshipers'],
