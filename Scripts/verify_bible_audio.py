@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 61
+NORMALIZATION_VERSION = 62
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -56,6 +56,8 @@ def words(text):
     # Numerals and their spoken English form represent the same source words.
     text = re.sub(r'\b(\d[\d,]*)(?:st|nd|rd|th)\b', lambda m: ordinal_words(int(m[1].replace(',', ''))), text, flags=re.IGNORECASE)
     text = re.sub(r'\b\d[\d,]*\b', lambda m: number_words(int(m[0].replace(',', ''))), text)
+    # The article in a cardinal magnitude denotes one, including ASR digits.
+    text = re.sub(r'\ba\s+(?=(?:hundred|thousand|million|billion)\b)', 'one ', text, flags=re.IGNORECASE)
     # English permits "one hundred and twenty" for the same number as 120.
     # Only the conjunction inside a number is optional; other words stay exact.
     number_tail = 'zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|thirtieth|fortieth|fiftieth|sixtieth|seventieth|eightieth|ninetieth'
@@ -218,6 +220,8 @@ def timed_words(word_times):
             merged.append(dict(item))
     word_times = merged
     flattened = [(token, item['start'], item['end']) for item in word_times for token in words(item['word'])]
+    # Apply the same bounded cardinal-article rule across timestamp tokens.
+    flattened = [('one', start, end) if token == 'a' and i+1 < len(flattened) and flattened[i+1][0] in ('hundred', 'thousand', 'million', 'billion') else (token, start, end) for i,(token,start,end) in enumerate(flattened)]
     target = words(' '.join(item['word'] for item in word_times))
     result = []
     position = 0

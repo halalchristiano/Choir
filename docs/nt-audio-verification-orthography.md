@@ -237,3 +237,12 @@ bounded English proper-name variants, not a general s/z substitution and not
 a claim that all historical pronunciations are identical. Raw recognition
 remains in each receipt. Eliezer, Eleazar, Elisir, Elisor, Elisaphon, Elishaphan,
 and syllable-shortened Elzaphan remain distinct in the negative controls.
+
+Normalization 62 fixes cardinal-number formatting: `a hundred and thirty`,
+`one hundred thirty`, and ASR-formatted `130` represent the same numeric value.
+Only `a` immediately before singular hundred/thousand/million/billion becomes
+`one`; arbitrary article substitutions, omitted magnitudes, different amounts,
+and ordinal articles remain distinct. The same bounded rule preserves the
+original interval in word timestamps. This corrects an earlier false flag
+caused by expanding recognizer digits to `one` while leaving source `a` intact.
+Primary language reference: https://dictionary.cambridge.org/grammar/british-grammar/number

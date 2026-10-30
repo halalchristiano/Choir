@@ -212,6 +212,15 @@ class BibleAudioTextChecks(unittest.TestCase):
         self.assertEqual(words('Elizur'), words('Elisur'))
         for a,b in [('Elizaphan','Elisaphon'),('Elizaphan','Elishaphan'),('Elizaphan','Elzaphan'),('Elizur','Eliezer'),('Elizur','Eleazar'),('Elizur','Elisor'),('Elizur','Elisir')]:
             self.assertNotEqual(words(a),words(b))
+        for a,b in [('a hundred and thirty','130'),('a thousand','1000'),('a million','1000000'),('a billion','1000000000')]:
+            self.assertEqual(words(a),words(b))
+        for a,b in [('a silver platter','one silver platter'),('a hundred','hundred'),('a hundred','200'),('a hundredth','one hundredth')]:
+            self.assertNotEqual(words(a),words(b))
+        from verify_bible_audio import timed_words
+        sample=[dict(word=w,start=i,end=i+1) for i,w in enumerate('a hundred and thirty'.split())]
+        aligned=timed_words(sample)
+        self.assertEqual([w[0] for w in aligned],words('130'))
+        self.assertEqual(aligned[0],('one',0,1))
         self.assertEqual(words('Eleazar'), words('El eazar'))
         self.assertNotEqual(words('Eleazar'), words('Eliezer'))
         self.assertNotEqual(words('Eleazar'), words('El iyazar'))
