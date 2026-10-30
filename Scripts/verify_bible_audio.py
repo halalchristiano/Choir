@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 51
+NORMALIZATION_VERSION = 52
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -93,7 +93,7 @@ def words(text):
                 'tomorrow': ['to', 'morrow'], 'someone': ['some', 'one'], 'anyone': ['any', 'one'],
                 'doorframe': ['door', 'frame'], 'doorframes': ['door', 'frames'],
                 'workload': ['work', 'load'], 'flintknife': ['flint', 'knife'], 'handmill': ['hand', 'mill'],
-                'marvellous': ['marvelous'], 'favour': ['favor'], 'honour': ['honor'],
+                'marvellous': ['marvelous'], 'favour': ['favor'], 'favoured': ['favored'], 'honour': ['honor'],
                 'neighbour': ['neighbor'], 'neighbours': ['neighbors'],
                 'moulding': ['molding'], 'skilfully': ['skillfully'], 'totalled': ['totaled'],
                 'fulfil': ['fulfill'], 'jewellery': ['jewelry'], 'chiselled': ['chiseled'],

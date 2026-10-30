@@ -122,3 +122,6 @@ The plural ending remains required; pastureland/pasturelands still differs.
 
 Version 51 includes singular grainfield/grain field compound spacing, alongside
 the existing plural form. Grainfield/grainfields remains a mismatch.
+
+Version 52 accepts British favoured alongside American favored, preserving the
+past-tense ending; favour/favoured remains a mismatch.
