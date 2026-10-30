@@ -116,3 +116,6 @@ https://dictionary.cambridge.org/pronunciation/english/ephah), Suf/Suph
 (ph/f only; ISBE soof at https://classic.net.bible.org/dictionary.php?word=Suph),
 and Agag/a gag (identical letters and syllables, only ASR word spacing).
 Aphah, Suphah and Hagag remain mismatches. Raw transcripts are retained.
+
+Version 50 extends pastureland spacing to plural pasturelands/pasture lands.
+The plural ending remains required; pastureland/pasturelands still differs.

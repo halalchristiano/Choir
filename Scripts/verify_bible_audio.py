@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 49
+NORMALIZATION_VERSION = 50
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -112,7 +112,7 @@ def words(text):
                 'reexamines': ['re', 'examines'], 'reenter': ['re', 'enter'],
                 'anything': ['any', 'thing'], 'windblown': ['wind', 'blown'],
                 'crossbreed': ['cross', 'breed'], 'bloodguilt': ['blood', 'guilt'],
-                'pastureland': ['pasture', 'land'], 'someones': ['some', 'ones'],
+                'pastureland': ['pasture', 'land'], 'pasturelands': ['pasture', 'lands'], 'someones': ['some', 'ones'],
                 'practise': ['practice'], 'practised': ['practiced'], 'fulfilment': ['fulfillment'],
                 'vale': ['veil'], 'mail': ['male'], 'gilt': ['guilt'], 'waived': ['waved'],
                 # Strong H8236 shif-raw: ph/f and silent final h only.
