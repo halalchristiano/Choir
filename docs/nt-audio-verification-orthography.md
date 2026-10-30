@@ -70,3 +70,8 @@ plurals and distinct names such as Eliezer/Eleazar remain rejected.
 Version 42 treats Pihahiroth/Pi-hahiroth and Ahisamach/Ahi Samach as
 segmentation differences. Every letter is preserved; changed spellings such
 as Piaheroth and Ahisamech remain rejected.
+
+Version 43 accepts Ramesses for Rameses (the same city/name, H7486,
+https://biblehub.com/hebrew/7486.htm) and Aholiab for Oholiab (explicit KJV
+form of H171, https://biblehub.com/strongs/hebrew/171.htm). These are
+attested forms only; Ramizes and the distinct Oholibah still fail.
