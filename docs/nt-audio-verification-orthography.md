@@ -135,3 +135,15 @@ This is an explicit audible homophone exception, like their/there; canonical
 source text and its plural remain unchanged. Magician/magicians and other
 audibly different number endings still fail. This supersedes the earlier
 foremen/foreman rejection; no transcript words are edited.
+
+
+### 2026-10-30: unsown/unsewn (normalization 54)
+
+Deuteronomy 29 produced the transcript “unsewn” for canonical “unsown”.
+The sown/sewn bases share /soʊn/ according to Cambridge; the identical
+un- prefix does not change that homophony. Normalize only this pair, retaining
+the canonical source and raw recognizer output. Tests still reject omitted
+un- and changed vowels (unseen).
+
+References: https://dictionary.cambridge.org/pronunciation/english/sown and
+https://dictionary.cambridge.org/pronunciation/english/sewn

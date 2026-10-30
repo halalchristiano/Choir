@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 53
+NORMALIZATION_VERSION = 54
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -115,7 +115,7 @@ def words(text):
                 'pastureland': ['pasture', 'land'], 'pasturelands': ['pasture', 'lands'], 'someones': ['some', 'ones'],
                 'practise': ['practice'], 'practised': ['practiced'], 'fulfilment': ['fulfillment'],
                 # Cambridge gives identical UK/US pronunciations for foreman/foremen.
-                'foreman': ['foremen'], 'vale': ['veil'], 'mail': ['male'], 'gilt': ['guilt'], 'waived': ['waved'],
+                'unsewn': ['unsown'], 'foreman': ['foremen'], 'vale': ['veil'], 'mail': ['male'], 'gilt': ['guilt'], 'waived': ['waved'],
                 # Strong H8236 shif-raw: ph/f and silent final h only.
                 'shifra': ['shiphrah'],
                 # Preserve every letter; only ASR space/hyphen segmentation differs.
