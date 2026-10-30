@@ -147,3 +147,16 @@ un- and changed vowels (unseen).
 
 References: https://dictionary.cambridge.org/pronunciation/english/sown and
 https://dictionary.cambridge.org/pronunciation/english/sewn
+
+
+### 2026-10-30: spacing and established variants (normalization 55)
+
+Normalize the standard British/American sulphur/sulfur spelling pair and
+the identical spoken segmentation a count/account. The latter retains
+the article token, with a negative test for its omission.
+Zeboim is an explicitly documented English spelling of Zeboiim (Strong H6636
+and ISBE); only that alias is accepted, not the changed vowel Ziboim.
+Canonical BSB text and unedited recognition evidence are retained.
+
+References: https://biblehub.com/strongs/hebrew/6636.htm and
+https://biblehub.com/topical/z/zeboiim.htm
