@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 43
+NORMALIZATION_VERSION = 44
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -114,6 +114,9 @@ def words(text):
                 'pihahiroth': ['pi', 'hahiroth'], 'ahisamach': ['ahi', 'samach'],
                 # Published name forms, Strong H7486 / H171; not arbitrary vowel substitutions.
                 'ramesses': ['rameses'], 'aholiab': ['oholiab'],
+                # Attested sounds: Uzziel oo-zee-el, Pallu pal-loo,
+                # Hanoch ha-nok; gerah geh-raw with a plural s.
+                'uziel': ['uzziel'], 'palu': ['pallu'], 'hannock': ['hanoch'], 'geras': ['gerahs'],
                 'aminadab': ['amminadab'],
                 'turtledoves': ['turtle', 'doves'], 'thornbushes': ['thorn', 'bushes'],
                 'onto': ['on', 'to'], 'sun': ['son'],

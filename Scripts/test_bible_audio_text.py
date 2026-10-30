@@ -43,7 +43,8 @@ class BibleAudioTextChecks(unittest.TestCase):
                                  ('neighbor', 'neighbour'), ('neighbors', 'neighbours'),
                                  ('Shiphrah', 'Shifra'), ('Pi-hahiroth', 'Pihahiroth'),
                                  ('Ahisamach', 'Ahi Samach'), ('Rameses', 'Ramesses'),
-                                 ('Oholiab', 'Aholiab')]:
+                                 ('Oholiab', 'Aholiab'), ('Uzziel', 'Uziel'), ('Pallu', 'Palu'),
+                                 ('Hanoch', 'Hannock'), ('gerahs', 'geras')]:
             self.assertEqual(words(compound), words(spaced))
             items = [dict(word=w, start=float(i), end=i+.5) for i,w in enumerate(spaced.split())]
             self.assertEqual([w[0] for w in timed_words(items)], words(compound))
@@ -53,7 +54,8 @@ class BibleAudioTextChecks(unittest.TestCase):
                                 ('doorframes', 'door frame'), ('Shiphrah', 'Shiphraha'),
                                 ('foremen', 'foreman'), ('roasted', 'roast it'),
                                 ('Pi-hahiroth', 'Piaheroth'), ('Ahisamach', 'Ahisamech'),
-                                ('Rameses', 'Ramizes'), ('Oholiab', 'Oholibah')]:
+                                ('Rameses', 'Ramizes'), ('Oholiab', 'Oholibah'),
+                                ('Uzziel', 'Uzzil'), ('Hanoch', 'Hanak'), ('gerahs', 'jarahs')]:
             self.assertNotEqual(words(expected), words(wrong))
 
     def test_remaining_nt_orthography_preserves_reading_errors(self):

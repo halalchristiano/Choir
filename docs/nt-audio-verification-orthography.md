@@ -75,3 +75,11 @@ Version 43 accepts Ramesses for Rameses (the same city/name, H7486,
 https://biblehub.com/hebrew/7486.htm) and Aholiab for Oholiab (explicit KJV
 form of H171, https://biblehub.com/strongs/hebrew/171.htm). These are
 attested forms only; Ramizes and the distinct Oholibah still fail.
+
+Version 44 accepts Uziel/Uzziel and Palu/Pallu (consonant doubling only),
+Hannock/Hanoch (ha-nok, ISBE), and geras/gerahs (silent final h before plural s).
+Pronunciation references: https://biblehub.com/hebrew/5816.htm,
+https://biblehub.com/hebrew/6396.htm,
+https://biblehub.com/topical/h/hanoch.htm,
+https://biblehub.com/strongs/hebrew/1626.htm.
+Uzzil, Hanak, and jarahs remain mismatches.
