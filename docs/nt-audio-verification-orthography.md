@@ -185,3 +185,16 @@ References:
 - https://biblehub.com/topical/r/riblah.htm
 - https://biblehub.com/topical/s/suphah.htm
 - https://truthbook.com/urantia-book-viewer-core/1924-Websters-Dictionary-Edition/LETTER-S.pdf
+
+
+### 2026-10-30: Aroer and exact name segmentation (normalization 57)
+
+ISBE gives Aroer as a-ro'-er, matching the audible segmentation
+“a rower”; Strong H6177 explicitly also lists Aror as a form of this
+same place-name. Preserve the leading syllable and reject bare rower.
+Ahiezer/Ahi ezer and Deuel/Deu el split the identical letters into
+recognizer tokens without removing any syllable. Tests retain the
+distinct Abiezer and the altered Deweel vowel.
+
+References: https://biblehub.com/topical/a/aroer.htm and
+https://biblehub.com/hebrew/6177.htm
