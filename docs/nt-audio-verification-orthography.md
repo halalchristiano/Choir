@@ -160,3 +160,28 @@ Canonical BSB text and unedited recognition evidence are retained.
 
 References: https://biblehub.com/strongs/hebrew/6636.htm and
 https://biblehub.com/topical/z/zeboiim.htm
+
+
+### 2026-10-30: bounded phonetic spelling aliases (normalization 56)
+
+Cozbi/Kozbi and the recognizer's Cosby share the documented koz-bi
+pronunciation (ISBE; Cambridge UK /kɒz.bi/). Ammiel/Amiel retains
+ISBE am-i-el with no extra spoken consonant for the doubled m.
+Hepher/Hefer and Hupham/Hufam retain ISBE he-fer and hu-fam;
+clan -ite endings remain required. Riblah/Ribla and Suphah/Supha/Sufa
+retain the documented rib-la and soo-fa endings.
+The phonetic ASR spelling unsandled retains the standard sandaled
+pronunciation (Webster 1924 gives sandaled as san'dld); it does not
+permit unsaddled or unsanded. All aliases are explicitly enumerated,
+with negative controls for changed sounds and missing suffixes.
+Raw ASR, source spelling, and audio hashes remain unedited.
+
+References:
+- https://biblehub.com/topical/c/cozbi.htm
+- https://dictionary.cambridge.org/pronunciation/english/cosby
+- https://biblehub.com/topical/a/ammiel.htm
+- https://biblehub.com/topical/h/hepher.htm
+- https://biblehub.com/topical/h/hupham.htm
+- https://biblehub.com/topical/r/riblah.htm
+- https://biblehub.com/topical/s/suphah.htm
+- https://truthbook.com/urantia-book-viewer-core/1924-Websters-Dictionary-Edition/LETTER-S.pdf
