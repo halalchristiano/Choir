@@ -208,7 +208,7 @@ class BibleAudioTextChecks(unittest.TestCase):
         self.assertNotEqual(words('Aroer'),words('rower'))
         self.assertNotEqual(words('Ahiezer'),words('Abiezer'))
         self.assertNotEqual(words('Deuel'),words('Deweel'))
-        for a,b in [('Cozbi','Cosby'),('Cozbi','Kozbi'),('Ammiel','Amiel'),('Hepher','Hefer'),('Hepherite','Heferite'),('Hupham','Hufam'),('Huphamite','Hufamite'),('Riblah','Ribla'),('Suphah','Sufa'),('Suphah','Supha'),('Unsandaled','Unsandled')]:
+        for a,b in [('Cozbi','Cosby'),('Cozbi','Kozbi'),('Ammiel','Amiel'),('Hepher','Hefer'),('Hepherite','Heferite'),('Hupham','Hufam'),('Huphamite','Hufamite'),('Riblah','Ribla'),('Suphah','Sufa'),('Suphah','Sufah'),('Suphah','Supha'),('Unsandaled','Unsandled')]:
             self.assertEqual(words(a),words(b))
         for a,b in [('Cozbi','Crosby'),('Ammiel','Amal'),('Hepher','Heper'),('Hepherite','Hepher'),('Hupham','Huppam'),('Riblah','Rib'),('Suphah','Suph'),('Unsandaled','Unsaddled'),('Unsandaled','Unsanded')]:
             self.assertNotEqual(words(a),words(b))

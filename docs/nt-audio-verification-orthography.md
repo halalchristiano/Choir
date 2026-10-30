@@ -218,3 +218,8 @@ References:
 - https://biblehub.com/topical/h/hanoch.htm
 - https://biblehub.com/topical/r/rabbah.htm
 - https://biblehub.com/topical/a/aroer.htm
+
+Normalization 59 also recognizes `Sufah` as the same /soo-fa/ phonetic
+spelling already covered by `Sufa` and `Supha`. Final h is silent; this adds
+no vowel or syllable equivalence. The Suph/Suphah negative control remains.
+Reference: https://biblehub.com/topical/s/suphah.htm
