@@ -47,11 +47,13 @@ def main():
     p.add_argument('--expand-numbers', action='store_true',
                    help='Spell numeric quantities in full to avoid abbreviated ages and counts.')
     p.add_argument('--only', nargs='+')
+    p.add_argument('--minimum-audio-seconds', type=float, default=1., help='Lower only for explicitly isolated word repairs; full passages keep the default.')
     p.add_argument('--prompt-overrides', type=Path)
     p.add_argument('--temperature', type=float, default=.7)
     p.add_argument('--cache-limit-mb', type=int, default=512,
                    help='Bound unused MLX buffers so long batches do not pressure system swap.')
     args = p.parse_args()
+    assert .25 <= args.minimum_audio_seconds <= 1.
     assert args.cache_limit_mb >= 0
     mx.set_cache_limit(args.cache_limit_mb * 1024 * 1024)
     root = args.root.resolve()
@@ -139,7 +141,7 @@ def main():
             job=batch[index]
             mx.eval(result.audio)
             audio=np.asarray(result.audio).reshape(-1)
-            assert np.isfinite(audio).all() and len(audio)>model.sample_rate
+            assert np.isfinite(audio).all() and len(audio)>model.sample_rate*args.minimum_audio_seconds
             assert np.sqrt(np.mean(audio**2))>.002
             if result.token_count>=900:
                 raise RuntimeError('Generation length cap reached: '+job['id'])

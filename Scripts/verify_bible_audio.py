@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 23
+NORMALIZATION_VERSION = 25
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -65,7 +65,11 @@ def words(text):
     tokens = [token[:-2]+'s' if token.endswith("'s") else token for token in tokens]
     # Audible spelling equivalents only. These do not waive missing words or
     # different readings. Raw transcripts remain in every verification record.
-    spelling = {'grainfields': ['grain', 'fields'], 'thaddeus': ['thaddaeus'],
+    # Epaenetus/Epenetus are published spellings of the same name (Strong G1866).
+    spelling = {'epaenetus': ['epenetus'], 'rights': ['rites'], 'rebekahs': ['rebeccas'],
+                'awhile': ['a', 'while'], 'yokefellow': ['yoke', 'fellow'],
+                'fainthearted': ['faint', 'hearted'],
+                'grainfields': ['grain', 'fields'], 'thaddeus': ['thaddaeus'],
                 'team': ['teem'], 'teamed': ['teemed'], 'arc': ['ark'], 'seedtime': ['seed', 'time'],
                 'turtledove': ['turtle', 'dove'], 'facedown': ['face', 'down'], 'borne': ['born'],
                 'o': ['oh'], 'adah': ['ada'], 'admah': ['adma'], 'arioch': ['ariok'],
@@ -116,6 +120,16 @@ def differences(expected, recognized):
 
 def timed_words(word_times):
     """Keep timestamps while removing only optional conjunctions inside numbers."""
+    merged = []
+    for item in word_times:
+        # Whisper may tokenize 23,000 as "23" and ",000". Rejoin only
+        # numeric continuation tokens, retaining the complete time interval.
+        if merged and re.search(r'\d$', merged[-1]['word'].strip()) and re.fullmatch(r'\s*,\d{3}(?:,\d{3})*\s*', item['word']):
+            merged[-1]['word'] += item['word'].strip()
+            merged[-1]['end'] = item['end']
+        else:
+            merged.append(dict(item))
+    word_times = merged
     flattened = [(token, item['start'], item['end']) for item in word_times for token in words(item['word'])]
     target = words(' '.join(item['word'] for item in word_times))
     result = []
