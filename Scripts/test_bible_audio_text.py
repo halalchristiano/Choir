@@ -10,7 +10,8 @@ from bible_audio_pronunciation import restore_source_spellings
 
 class BibleAudioTextChecks(unittest.TestCase):
     def test_remaining_nt_orthography_preserves_reading_errors(self):
-        for a, b in [("Maath", "Ma'ath"), ("traveling", "travelling"),
+        for a, b in [("Maath", "Ma'ath"), ("Syrtis", "Sirtis"), ("Rhegium", "Regium"),
+                     ("Nicolas", "Nicholas"), ("Cnidus", "Nidus"), ("traveling", "travelling"),
                      ("foreseeing", "for seeing"), ("there", "their")]:
             self.assertEqual(words(a), words(b))
             self.assertEqual([w[0] for w in timed_words([dict(word=b, start=0., end=1.)])], words(a))

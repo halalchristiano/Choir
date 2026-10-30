@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 32
+NORMALIZATION_VERSION = 33
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -72,6 +72,10 @@ def words(text):
     # Maath syllable separator follows Strong G3092 mah-ath, not Maathah.
     spelling = {"ma'ath": ['maath'], 'travelling': ['traveling'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
+                # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
+                'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],
+                # Smith/ISBE Cnidus: nidus, ni-dus (silent initial c).
+                'nidus': ['cnidus'],
                 'joannan': ['joanan'], "mele'ah": ['melea'], 'meleah': ['melea'],
                 'worshipping': ['worshiping'], 'worshippers': ['worshipers'],
                 'tentmakers': ['tent', 'makers'], 'longstanding': ['long', 'standing'],
