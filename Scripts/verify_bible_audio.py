@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 39
+NORMALIZATION_VERSION = 40
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -90,6 +90,13 @@ def words(text):
                 'riverbank': ['river', 'bank'], 'riverbanks': ['river', 'banks'],
                 'maidservant': ['maid', 'servant'], 'maidservants': ['maid', 'servants'],
                 'today': ['to', 'day'],
+                'tomorrow': ['to', 'morrow'], 'someone': ['some', 'one'], 'anyone': ['any', 'one'],
+                'doorframe': ['door', 'frame'], 'doorframes': ['door', 'frames'],
+                'workload': ['work', 'load'], 'flintknife': ['flint', 'knife'], 'handmill': ['hand', 'mill'],
+                'marvellous': ['marvelous'], 'favour': ['favor'], 'honour': ['honor'],
+                'neighbour': ['neighbor'], 'neighbours': ['neighbors'],
+                # Strong H8236 shif-raw: ph/f and silent final h only.
+                'shifra': ['shiphrah'],
                 'aminadab': ['amminadab'],
                 'turtledoves': ['turtle', 'doves'], 'thornbushes': ['thorn', 'bushes'],
                 'onto': ['on', 'to'], 'sun': ['son'],

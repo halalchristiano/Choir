@@ -13,13 +13,22 @@ class BibleAudioTextChecks(unittest.TestCase):
         for compound, spaced in [('birthstools', 'birth stools'), ('birthstool', 'birth stool'),
                                  ('riverbank', 'river bank'), ('riverbanks', 'river banks'),
                                  ('maidservant', 'maid servant'), ('maidservants', 'maid servants'),
-                                 ('today', 'to day')]:
+                                 ('today', 'to day'), ('tomorrow', 'to morrow'),
+                                 ('someone', 'some one'), ('anyone', 'any one'),
+                                 ('doorframe', 'door frame'), ('doorframes', 'door frames'),
+                                 ('workload', 'work load'), ('flint knife', 'flintknife'),
+                                 ('hand mill', 'handmill'), ('marvelous', 'marvellous'),
+                                 ('favor', 'favour'), ('honor', 'honour'),
+                                 ('neighbor', 'neighbour'), ('neighbors', 'neighbours'),
+                                 ('Shiphrah', 'Shifra')]:
             self.assertEqual(words(compound), words(spaced))
             items = [dict(word=w, start=float(i), end=i+.5) for i,w in enumerate(spaced.split())]
             self.assertEqual([w[0] for w in timed_words(items)], words(compound))
         for expected, wrong in [('birthstools', 'birth stool'), ('riverbank', 'bank'),
                                 ('maidservants', 'maid servant'), ('today', 'day'),
-                                ('Pithom', 'Pithem'), ('Reuel', 'Reoel')]:
+                                ('Pithom', 'Pithem'), ('Reuel', 'Reoel'),
+                                ('doorframes', 'door frame'), ('Shiphrah', 'Shiphraha'),
+                                ('foremen', 'foreman'), ('roasted', 'roast it')]:
             self.assertNotEqual(words(expected), words(wrong))
 
     def test_remaining_nt_orthography_preserves_reading_errors(self):

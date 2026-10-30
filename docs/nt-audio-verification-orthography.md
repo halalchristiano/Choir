@@ -53,3 +53,10 @@ maidservant(s)/maid servant(s), and today/to day. These retain all spoken
 components, including plural endings. Raw transcripts and timestamp records
 remain unchanged. Missing components, changed plurals, and uncertain name
 vowels (Pithom/Pithem and Reuel/Reoel) still fail.
+
+Version 40 adds observed compound spacing for tomorrow, someone, anyone,
+doorframe(s), workload, flintknife, and handmill; standard British spellings
+marvellous, favour, honour, and neighbour(s); and Shifra for Shiphrah.
+Strong H8236 gives shif-raw (https://biblehub.com/hebrew/8236.htm), supporting
+ph/f and silent final h only. Foremen/foreman and roasted/roast it remain
+different readings requiring another recognizer or a corrected take.
