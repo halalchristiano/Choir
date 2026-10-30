@@ -82,7 +82,12 @@ def main():
                 prompt = overrides.get(identity, chunk['text'])
                 if args.expand_numbers:
                     prompt = re.sub(r'\b\d[\d,]*\b', lambda m: number_words(int(m[0].replace(',', ''))), prompt)
-                canonical_prompt, used_pronunciations = restore_source_spellings(prompt, pronunciations)
+                # Literal source words can also occur as a respelling elsewhere
+                # (for example, Luke's "inn" versus a repair of "in").
+                if words(prompt) == words(chunk['text']):
+                    canonical_prompt, used_pronunciations = prompt, []
+                else:
+                    canonical_prompt, used_pronunciations = restore_source_spellings(prompt, pronunciations)
                 assert words(canonical_prompt) == words(chunk['text']), 'A generation prompt cannot change source words or numeric quantities'
                 if prompt != chunk['text']:
                     signature = hashlib.sha256((signature+'\n'+prompt).encode()).hexdigest()
