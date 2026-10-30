@@ -201,6 +201,10 @@ class BibleAudioTextChecks(unittest.TestCase):
         self.assertEqual(ordinal_words(103), 'one hundred third')
 
     def test_name_transcription_spelling_preserves_distinct_readings(self):
+        for source, spelling in [('Ephah', 'Epha'), ('Suph', 'Suf'), ('Agag', 'A gag')]:
+            self.assertEqual(words(source), words(spelling))
+        for source, other in [('Ephah', 'Aphah'), ('Suph', 'Suphah'), ('Agag', 'Hagag')]:
+            self.assertNotEqual(words(source), words(other))
         self.assertEqual(words('Amminadab'), words('Aminadab'))
         self.assertNotEqual(words('Amminadab'), words('Ammonadab'))
         self.assertEqual(words('Joanan'), words('Joannan'))

@@ -110,3 +110,9 @@ Version 48 accepts the explicitly documented Zikri/Zicri transliterations of
 Zichri (https://biblehub.com/hebrew/2147.htm; ISBE zik-ri at
 https://biblehub.com/topical/z/zichri.htm). The different consonant in Zitri
 remains rejected.
+
+Version 49 accepts Epha/Ephah (silent final h; Cambridge English pronunciation
+https://dictionary.cambridge.org/pronunciation/english/ephah), Suf/Suph
+(ph/f only; ISBE soof at https://classic.net.bible.org/dictionary.php?word=Suph),
+and Agag/a gag (identical letters and syllables, only ASR word spacing).
+Aphah, Suphah and Hagag remain mismatches. Raw transcripts are retained.
