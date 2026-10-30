@@ -66,3 +66,7 @@ vocabulary (lampstand, breastpiece, crossbar(s), firstfruits, handbreadth,
 cordwork, and related compounds) and further standard British spellings.
 Every added pair has transcript and timestamp normalization checks; changed
 plurals and distinct names such as Eliezer/Eleazar remain rejected.
+
+Version 42 treats Pihahiroth/Pi-hahiroth and Ahisamach/Ahi Samach as
+segmentation differences. Every letter is preserved; changed spellings such
+as Piaheroth and Ahisamech remain rejected.

@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 41
+NORMALIZATION_VERSION = 42
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -110,6 +110,8 @@ def words(text):
                 'earlobes': ['ear', 'lobes'], 'headbands': ['head', 'bands'],
                 # Strong H8236 shif-raw: ph/f and silent final h only.
                 'shifra': ['shiphrah'],
+                # Preserve every letter; only ASR space/hyphen segmentation differs.
+                'pihahiroth': ['pi', 'hahiroth'], 'ahisamach': ['ahi', 'samach'],
                 'aminadab': ['amminadab'],
                 'turtledoves': ['turtle', 'doves'], 'thornbushes': ['thorn', 'bushes'],
                 'onto': ['on', 'to'], 'sun': ['son'],
