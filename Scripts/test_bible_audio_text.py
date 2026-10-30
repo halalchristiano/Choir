@@ -58,7 +58,9 @@ class BibleAudioTextChecks(unittest.TestCase):
                                  ('Shiphrah', 'Shifra'), ('Pi-hahiroth', 'Pihahiroth'),
                                  ('Ahisamach', 'Ahi Samach'), ('Rameses', 'Ramesses'),
                                  ('Oholiab', 'Aholiab'), ('Uzziel', 'Uziel'), ('Pallu', 'Palu'),
-                                 ('Hanoch', 'Hannock'), ('gerahs', 'geras')]:
+                                 ('Hanoch', 'Hannock'), ('gerahs', 'geras'),
+                                 ('Nahshon', 'Nashon'), ('Phinehas', 'Phineas'),
+                                 ('Assir', 'Asir'), ('firepans', 'fire pans')]:
             self.assertEqual(words(compound), words(spaced))
             items = [dict(word=w, start=float(i), end=i+.5) for i,w in enumerate(spaced.split())]
             self.assertEqual([w[0] for w in timed_words(items)], words(compound))
@@ -69,7 +71,8 @@ class BibleAudioTextChecks(unittest.TestCase):
                                 ('foremen', 'foreman'), ('roasted', 'roast it'),
                                 ('Pi-hahiroth', 'Piaheroth'), ('Ahisamach', 'Ahisamech'),
                                 ('Rameses', 'Ramizes'), ('Oholiab', 'Oholibah'),
-                                ('Uzziel', 'Uzzil'), ('Hanoch', 'Hanak'), ('gerahs', 'jarahs')]:
+                                ('Uzziel', 'Uzzil'), ('Hanoch', 'Hanak'), ('gerahs', 'jarahs'),
+                                ('Assir', 'Asher'), ('Nahshon', 'Nason'), ('firepans', 'fire pan')]:
             self.assertNotEqual(words(expected), words(wrong))
 
     def test_remaining_nt_orthography_preserves_reading_errors(self):

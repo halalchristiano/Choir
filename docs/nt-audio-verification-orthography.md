@@ -90,3 +90,9 @@ one's, British practise/practised/fulfilment, and audible homophones
 veil/vale, male/mail, guilt/gilt, waved/waived. Changed vowels, plurals,
 possessives, and verbs (emission/omission, countryman/countrymen, its/his,
 has/is) still fail. Raw recognition is preserved without substitutions.
+
+Version 46 adds Nashon/Nahshon (ISBE na-shon,
+https://biblehub.com/topical/n/nahshon.htm), Phineas/Phinehas (ISBE fin-e-as,
+https://biblehub.com/topical/p/phinehas.htm), and Asir/Assir (H617 ah-seer,
+https://biblehub.com/strongs/hebrew/617.htm), plus firepans/fire pans spacing.
+Assir/Asher, Nahshon/Nason, and missing plural endings remain rejected.

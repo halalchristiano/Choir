@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 45
+NORMALIZATION_VERSION = 46
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -124,6 +124,9 @@ def words(text):
                 # Attested sounds: Uzziel oo-zee-el, Pallu pal-loo,
                 # Hanoch ha-nok; gerah geh-raw with a plural s.
                 'uziel': ['uzziel'], 'palu': ['pallu'], 'hannock': ['hanoch'], 'geras': ['gerahs'],
+                # ISBE na-shon / fin-e-as; Strong H617 ah-seer.
+                'nashon': ['nahshon'], 'phineas': ['phinehas'], 'asir': ['assir'],
+                'firepans': ['fire', 'pans'],
                 'aminadab': ['amminadab'],
                 'turtledoves': ['turtle', 'doves'], 'thornbushes': ['thorn', 'bushes'],
                 'onto': ['on', 'to'], 'sun': ['son'],
