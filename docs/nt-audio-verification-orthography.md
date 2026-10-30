@@ -60,3 +60,9 @@ marvellous, favour, honour, and neighbour(s); and Shifra for Shiphrah.
 Strong H8236 gives shif-raw (https://biblehub.com/hebrew/8236.htm), supporting
 ph/f and silent final h only. Foremen/foreman and roasted/roast it remain
 different readings requiring another recognizer or a corrected take.
+
+Version 41 extends the same strictly orthographic handling to tabernacle
+vocabulary (lampstand, breastpiece, crossbar(s), firstfruits, handbreadth,
+cordwork, and related compounds) and further standard British spellings.
+Every added pair has transcript and timestamp normalization checks; changed
+plurals and distinct names such as Eliezer/Eleazar remain rejected.

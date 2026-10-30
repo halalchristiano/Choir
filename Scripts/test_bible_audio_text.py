@@ -9,6 +9,27 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_tabernacle_compounds_and_british_spelling(self):
+        pairs = [('molding','moulding'), ('skillfully','skilfully'), ('totaled','totalled'),
+                 ('fulfill','fulfil'), ('jewelry','jewellery'), ('chiseled','chiselled'),
+                 ('splendor','splendour'), ('quarreled','quarrelled'),
+                 ('quarreling','quarrelling'), ('willfully','wilfully'), ('labor','labour'),
+                 ('lampstand','lamp stand'), ('everyone','every one'), ('ram skins','ramskins'),
+                 ('breastpiece','breast piece'), ('manservant','man servant'),
+                 ('menservants','men servants'), ('crossbar','cross bar'), ('crossbars','cross bars'),
+                 ('firstfruits','first fruits'), ('handbreadth','hand breadth'),
+                 ('halfway','half way'), ('freewill','free will'), ('mountaintop','mountain top'),
+                 ('livestock','live stock'), ('cord work','cordwork'), ('doorpost','door post'),
+                 ('earlobes','ear lobes'), ('headbands','head bands')]
+        for a,b in pairs:
+            self.assertEqual(words(a), words(b))
+            items=[dict(word=w,start=float(i),end=i+.5) for i,w in enumerate(b.split())]
+            self.assertEqual([w[0] for w in timed_words(items)], words(a))
+        for a,b in [('menservants','man servant'), ('crossbars','cross bar'),
+                    ('firstfruits','first fruit'), ('earlobes','ear lobe'),
+                    ('frames','frame'), ('directs','direct'), ('Eliezer','Eleazar')]:
+            self.assertNotEqual(words(a), words(b))
+
     def test_exodus_compound_spacing_preserves_missing_words(self):
         for compound, spaced in [('birthstools', 'birth stools'), ('birthstool', 'birth stool'),
                                  ('riverbank', 'river bank'), ('riverbanks', 'river banks'),

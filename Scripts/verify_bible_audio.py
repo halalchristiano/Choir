@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 40
+NORMALIZATION_VERSION = 41
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -95,6 +95,19 @@ def words(text):
                 'workload': ['work', 'load'], 'flintknife': ['flint', 'knife'], 'handmill': ['hand', 'mill'],
                 'marvellous': ['marvelous'], 'favour': ['favor'], 'honour': ['honor'],
                 'neighbour': ['neighbor'], 'neighbours': ['neighbors'],
+                'moulding': ['molding'], 'skilfully': ['skillfully'], 'totalled': ['totaled'],
+                'fulfil': ['fulfill'], 'jewellery': ['jewelry'], 'chiselled': ['chiseled'],
+                'splendour': ['splendor'], 'quarrelled': ['quarreled'],
+                'quarrelling': ['quarreling'], 'wilfully': ['willfully'], 'labour': ['labor'],
+                'lampstand': ['lamp', 'stand'], 'everyone': ['every', 'one'],
+                'ramskins': ['ram', 'skins'], 'breastpiece': ['breast', 'piece'],
+                'manservant': ['man', 'servant'], 'menservants': ['men', 'servants'],
+                'crossbar': ['cross', 'bar'], 'crossbars': ['cross', 'bars'],
+                'firstfruits': ['first', 'fruits'], 'handbreadth': ['hand', 'breadth'],
+                'halfway': ['half', 'way'], 'freewill': ['free', 'will'],
+                'mountaintop': ['mountain', 'top'], 'livestock': ['live', 'stock'],
+                'cordwork': ['cord', 'work'], 'doorpost': ['door', 'post'],
+                'earlobes': ['ear', 'lobes'], 'headbands': ['head', 'bands'],
                 # Strong H8236 shif-raw: ph/f and silent final h only.
                 'shifra': ['shiphrah'],
                 'aminadab': ['amminadab'],
