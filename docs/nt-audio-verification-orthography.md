@@ -119,3 +119,6 @@ Aphah, Suphah and Hagag remain mismatches. Raw transcripts are retained.
 
 Version 50 extends pastureland spacing to plural pasturelands/pasture lands.
 The plural ending remains required; pastureland/pasturelands still differs.
+
+Version 51 includes singular grainfield/grain field compound spacing, alongside
+the existing plural form. Grainfield/grainfields remains a mismatch.
