@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 44
+NORMALIZATION_VERSION = 45
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -108,6 +108,13 @@ def words(text):
                 'mountaintop': ['mountain', 'top'], 'livestock': ['live', 'stock'],
                 'cordwork': ['cord', 'work'], 'doorpost': ['door', 'post'],
                 'earlobes': ['ear', 'lobes'], 'headbands': ['head', 'bands'],
+                'earlobe': ['ear', 'lobe'], 'reexamine': ['re', 'examine'],
+                'reexamines': ['re', 'examines'], 'reenter': ['re', 'enter'],
+                'anything': ['any', 'thing'], 'windblown': ['wind', 'blown'],
+                'crossbreed': ['cross', 'breed'], 'bloodguilt': ['blood', 'guilt'],
+                'pastureland': ['pasture', 'land'], 'someones': ['some', 'ones'],
+                'practise': ['practice'], 'practised': ['practiced'], 'fulfilment': ['fulfillment'],
+                'vale': ['veil'], 'mail': ['male'], 'gilt': ['guilt'], 'waived': ['waved'],
                 # Strong H8236 shif-raw: ph/f and silent final h only.
                 'shifra': ['shiphrah'],
                 # Preserve every letter; only ASR space/hyphen segmentation differs.

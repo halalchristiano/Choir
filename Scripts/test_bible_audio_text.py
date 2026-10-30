@@ -9,6 +9,20 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_leviticus_spacing_and_homophones_preserve_word_changes(self):
+        for a,b in [('earlobe','ear lobe'), ('reexamine','re examine'), ('reexamines','re examines'),
+                    ('reenter','re enter'), ('anything','any thing'), ('windblown','wind blown'),
+                    ('crossbreed','cross breed'), ('bloodguilt','blood guilt'),
+                    ('pastureland','pasture land'), ("someone's","some one's"),
+                    ('practice','practise'), ('practiced','practised'), ('fulfillment','fulfilment'),
+                    ('veil','vale'), ('male','mail'), ('guilt','gilt'), ('waved','waived')]:
+            self.assertEqual(words(a), words(b))
+            items=[dict(word=w,start=float(i),end=i+.5) for i,w in enumerate(b.split())]
+            self.assertEqual([w[0] for w in timed_words(items)], words(a))
+        for a,b in [('emission','omission'), ('countryman','countrymen'), ('reexamines','re examine'),
+                    ('earlobes','ear lobe'), ('has','is'), ('hide','hind'), ('its','his')]:
+            self.assertNotEqual(words(a), words(b))
+
     def test_tabernacle_compounds_and_british_spelling(self):
         pairs = [('molding','moulding'), ('skillfully','skilfully'), ('totaled','totalled'),
                  ('fulfill','fulfil'), ('jewelry','jewellery'), ('chiseled','chiselled'),
