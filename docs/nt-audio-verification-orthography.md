@@ -227,3 +227,13 @@ Reference: https://biblehub.com/topical/s/suphah.htm
 Normalization 60 handles the recognizer splitting `Eleazar` as `El eazar`.
 This only removes a token boundary inside the identical letters. It does not
 permit `Eliezer` or `El iyazar`, and raw recognized text/timestamps remain saved.
+
+Normalization 61 recognizes two documented traditional English name forms:
+`Elisaphan` / `Elizaphan` (Numbers 3:30) and `Elisur` / `Elizur` (Numbers 1:5).
+The Challoner Douay-Rheims primary text publishes the s spellings:
+https://sacredbible.org/challoner/OT-04_Numbers.htm
+The BSB source and generation text remain unchanged. These are explicitly
+bounded English proper-name variants, not a general s/z substitution and not
+a claim that all historical pronunciations are identical. Raw recognition
+remains in each receipt. Eliezer, Eleazar, Elisir, Elisor, Elisaphon, Elishaphan,
+and syllable-shortened Elzaphan remain distinct in the negative controls.

@@ -208,6 +208,10 @@ class BibleAudioTextChecks(unittest.TestCase):
         self.assertNotEqual(words('Aroer'),words('rower'))
         self.assertNotEqual(words('Ahiezer'),words('Abiezer'))
         self.assertNotEqual(words('Deuel'),words('Deweel'))
+        self.assertEqual(words('Elizaphan'), words('Elisaphan'))
+        self.assertEqual(words('Elizur'), words('Elisur'))
+        for a,b in [('Elizaphan','Elisaphon'),('Elizaphan','Elishaphan'),('Elizaphan','Elzaphan'),('Elizur','Eliezer'),('Elizur','Eleazar'),('Elizur','Elisor'),('Elizur','Elisir')]:
+            self.assertNotEqual(words(a),words(b))
         self.assertEqual(words('Eleazar'), words('El eazar'))
         self.assertNotEqual(words('Eleazar'), words('Eliezer'))
         self.assertNotEqual(words('Eleazar'), words('El iyazar'))

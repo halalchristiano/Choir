@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 60
+NORMALIZATION_VERSION = 61
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -118,7 +118,7 @@ def words(text):
                 'aroer': ['a', 'rower'], 'aror': ['a', 'rower'],
                 'ahiezer': ['ahi', 'ezer'], 'deuel': ['deu', 'el'], 'eleazar': ['el', 'eazar'],
                 'rabba': ['rabbah'], 'rabah': ['rabbah'], 'roer': ['rower'],
-                'eliasaf': ['eliasaph'], 'elizafan': ['elizaphan'], 'shefer': ['shepher'],
+                'eliasaf': ['eliasaph'], 'elizafan': ['elizaphan'], 'elisaphan': ['elizaphan'], 'elisur': ['elizur'], 'shefer': ['shepher'],
                 'vofsi': ['vophsi'], 'shufam': ['shupham'], 'shufamite': ['shuphamite'],
                 'hanok': ['hanoch'], 'hanokite': ['hanochite'],
                 'cosby': ['cozbi'], 'kozbi': ['cozbi'], 'amiel': ['ammiel'],
