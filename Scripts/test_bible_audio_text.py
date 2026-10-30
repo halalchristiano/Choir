@@ -83,7 +83,7 @@ class BibleAudioTextChecks(unittest.TestCase):
                                 ('maidservants', 'maid servant'), ('today', 'day'),
                                 ('Pithom', 'Pithem'), ('Reuel', 'Reoel'),
                                 ('doorframes', 'door frame'), ('Shiphrah', 'Shiphraha'),
-                                ('foremen', 'foreman'), ('roasted', 'roast it'),
+                                ('roasted', 'roast it'),
                                 ('Pi-hahiroth', 'Piaheroth'), ('Ahisamach', 'Ahisamech'),
                                 ('Rameses', 'Ramizes'), ('Oholiab', 'Oholibah'),
                                 ('Uzziel', 'Uzzil'), ('Hanoch', 'Hanak'), ('gerahs', 'jarahs'),
@@ -194,6 +194,8 @@ class BibleAudioTextChecks(unittest.TestCase):
         self.assertEqual(words('pasturelands'), words('pasture lands'))
         self.assertEqual(words('grainfield'), words('grain field'))
         self.assertEqual(words('favoured'), words('favored'))
+        self.assertEqual(words('foreman'), words('foremen'))
+        self.assertNotEqual(words('magician'), words('magicians'))
         self.assertNotEqual(words('favoured'), words('favour'))
         self.assertNotEqual(words('grainfield'), words('grainfields'))
         self.assertNotEqual(words('pasturelands'), words('pastureland'))

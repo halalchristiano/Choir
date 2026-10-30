@@ -125,3 +125,13 @@ the existing plural form. Grainfield/grainfields remains a mismatch.
 
 Version 52 accepts British favoured alongside American favored, preserving the
 past-tense ending; favour/favoured remains a mismatch.
+
+Version 53 corrects the earlier foreman/foremen negative control after consulting
+primary dictionary pronunciation entries. Cambridge gives both UK /ˈfɔː.mən/
+and US /ˈfɔːr.mən/ for both forms:
+https://dictionary.cambridge.org/pronunciation/english/foreman
+https://dictionary.cambridge.org/us/pronunciation/english/foremen
+This is an explicit audible homophone exception, like their/there; canonical
+source text and its plural remain unchanged. Magician/magicians and other
+audibly different number endings still fail. This supersedes the earlier
+foremen/foreman rejection; no transcript words are edited.
