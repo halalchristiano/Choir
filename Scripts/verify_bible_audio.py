@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 38
+NORMALIZATION_VERSION = 39
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -85,6 +85,11 @@ def words(text):
                 'joannan': ['joanan'], "mele'ah": ['melea'], 'meleah': ['melea'],
                 'worshipping': ['worshiping'], 'worshippers': ['worshipers'],
                 'tentmakers': ['tent', 'makers'], 'longstanding': ['long', 'standing'],
+                # Compound spacing in ASR does not change the spoken words.
+                'birthstools': ['birth', 'stools'], 'birthstool': ['birth', 'stool'],
+                'riverbank': ['river', 'bank'], 'riverbanks': ['river', 'banks'],
+                'maidservant': ['maid', 'servant'], 'maidservants': ['maid', 'servants'],
+                'today': ['to', 'day'],
                 'aminadab': ['amminadab'],
                 'turtledoves': ['turtle', 'doves'], 'thornbushes': ['thorn', 'bushes'],
                 'onto': ['on', 'to'], 'sun': ['son'],

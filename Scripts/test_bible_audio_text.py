@@ -9,6 +9,19 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_exodus_compound_spacing_preserves_missing_words(self):
+        for compound, spaced in [('birthstools', 'birth stools'), ('birthstool', 'birth stool'),
+                                 ('riverbank', 'river bank'), ('riverbanks', 'river banks'),
+                                 ('maidservant', 'maid servant'), ('maidservants', 'maid servants'),
+                                 ('today', 'to day')]:
+            self.assertEqual(words(compound), words(spaced))
+            items = [dict(word=w, start=float(i), end=i+.5) for i,w in enumerate(spaced.split())]
+            self.assertEqual([w[0] for w in timed_words(items)], words(compound))
+        for expected, wrong in [('birthstools', 'birth stool'), ('riverbank', 'bank'),
+                                ('maidservants', 'maid servant'), ('today', 'day'),
+                                ('Pithom', 'Pithem'), ('Reuel', 'Reoel')]:
+            self.assertNotEqual(words(expected), words(wrong))
+
     def test_remaining_nt_orthography_preserves_reading_errors(self):
         for a, b in [("Maath", "Ma'ath"), ("Syrtis", "Sirtis"), ("Rhegium", "Regium"),
                      ("Aenon", "Enon"), ("Mnason", "Nason"), ("Akeldama", "a keldama"),

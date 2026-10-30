@@ -46,3 +46,10 @@ syllables such as Manahein, Midulene, and Metellim still fail.
 
 Version 38 also accepts Mytilene, the explicitly documented alternate spelling
 of Mitylene in Strong G3412: https://biblehub.com/greek/3412.htm.
+
+Version 39 adds compound spacing seen in the Exodus first transcription:
+birthstool(s)/birth stool(s), riverbank(s)/river bank(s),
+maidservant(s)/maid servant(s), and today/to day. These retain all spoken
+components, including plural endings. Raw transcripts and timestamp records
+remain unchanged. Missing components, changed plurals, and uncertain name
+vowels (Pithom/Pithem and Reuel/Reoel) still fail.
