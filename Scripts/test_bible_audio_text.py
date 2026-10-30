@@ -197,6 +197,10 @@ class BibleAudioTextChecks(unittest.TestCase):
         self.assertEqual(words('foreman'), words('foremen'))
         self.assertEqual(words('unsown'), words('unsewn'))
         self.assertEqual(words('sulfur'), words('sulphur'))
+        for a,b in [('Rabbah','Rabba'),('Rabbah','Rabah'),('Aroer','a roer'),('Eliasaph','Eliasaf'),('Elizaphan','Elizafan'),('Shepher','Shefer'),('Vophsi','Vofsi'),('Shupham','Shufam'),('Shuphamite','Shufamite'),('Hanoch','Hanok'),('Hanochite','Hanokite')]:
+            self.assertEqual(words(a),words(b))
+        for a,b in [('Rabbah','Rabahh'),('Eliasaph','Eliaseph'),('Shepher','Sheper'),('Shepher','Shepherd'),('Shupham','Shupam'),('Hanoch','Hanuk'),('Hanochite','Hanukkite')]:
+            self.assertNotEqual(words(a),words(b))
         self.assertEqual(words('Aroer'),words('a rower'))
         self.assertEqual(words('Aroer'),words('Aror'))
         self.assertEqual(words('Ahiezer'),words('Ahi ezer'))

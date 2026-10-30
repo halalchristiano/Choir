@@ -198,3 +198,23 @@ distinct Abiezer and the altered Deweel vowel.
 
 References: https://biblehub.com/topical/a/aroer.htm and
 https://biblehub.com/hebrew/6177.htm
+
+
+### 2026-10-30: explicit consonant spelling aliases (normalization 58)
+
+Recognize enumerated ph/f spellings in Eliasaph, Elizaphan, Shepher,
+Vophsi, Shupham and Shuphamite, retaining the /f/ sound and clan suffix.
+Hanoch/Hanok and Hanochite/Hanokite retain ISBE ha-nok and ha-nok-its.
+Rabbah/Rabba/Rabah retains rab-a (silent terminal h and consonant doubling).
+Aroer's a-ro-er segmentation can be written a roer as well as a rower.
+Tests still reject changed vowels, p for f, Shepherd, and dropped suffixes.
+
+References:
+- https://biblehub.com/topical/e/eliasaph.htm
+- https://biblehub.com/topical/e/elizaphan.htm
+- https://biblehub.com/topical/s/shepher.htm
+- https://biblehub.com/topical/v/vophsi.htm
+- https://classic.net.bible.org/dictionary.php/xml/dictionary.php?word=SHEPHUPHAM
+- https://biblehub.com/topical/h/hanoch.htm
+- https://biblehub.com/topical/r/rabbah.htm
+- https://biblehub.com/topical/a/aroer.htm

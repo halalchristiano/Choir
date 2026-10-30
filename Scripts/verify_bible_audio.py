@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 57
+NORMALIZATION_VERSION = 58
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -117,6 +117,10 @@ def words(text):
                 # Cambridge gives identical UK/US pronunciations for foreman/foremen.
                 'aroer': ['a', 'rower'], 'aror': ['a', 'rower'],
                 'ahiezer': ['ahi', 'ezer'], 'deuel': ['deu', 'el'],
+                'rabba': ['rabbah'], 'rabah': ['rabbah'], 'roer': ['rower'],
+                'eliasaf': ['eliasaph'], 'elizafan': ['elizaphan'], 'shefer': ['shepher'],
+                'vofsi': ['vophsi'], 'shufam': ['shupham'], 'shufamite': ['shuphamite'],
+                'hanok': ['hanoch'], 'hanokite': ['hanochite'],
                 'cosby': ['cozbi'], 'kozbi': ['cozbi'], 'amiel': ['ammiel'],
                 'hefer': ['hepher'], 'heferite': ['hepherite'],
                 'hufam': ['hupham'], 'hufamite': ['huphamite'],
