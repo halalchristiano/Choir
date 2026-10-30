@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 29
+NORMALIZATION_VERSION = 30
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -132,7 +132,7 @@ def timed_words(word_times):
     for item in word_times:
         # Whisper may tokenize 23,000 as "23" and ",000". Rejoin only
         # numeric continuation tokens, retaining the complete time interval.
-        if merged and re.search(r'\d$', merged[-1]['word'].strip()) and re.fullmatch(r'\s*,\d{3}(?:,\d{3})*\s*', item['word']):
+        if merged and re.search(r'\d$', merged[-1]['word'].strip()) and re.fullmatch(r'\s*,\d{3}(?:,\d{3})*[.!?;:,\u2019\u201d]*\s*', item['word']):
             merged[-1]['word'] += item['word'].strip()
             merged[-1]['end'] = item['end']
         else:

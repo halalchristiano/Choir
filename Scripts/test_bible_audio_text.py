@@ -58,6 +58,14 @@ class BibleAudioTextChecks(unittest.TestCase):
                 self.assertNotEqual(words(source), words(spoken))
 
     def test_numeric_word_timestamps_remain_aligned(self):
+        for ending in [',000', ',000?', ',000.', ',000,', ',000,000!']:
+            items = [dict(word=' 20', start=1., end=1.2),
+                     dict(word=ending, start=1.2, end=1.8)]
+            aligned = timed_words(items)
+            self.assertEqual([w[0] for w in aligned], words('20'+ending))
+            self.assertTrue(all(w[1:] == (1., 1.8) for w in aligned))
+        separate = [dict(word='20', start=0., end=.5), dict(word='000', start=.5, end=1.)]
+        self.assertNotEqual([w[0] for w in timed_words(separate)], words('20,000'))
         for text in ['one hundred and twenty years', 'one hundred and then he died',
                      'one thousand and five cubits', '600th year',
                      'six hundred and first year', '18-7 years']:
