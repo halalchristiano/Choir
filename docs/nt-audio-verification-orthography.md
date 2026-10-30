@@ -246,3 +246,22 @@ and ordinal articles remain distinct. The same bounded rule preserves the
 original interval in word timestamps. This corrects an earlier false flag
 caused by expanding recognizer digits to `one` while leaving source `a` intact.
 Primary language reference: https://dictionary.cambridge.org/grammar/british-grammar/number
+
+### Audited quiet-only edits
+
+`bible_audio_quiet_edit.py` certifies silence removal from an already
+independently recognized recording. It is explicitly **not a fresh transcript**
+of the edited file. The raw parent transcript is inherited whole, with the
+parent audio and check files bound by hashes; no transcript words are edited or
+combined. Every output PCM sample must equal the specified deletion/fade
+transformation. All deleted and fade-modified samples must be below RMS 0.001
+and peak 0.006; entire recognized word intervals may not be removed. Timestamp
+intervals are shifted/clamped through the documented cut. Both final audit and
+publication revalidate the proof, and the receipt identifies the parent
+recognition-audio hash separately from the current audio hash.
+
+This addresses recognizer formatting/spelling drift after a quiet-only edit
+without claiming fresh ASR succeeded. Fresh failed recognition attempts remain
+preserved. The certificate establishes sample preservation, not a human
+listening review. Tests reject changed speech even with an updated output hash,
+speech deletion, and transcript changes, and verify the timing shift.
