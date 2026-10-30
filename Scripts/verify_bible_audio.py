@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 31
+NORMALIZATION_VERSION = 32
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -69,7 +69,10 @@ def words(text):
     # Aminadab/Amminadab: the same name, Strong G284 (biblehub.com/greek/284.htm).
     # Orthographic doubling and a syllable-separating apostrophe only;
     # retain vowel changes, extra syllables, and distinct neighboring names.
-    spelling = {'joannan': ['joanan'], "mele'ah": ['melea'], 'meleah': ['melea'],
+    # Maath syllable separator follows Strong G3092 mah-ath, not Maathah.
+    spelling = {"ma'ath": ['maath'], 'travelling': ['traveling'],
+                'foreseeing': ['for', 'seeing'], 'their': ['there'],
+                'joannan': ['joanan'], "mele'ah": ['melea'], 'meleah': ['melea'],
                 'worshipping': ['worshiping'], 'worshippers': ['worshipers'],
                 'tentmakers': ['tent', 'makers'], 'longstanding': ['long', 'standing'],
                 'aminadab': ['amminadab'],
