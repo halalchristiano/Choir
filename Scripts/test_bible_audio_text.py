@@ -66,6 +66,14 @@ class BibleAudioTextChecks(unittest.TestCase):
                 self.assertEqual([item[0] for item in timed_words(items)], words(text))
 
     def test_spelling_and_number_helpers(self):
+        for source, spoken in [('turtledoves', 'turtle doves'), ('thornbushes', 'thorn bushes'),
+                               ('onto the road', 'on to the road'), ('sun', 'son')]:
+            self.assertEqual(words(source), words(spoken))
+            items = [dict(word=w, start=float(i), end=i+.5) for i,w in enumerate(spoken.split())]
+            self.assertEqual([item[0] for item in timed_words(items)], words(source))
+        for source, spoken in [('crowds', 'crowd'), ('others', 'other'), ('and', 'in'),
+                               ('Jews', 'Joes'), ('Amminadab', 'Ammonadab')]:
+            self.assertNotEqual(words(source), words(spoken))
         self.assertEqual(words('an ark'), words('an arc'))
         self.assertEqual(words('seedtime'), words('seed time'))
         self.assertEqual(words('a turtledove'), words('a turtle dove'))

@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 25
+NORMALIZATION_VERSION = 26
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -66,7 +66,9 @@ def words(text):
     # Audible spelling equivalents only. These do not waive missing words or
     # different readings. Raw transcripts remain in every verification record.
     # Epaenetus/Epenetus are published spellings of the same name (Strong G1866).
-    spelling = {'epaenetus': ['epenetus'], 'rights': ['rites'], 'rebekahs': ['rebeccas'],
+    spelling = {'turtledoves': ['turtle', 'doves'], 'thornbushes': ['thorn', 'bushes'],
+                'onto': ['on', 'to'], 'sun': ['son'],
+                'epaenetus': ['epenetus'], 'rights': ['rites'], 'rebekahs': ['rebeccas'],
                 'awhile': ['a', 'while'], 'yokefellow': ['yoke', 'fellow'],
                 'fainthearted': ['faint', 'hearted'],
                 'grainfields': ['grain', 'fields'], 'thaddeus': ['thaddaeus'],
