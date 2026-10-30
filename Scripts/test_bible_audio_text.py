@@ -99,6 +99,11 @@ class BibleAudioTextChecks(unittest.TestCase):
     def test_name_transcription_spelling_preserves_distinct_readings(self):
         self.assertEqual(words('Amminadab'), words('Aminadab'))
         self.assertNotEqual(words('Amminadab'), words('Ammonadab'))
+        self.assertEqual(words('Joanan'), words('Joannan'))
+        self.assertEqual(words('Melea'), words("Mele'ah"))
+        self.assertNotEqual(words('Joanan'), words('Jonam'))
+        self.assertNotEqual(words('Melea'), words('Meleas'))
+        self.assertNotEqual(words('Maath'), words('Maathah'))
         for source, spelling in [('Adah', 'Ada'), ('Admah', 'Adma'), ('Arioch', 'Ariok'),
                                  ('Casluhites', 'Kasluhites'), ('Caphtorites', 'Kaphtorites'),
                                  ('Rodanites', 'Rhodanites'), ('Goiim', 'Goyim'), ('O', 'Oh'),
