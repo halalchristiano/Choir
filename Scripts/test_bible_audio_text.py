@@ -9,6 +9,22 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_documented_homophones_keep_quantities_and_other_words_distinct(self):
+        for expected, recognized in [('your', "you're"), ('cor', 'core'), ('cors', 'cores'),
+                                     ('Shecaniah', 'Shekaniah'), ('Shecaniah', 'Shechaniah'),
+                                     ('Avvim', 'Avim')]:
+            self.assertEqual(words(expected), words(recognized))
+            self.assertEqual([w[0] for w in timed_words([
+                dict(word=recognized, start=1., end=2.)])], words(expected))
+        for expected, wrong in [('your', 'you'), ('your', 'you are'),
+                                ('you are', "you're"), ('cors', 'cor'), ('cors', 'core'),
+                                ('cors', 'course'), ('three cors', 'two cores'),
+                                ('Shecaniah', 'Shekanihu'), ('Shecaniah', 'Shekanyahu'),
+                                ('Shecaniah', 'Shekania'), ('Avvim', 'Avvi'),
+                                ('Avvim', 'Avvites'), ('Heman', 'Haman'),
+                                ('Jerubbaal', 'Jeroboam'), ('seah', 'sea'), ('in', 'and')]:
+            self.assertNotEqual(words(expected), words(wrong))
+
     def test_documented_historical_name_spellings_keep_pronunciation_changes_flagged(self):
         for expected, recognized in [('Acsah', 'Aksah'), ('Achshaph', 'Akshaph'),
                                      ('Helkath', 'Helcath'), ('Tappuah', 'Tapuah')]:

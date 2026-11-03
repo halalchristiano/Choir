@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 65
+NORMALIZATION_VERSION = 66
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -92,6 +92,13 @@ def words(text):
                 # Adult Bible Studies pronunciation guide: Tappuah, Tah-POO-uh.
                 'aksah': ['acsah'], 'akshaph': ['achshaph'],
                 'helcath': ['helkath'], 'tapuah': ['tappuah'],
+                # Merriam-Webster lists the same pronunciations for your/you're
+                # and cor/core. Keep "you are" and singular/plural distinct.
+                "you're": ['your'], 'core': ['cor'], 'cores': ['cors'],
+                # Strong H7935 lists Shecaniah/Shechaniah with a k sound;
+                # H5761 explicitly gives Avim as the KJV form of Avvim.
+                'shekaniah': ['shecaniah'], 'shechaniah': ['shecaniah'],
+                'avim': ['avvim'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],
