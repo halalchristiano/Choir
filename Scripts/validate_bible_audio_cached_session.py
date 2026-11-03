@@ -11,6 +11,8 @@ from mlx_audio.tts.utils import load_model
 parser=argparse.ArgumentParser()
 parser.add_argument('root',type=Path)
 parser.add_argument('--receipt',type=Path,required=True)
+parser.add_argument('--texts',type=Path,help='Optional JSON array of eight source prompts for longer cache-boundary checks')
+parser.add_argument('--max-tokens',type=int,default=120)
 args=parser.parse_args()
 R=args.root.resolve()
 sys.path.insert(0,str(R/'Choir/Scripts'))
@@ -34,8 +36,11 @@ texts=['Praise the LORD.','The LORD is my shepherd; I shall not want.',
        'And God said, Let there be light, and there was light.',
        'Hear, O Israel: The LORD our God, the LORD is One.',
        'A gentle answer turns away wrath, but a harsh word stirs up anger.']
+if args.texts:
+    texts=json.loads(args.texts.read_text())
+    assert len(texts)==8 and all(isinstance(text,str) and text for text in texts)
 items=[TTSBatchItem(sequence_id=i,text=text,voice='choirreading') for i,text in enumerate(texts)]
-options=TTSBatchOptions(temperature=.7,top_p=.9,top_k=50,repetition_penalty=1.05,max_tokens=120,lang_code='english',max_batch_size=4)
+options=TTSBatchOptions(temperature=.7,top_p=.9,top_k=50,repetition_penalty=1.05,max_tokens=args.max_tokens,lang_code='english',max_batch_size=4)
 
 def run(cls,cancellation=False):
     captured={}
@@ -73,5 +78,5 @@ for cancellation in [False,True]:
     report=dict(cancellation=cancellation,originalSeconds=original['elapsed'],retainedSeconds=retained['elapsed'],steps=original['steps'],checks=checks)
     reports.append(report)
     print(json.dumps({k:v for k,v in report.items() if k!='checks'}),flush=True)
-args.receipt.write_text(json.dumps(dict(passed=True,adapterSHA256=hashlib.sha256((R/'voice-run-02/best.safetensors').read_bytes()).hexdigest(),baseRevision=config['base_revision'],options=dataclasses.asdict(options),tests=reports),indent=2)+'\n')
+args.receipt.write_text(json.dumps(dict(passed=True,adapterSHA256=hashlib.sha256((R/'voice-run-02/best.safetensors').read_bytes()).hexdigest(),baseRevision=config['base_revision'],options=dataclasses.asdict(options),texts=texts,tests=reports),indent=2)+'\n')
 print('RETAINED_CACHE_EQUIVALENCE_PASSED',flush=True)
