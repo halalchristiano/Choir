@@ -38,6 +38,8 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('root', type=Path)
     p.add_argument('--batch-size', type=int, default=4)
+    p.add_argument('--continuous', action='store_true',
+                   help='Refill completed inference slots from a saved queue; keep the same bounded batch size.')
     p.add_argument('--limit', type=int)
     p.add_argument('--books', nargs='+', default=['Mark', 'John', 'Matthew', 'Luke'])
     p.add_argument('--seed-offset', type=int, default=0)
@@ -53,6 +55,7 @@ def main():
     p.add_argument('--cache-limit-mb', type=int, default=512,
                    help='Bound unused MLX buffers so long batches do not pressure system swap.')
     args = p.parse_args()
+    assert args.batch_size >= 1
     assert .25 <= args.minimum_audio_seconds <= 1.
     assert args.cache_limit_mb >= 0
     mx.set_cache_limit(args.cache_limit_mb * 1024 * 1024)
@@ -130,16 +133,33 @@ def main():
     completed=0
     audio_seconds=0.
     started=time.time()
-    for offset in range(0,len(jobs),args.batch_size):
-        batch=jobs[offset:offset+args.batch_size]
+    group_size = len(jobs) if args.continuous else args.batch_size
+    for offset in range(0,len(jobs),group_size):
+        batch=jobs[offset:offset+group_size]
         batch_started=time.time()
         seed=20261024+int(hashlib.sha256('|'.join(j['id'] for j in batch).encode()).hexdigest()[:7],16)+args.seed_offset
         mx.random.seed(seed)
-        print('BATCH '+','.join(j['id'] for j in batch),flush=True)
-        seen=set()
-        for result in model.batch_generate(texts=[j['generation_text'] for j in batch],
+        queue_path = None
+        if args.continuous:
+            queue=dict(seed=seed,adapter_sha256=ADAPTER_SHA,base_revision=config['base_revision'],
+                batch_size=args.batch_size,temperature=args.temperature,top_p=.9,
+                repetition_penalty=1.05,max_tokens=900,
+                jobs=[{k:j[k] for k in ['id','signature','generation_text']} for j in batch])
+            queue_path=out/f'inference-queue-{seed}.json'
+            if queue_path.exists():
+                assert json.loads(queue_path.read_text())==queue, 'Saved inference queue differs'
+            else:write_json(queue_path,queue)
+            queue_hash=sha(queue_path)
+            print(f'CONTINUOUS_QUEUE {len(batch)} passages; maximum {args.batch_size} active; receipt {queue_path}',flush=True)
+            from bible_audio_continuous import generate
+            results=generate(model,batch,args.batch_size,args.temperature)
+        else:
+            print('BATCH '+','.join(j['id'] for j in batch),flush=True)
+            results=model.batch_generate(texts=[j['generation_text'] for j in batch],
                 voices=['choirreading']*len(batch),lang_code='english',
-                max_tokens=900,temperature=args.temperature,top_p=.9,repetition_penalty=1.05):
+                max_tokens=900,temperature=args.temperature,top_p=.9,repetition_penalty=1.05)
+        seen=set()
+        for result in results:
             index=result.sequence_idx
             assert index not in seen
             seen.add(index)
@@ -167,10 +187,14 @@ def main():
             temporary.replace(path)
             metadata={k:v for k,v in job.items() if k!='directory'}
             metadata.update(mode='fine_tuned',adapter_sha256=ADAPTER_SHA,base_revision=config['base_revision'],
-                conditioning='saved trained speaker embedding',seed=seed,batch_ids=[j['id'] for j in batch],
+                conditioning='saved trained speaker embedding',seed=seed,batch_ids=None if args.continuous else [j['id'] for j in batch],
                 sample_rate=model.sample_rate,seconds=len(audio)/model.sample_rate,tokens=result.token_count,
                 peak_before_attenuation=peak,gain=gain,audio_sha256=sha(path),
                 temperature=args.temperature,top_p=.9,repetition_penalty=1.05)
+            if queue_path is not None:
+                metadata.update(inference_queue=str(queue_path),inference_queue_sha256=queue_hash,
+                    inference_queue_index=index,inference_batch_size=args.batch_size,
+                    inference_scheduler='bounded continuous queue using the existing Qwen3 TTS batch session')
             write_json(path.with_suffix('.json'),metadata)
             completed+=1
             audio_seconds+=metadata['seconds']
@@ -179,6 +203,7 @@ def main():
                 last_completed=job['id'],peak_memory_gb=mx.get_peak_memory()/1e9)
             write_json(out/('repair-progress.json' if args.only else 'generation-progress.json'),progress)
             print(f'DONE {completed}/{len(jobs)} {job["id"]}: {metadata["seconds"]:.2f}s',flush=True)
+            if args.continuous:mx.clear_cache()
         assert len(seen)==len(batch)
         print(f'BATCH_FINISHED {time.time()-batch_started:.1f}s; total audio {audio_seconds:.1f}s; elapsed {time.time()-started:.1f}s; peak {mx.get_peak_memory()/1e9:.2f}GB',flush=True)
         mx.clear_cache()
