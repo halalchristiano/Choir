@@ -9,6 +9,20 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_attested_name_doubling_does_not_hide_other_name_changes(self):
+        for expected, transcript in [('Avvites', 'Avites'), ('Ivvah', 'Ivah'),
+                                     ('Hammuel', 'Hamuel'), ('Shenazzar', 'Shenazar')]:
+            self.assertEqual(words(expected), words(transcript))
+            self.assertEqual(timed_words([dict(word=transcript, start=1., end=2.)]),
+                             [(words(expected)[0], 1., 2.)])
+        for expected, wrong in [('Avvites', 'Avvite'), ('Avvites', 'Avvim'),
+                                ('Avvites', 'Hivites'), ('Ivvah', 'Avva'),
+                                ('Ivvah', 'Eve'), ('Hammuel', 'Samuel'),
+                                ('Hammuel', 'Hamiel'), ('Shenazzar', 'Sheshbazzar'),
+                                ('Shenazzar', 'Shenazah'), ('Amon', 'Ammon'),
+                                ('Addar', 'Adar'), ('Heman', 'Haman')]:
+            self.assertNotEqual(words(expected), words(wrong))
+
     def test_psalm_spacing_and_regional_spellings_preserve_reading_errors(self):
         for expected, transcript in [('choirmaster', 'choir master'),
                                      ('forevermore', 'for evermore'),

@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 68
+NORMALIZATION_VERSION = 69
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -112,6 +112,11 @@ def words(text):
                 # H5761 explicitly gives Avim as the KJV form of Avvim.
                 'shekaniah': ['shecaniah'], 'shechaniah': ['shecaniah'],
                 'avim': ['avvim'],
+                # Explicit KJV/NASB forms of the same names, not a general
+                # consonant-deduplication rule: Strong H5757, H5755, H2536;
+                # Bible Gateway Encyclopedia of the Bible, Shenazzar.
+                'avites': ['avvites'], 'ivah': ['ivvah'],
+                'hamuel': ['hammuel'], 'shenazar': ['shenazzar'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],
