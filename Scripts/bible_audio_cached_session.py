@@ -1,4 +1,4 @@
-"""Retain Qwen's batched KV cache until active passage membership changes.
+"""Retain Qwen's batched KV cache across token and membership changes.
 
 The installed mlx-audio session extracts and merges every request's cache at
 every token. Reusing that same cache avoids the copies; the trained model,
@@ -15,6 +15,22 @@ class CachedQwen3TTSBatchSession(Qwen3TTSBatchSession):
         super().__init__(model, options)
         self._retained_cache = None
         self._retained_ids = None
+        self._admitting = False
+        self._admission_cache = None
+        self._admission_ids = None
+
+    def _take_pending_batch(self):
+        pending = super()._take_pending_batch()
+        self._admission_ids = tuple(item.sequence_id for item in pending)
+        return pending
+
+    def _extract_batch_cache_rows(self, cache, batch_size):
+        if self._admitting:
+            self._admission_cache = cache
+            # The base admission loop does not read these caches. The matching
+            # batched rows are retained below, including first-token EOS cases.
+            return [[] for _ in range(batch_size)]
+        return super()._extract_batch_cache_rows(cache, batch_size)
 
     def _materialize_cache(self):
         if self._retained_cache is None:
@@ -27,11 +43,48 @@ class CachedQwen3TTSBatchSession(Qwen3TTSBatchSession):
         self._retained_ids = None
 
     def _admit_pending(self):
-        self._materialize_cache()
-        return super()._admit_pending()
+        previous_ids = tuple(state.sequence_id for state in self._active)
+        previous_cache = self._retained_cache
+        if previous_cache is None and self._active:
+            previous_cache = self._merge_state_caches(self._active)
+        if self._retained_cache is not None:
+            assert self._retained_ids == previous_ids
+        self._admission_cache = None
+        self._admitting = True
+        try:
+            events = super()._admit_pending()
+        finally:
+            self._admitting = False
+        identities = tuple(state.sequence_id for state in self._active)
+        assert identities[:len(previous_ids)] == previous_ids
+        new_ids = identities[len(previous_ids):]
+        if new_ids:
+            assert self._admission_cache is not None
+            indices = [self._admission_ids.index(identity) for identity in new_ids]
+            if len(indices) != len(self._admission_ids):
+                for layer in self._admission_cache:
+                    layer.filter(mx.array(indices))
+            if previous_cache is None:
+                previous_cache = self._admission_cache
+            else:
+                for old, new in zip(previous_cache, self._admission_cache):
+                    old.extend(new)
+        self._retained_cache = previous_cache
+        self._retained_ids = identities if previous_cache is not None else None
+        self._admission_cache = None
+        return events
 
     def cancel(self, sequence_id):
-        self._materialize_cache()
+        if self._retained_cache is not None:
+            assert self._retained_ids == tuple(state.sequence_id for state in self._active)
+            keep = [i for i, state in enumerate(self._active) if state.sequence_id != sequence_id]
+            if not keep:
+                self._retained_cache = None
+                self._retained_ids = None
+            elif len(keep) != len(self._active):
+                for layer in self._retained_cache:
+                    layer.filter(mx.array(keep))
+                self._retained_ids = tuple(self._retained_ids[i] for i in keep)
         return super().cancel(sequence_id)
 
     def _advance_active(self):
@@ -66,16 +119,16 @@ class CachedQwen3TTSBatchSession(Qwen3TTSBatchSession):
                 events.append(self._decode_state(state))
             else:
                 still_active.append(state)
-        if events:
-            # Only continuing requests need cache rows. Membership changes are
-            # uncommon compared with token steps, so copy only at this boundary.
-            for index, state in enumerate(states):
-                if not finished_cpu[index] and len(state.generated_codes) < self.options.max_tokens:
-                    state.cache = [layer.extract(index) for layer in cache]
+        if not still_active:
             self._retained_cache = None
             self._retained_ids = None
         else:
+            if events:
+                keep = [index for index,state in enumerate(states)
+                        if not finished_cpu[index] and len(state.generated_codes) < self.options.max_tokens]
+                for layer in cache:
+                    layer.filter(mx.array(keep))
             self._retained_cache = cache
-            self._retained_ids = identities
+            self._retained_ids = tuple(state.sequence_id for state in still_active)
         self._active = still_active
         return events
