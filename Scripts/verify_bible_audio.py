@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 72
+NORMALIZATION_VERSION = 73
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -140,6 +140,15 @@ def words(text):
                 # Joiarib joi-a-rib and Zattu zat-u. No generic letter removal.
                 'ishiah': ['isshiah'], 'gilo': ['giloh'], 'libna': ['libnah'],
                 'akbor': ['achbor'], 'joyarib': ['joiarib'], 'zatu': ['zattu'],
+                # Merriam-Webster: adviser/advisor are spelling variants;
+                # council/counsel have the same published pronunciation.
+                'advisors': ['advisers'], 'council': ['counsel'],
+                # Bible Gateway: Asaph ends in f; Bukki has one k sound;
+                # Timna explicitly has KJV Timnah; Neco has KJV Necho/Nechoh.
+                # Keep the audible s in possessive forms.
+                'asaf': ['asaph'], 'buki': ['bukki'], 'timna': ['timnah'],
+                'necho': ['neco'], 'nechoh': ['neco'],
+                'nechos': ['necos'], 'nechohs': ['necos'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],

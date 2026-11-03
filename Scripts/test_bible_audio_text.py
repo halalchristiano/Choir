@@ -9,6 +9,21 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_additional_orthography_and_exact_homophones_keep_endings(self):
+        for source, recognized in [('advisers', 'advisors'), ('council', 'counsel'),
+                                   ('Asaph', 'Asaf'), ('Bukki', 'Buki'), ('Timna', 'Timnah'),
+                                   ('Neco', 'Necho'), ('Neco', 'Nechoh'),
+                                   ("Neco's", "Necho's"), ("Neco's", "Nechoh's")]:
+            with self.subTest(source=source, recognized=recognized):
+                self.assertEqual(words(source), words(recognized))
+        for source, recognized in [('advisers', 'advisor'), ('council', 'councils'),
+                                   ('council', 'counseled'), ('Asaph', 'Asa'),
+                                   ('Bukki', 'Buk'), ('Timna', 'Temna'),
+                                   ('Neco', 'Nechoes'), ("Neco's", 'Necho'),
+                                   ('darics', 'derricks'), ('in', 'and'), ('host', 'hosts')]:
+            with self.subTest(source=source, recognized=recognized):
+                self.assertNotEqual(words(source), words(recognized))
+
     def test_named_spelling_variants_preserve_vowels_syllables_and_endings(self):
         pairs = [('Isshiah', 'Ishiah'), ('Giloh', 'Gilo'), ('Libnah', 'Libna'),
                  ('Achbor', 'Akbor'), ('Joiarib', 'Joyarib'), ('Zattu', 'Zatu')]
