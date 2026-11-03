@@ -30,9 +30,11 @@ def jobs(root, catalog_path='evan-bsb/current.json'):
     expected = {(item['book'], number) for item in scope['books'] for number in item['chapters']}
     actual = [(entry['book'], entry['chapter']) for entry in catalog['chapters']]
     assert expected and len(actual) == len(expected) and set(actual) == expected, 'Publish exactly the completed requested scope'
-    assert catalog_path in ('evan-bsb/current.json', 'evan-bsb/current-v2.json')
+    assert catalog_path in ('evan-bsb/current.json', 'evan-bsb/current-v2.json', 'evan-bsb/current-v3.json')
     if catalog_path == 'evan-bsb/current.json':
         assert len(actual) <= 89, 'Older app builds reject larger catalogs; publish current-v2.json instead'
+    if catalog_path != 'evan-bsb/current-v3.json':
+        assert catalog_file.stat().st_size <= 2_000_000, 'Installed app builds cap older catalogs at 2 MB; publish current-v3.json instead'
     result=[]
     for entry in catalog['chapters']:
         folder = root/'chapters'/f'{entry["book"].lower().replace(" ", "-")}-{entry["chapter"]:02d}'
@@ -50,7 +52,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('root', type=Path)
     p.add_argument('action', choices=['prepare','upload'])
-    p.add_argument('--catalog-path', choices=['evan-bsb/current.json', 'evan-bsb/current-v2.json'], default='evan-bsb/current.json')
+    p.add_argument('--catalog-path', choices=['evan-bsb/current.json', 'evan-bsb/current-v2.json', 'evan-bsb/current-v3.json'], default='evan-bsb/current.json')
     args = p.parse_args()
     root = args.root.resolve()/'gospels-v1'
     files = jobs(root, args.catalog_path)

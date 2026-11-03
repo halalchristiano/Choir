@@ -54,6 +54,20 @@ class BibleAudioUploadChecks(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 jobs(root, 'evan-bsb/current-v2.json')
 
+    def test_whole_bible_cannot_overgrow_installed_clients_catalog_limit(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            self.fixture(root, 1)
+            catalog = root/'catalog.json'
+            # Real verse cues make the whole Bible exceed build 100's 2 MB cap.
+            catalog.write_text(catalog.read_text() + ' ' * 2_000_000)
+            with self.assertRaisesRegex(AssertionError, 'cap older catalogs at 2 MB'):
+                jobs(root, 'evan-bsb/current-v2.json')
+            plan = jobs(root, 'evan-bsb/current-v3.json')
+            self.assertEqual(plan[-1]['path'], 'evan-bsb/current-v3.json')
+            self.assertGreater(plan[-1]['bytes'], 2_000_000)
+            self.assertNotIn('evan-bsb/current-v2.json', [item['path'] for item in plan])
+
 
 if __name__ == '__main__':
     unittest.main()
