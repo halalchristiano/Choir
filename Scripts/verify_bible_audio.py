@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 75
+NORMALIZATION_VERSION = 76
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -168,6 +168,15 @@ def words(text):
                 # Sidewall is a compound; retain both words and their ending.
                 'nazarites': ['nazirites'], 'sidewall': ['side', 'wall'],
                 'sidewalls': ['side', 'walls'],
+                # Observed spacing-only transcripts: retain every component.
+                'bethrapha': ['beth', 'rapha'], 'bethanath': ['beth', 'anath'],
+                'hazarshual': ['hazar', 'shual'], 'anabeshtemoh': ['anab', 'eshtemoh'],
+                'ebiasaph': ['ebi', 'asaph'], 'maacah': ['ma', 'acah'],
+                'gateposts': ['gate', 'posts'],
+                # NET ISBE explicitly identifies Azur/Azzur, az-ur.
+                'azur': ['azzur'],
+                # Cambridge gives one and the past tense won the same /wʌn/.
+                'won': ['one'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],

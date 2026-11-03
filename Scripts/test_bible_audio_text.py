@@ -9,6 +9,22 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_targeted_spacing_and_documented_homophones_keep_every_component(self):
+        pairs = [('Beth-rapha', 'Bethrapha'), ('Beth-anath', 'Bethanath'),
+                 ('Hazar-shual', 'Hazarshual'), ('Anab Eshtemoh', 'Anabeshtemoh'),
+                 ('Ebiasaph', 'Ebi Asaph'), ('Maacah', 'Ma acah'),
+                 ('gateposts', 'gate posts'), ('Azzur', 'Azur'), ('one', 'won')]
+        for source, recognized in pairs:
+            self.assertEqual(words(source), words(recognized))
+            timestamps = [dict(word=w, start=float(n), end=n+.5) for n,w in enumerate(recognized.split())]
+            self.assertEqual([w[0] for w in timed_words(timestamps)], words(source))
+        for source, wrong in [('Beth-rapha', 'Rapha'), ('Hazar-shual', 'Hazar'),
+                              ('Anab Eshtemoh', 'Anab'), ('Ebiasaph', 'Asaph'),
+                              ('Maacah', 'Maca'), ('gateposts', 'gate post'),
+                              ('Azzur', 'Azar'), ('one', 'two'), ('one', 'win'),
+                              ('Ge-harashim', 'Jehahreshim'), ('horns', 'horn')]:
+            self.assertNotEqual(words(source), words(wrong))
+
     def test_additional_orthography_and_exact_homophones_keep_endings(self):
         for source, recognized in [('advisers', 'advisors'), ('council', 'counsel'),
                                    ('Asaph', 'Asaf'), ('Bukki', 'Buki'), ('Timna', 'Timnah'),
