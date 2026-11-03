@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 64
+NORMALIZATION_VERSION = 65
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -86,6 +86,12 @@ def words(text):
                 'stonecutters': ['stone', 'cutters'], 'showbread': ['show', 'bread'],
                 'wingspan': ['wing', 'span'], 'hindquarters': ['hind', 'quarters'],
                 'courtyard': ['court', 'yard'],
+                # Documented name spellings / English consonant spelling only.
+                # biblehub.com/hebrew/5915.htm explicitly lists Aksah.
+                # NET Bible dictionary Achshaph: Akshaph; Helkath: hel-kath.
+                # Adult Bible Studies pronunciation guide: Tappuah, Tah-POO-uh.
+                'aksah': ['acsah'], 'akshaph': ['achshaph'],
+                'helcath': ['helkath'], 'tapuah': ['tappuah'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],

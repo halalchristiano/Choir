@@ -9,6 +9,21 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_documented_historical_name_spellings_keep_pronunciation_changes_flagged(self):
+        for expected, recognized in [('Acsah', 'Aksah'), ('Achshaph', 'Akshaph'),
+                                     ('Helkath', 'Helcath'), ('Tappuah', 'Tapuah')]:
+            self.assertEqual(words(expected), words(recognized))
+            self.assertEqual([w[0] for w in timed_words([
+                dict(word=recognized, start=1., end=2.)])], words(expected))
+        for expected, wrong in [('Acsah', 'Asah'), ('Acsah', 'Aksaha'),
+                                ('Achshaph', 'Akshap'), ('Achshaph', 'Akshaphah'),
+                                ('Helkath', 'Helcat'), ('Helkath', 'Helketh'),
+                                ('Tappuah', 'Tapu'), ('Tappuah', 'Tipuah'),
+                                ('Hivites', 'Hevites'), ('Makkedah', 'Macdah'),
+                                ('Taanach', 'Tanakh'), ('Kedesh', 'Kadesh'),
+                                ('Zebah', 'Zeba'), ('and', 'in')]:
+            self.assertNotEqual(words(expected), words(wrong))
+
     def test_historical_books_compound_spacing_preserves_each_part(self):
         for compound, spaced in [('oxgoad', 'ox goad'), ('chainwork', 'chain work'),
                                  ('guardroom', 'guard room'), ('baldhead', 'bald head'),
@@ -30,7 +45,7 @@ class BibleAudioTextChecks(unittest.TestCase):
                                 ('guardroom', 'guard rooms'), ('baldhead', 'ball head'),
                                 ('showbread', 'shewbreadth'), ('wingspan', 'wing spans'),
                                 ('courtyard', 'court yards'), ('and', 'in'),
-                                ('Hivites', 'Hevites'), ('Acsah', 'Aksah')]:
+                                ('Hivites', 'Hevites'), ('Acsah', 'Aksaha')]:
             self.assertNotEqual(words(expected), words(wrong))
 
     def test_joshua_judges_spelling_and_spacing_preserve_content_changes(self):
