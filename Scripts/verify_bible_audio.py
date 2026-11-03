@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 66
+NORMALIZATION_VERSION = 67
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -86,6 +86,13 @@ def words(text):
                 'stonecutters': ['stone', 'cutters'], 'showbread': ['show', 'bread'],
                 'wingspan': ['wing', 'span'], 'hindquarters': ['hind', 'quarters'],
                 'courtyard': ['court', 'yard'],
+                # Observed name/compound spacing preserves every source letter.
+                # Keep missing components and changed vowels distinct.
+                'bethshemesh': ['beth', 'shemesh'], 'elteke': ['el', 'teke'],
+                'lodebar': ['lo', 'debar'], 'almugwood': ['almug', 'wood'],
+                'geharashim': ['ge', 'harashim'], 'eshbaal': ['esh', 'baal'],
+                # Cambridge /dictionary/english/skilful: UK spelling of skillful.
+                'skilful': ['skillful'],
                 # Documented name spellings / English consonant spelling only.
                 # biblehub.com/hebrew/5915.htm explicitly lists Aksah.
                 # NET Bible dictionary Achshaph: Akshaph; Helkath: hel-kath.

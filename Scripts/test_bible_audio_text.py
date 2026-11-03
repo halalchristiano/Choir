@@ -9,6 +9,27 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_historical_name_spacing_keeps_complete_word_cues(self):
+        examples = [('Beth-shemesh', 'Bethshemesh'), ('Elteke', 'El teke'),
+                    ('Lo-debar', 'Lodebar'), ('almug wood', 'almugwood'),
+                    ('Ge-harashim', 'Geharashim'), ('Esh-baal', 'Eshbaal'),
+                    ('skillful', 'skilful')]
+        for expected, transcript in examples:
+            self.assertEqual(words(expected), words(transcript))
+            original = [dict(word=w, start=float(i), end=i+.75)
+                        for i, w in enumerate(transcript.split())]
+            mapped = timed_words(original)
+            self.assertEqual([w[0] for w in mapped], words(expected))
+            self.assertEqual(mapped[0][1], 0.)
+            self.assertEqual(mapped[-1][2], original[-1]['end'])
+        for expected, wrong in [('Beth-shemesh', 'Beth Shemish'),
+                                ('Elteke', 'El'), ('Elteke', 'Eltekeh'),
+                                ('Lo-debar', 'Debar'), ('almug wood', 'almug'),
+                                ('Ge-harashim', 'Harashim'), ('Esh-baal', 'Ish Baal'),
+                                ('skillful', 'skillfully'), ('Amon', 'Ammon'),
+                                ('Heman', 'Haman'), ('and', 'in')]:
+            self.assertNotEqual(words(expected), words(wrong))
+
     def test_documented_homophones_keep_quantities_and_other_words_distinct(self):
         for expected, recognized in [('your', "you're"), ('cor', 'core'), ('cors', 'cores'),
                                      ('Shecaniah', 'Shekaniah'), ('Shecaniah', 'Shechaniah'),
