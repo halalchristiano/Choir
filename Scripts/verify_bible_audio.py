@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 73
+NORMALIZATION_VERSION = 74
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -149,6 +149,15 @@ def words(text):
                 'asaf': ['asaph'], 'buki': ['bukki'], 'timna': ['timnah'],
                 'necho': ['neco'], 'nechoh': ['neco'],
                 'nechos': ['necos'], 'nechohs': ['necos'],
+                # Named English orthography, not generic letter folding.
+                # NET ISBE: Akkub ak-ub; Naharai/Nahari both na-ha-ri;
+                # Hodevah ho-de-va. Strong H6583 explicitly lists Pashur.
+                # Bible Gateway: Mattaniah mat-a-ni-a, Meshullam mi-shool-am,
+                # Dumah doo-ma; Alemeth has KJV Alameth and ASV Allemeth.
+                'akub': ['akkub'], 'mataniah': ['mattaniah'],
+                'meshulam': ['meshullam'], 'nahari': ['naharai'],
+                'hodeva': ['hodevah'], 'duma': ['dumah'], 'pashur': ['pashhur'],
+                'alameth': ['alemeth'], 'allemeth': ['alemeth'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],

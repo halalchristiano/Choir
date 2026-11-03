@@ -448,6 +448,24 @@ class BibleAudioTextChecks(unittest.TestCase):
         self.assertEqual(number_words(969), 'nine hundred sixty nine')
         self.assertEqual(ordinal_words(103), 'one hundred third')
 
+    def test_sourced_name_orthography_keeps_vowels_and_endings(self):
+        pairs = [('Akkub', 'Akub'), ('Mattaniah', 'Mataniah'), ('Meshullam', 'Meshulam'),
+                 ('Naharai', 'Nahari'), ('Hodevah', 'Hodeva'), ('Dumah', 'Duma'),
+                 ('Pashhur', 'Pashur'), ('Alemeth', 'Alameth'), ('Alemeth', 'Allemeth')]
+        for source, spelling in pairs:
+            with self.subTest(source=source, spelling=spelling):
+                self.assertEqual(words(source), words(spelling))
+                times = [dict(word=spelling, start=1., end=1.5)]
+                self.assertEqual([item[0] for item in timed_words(times)], words(source))
+        distinct = [('Akkub', 'Akubb'), ('Akkub', 'Akubim'), ('Mattaniah', 'Metaniah'),
+                    ('Mattaniah', 'Mattanias'), ('Meshullam', 'Meshallam'),
+                    ('Naharai', 'Nehari'), ('Hodevah', 'Hodaviah'), ('Dumah', 'Dammah'),
+                    ('Pashhur', 'Pasur'), ('Alemeth', 'Alamoth'), ('Alemeth', 'Alem'),
+                    ('Uzzi', 'Uzi'), ('Jekamiah', 'Jechamiah'), ('host', 'hosts'), ('in', 'and')]
+        for source, other in distinct:
+            with self.subTest(source=source, other=other):
+                self.assertNotEqual(words(source), words(other))
+
     def test_name_transcription_spelling_preserves_distinct_readings(self):
         for source, spelling in [('Ephah', 'Epha'), ('Suph', 'Suf'), ('Agag', 'A gag')]:
             self.assertEqual(words(source), words(spelling))
