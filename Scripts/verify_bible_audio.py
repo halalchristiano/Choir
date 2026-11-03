@@ -302,6 +302,24 @@ def write_json(path, data):
     temporary.replace(path)
 
 
+def window_spelling_contexts(args, count):
+    hints = getattr(args, 'window_name_contexts', None)
+    if hints is None:
+        return [args.name_context] * count
+    assert args.split_at and args.name_context is None, 'Window hints need explicit windows and no global prompt'
+    assert isinstance(hints, list) and len(hints) == count, 'Each complete audio window needs its own hint entry'
+    contexts = []
+    for names in hints:
+        if names is None:
+            contexts.append(None)
+            continue
+        assert isinstance(names, list) and len(names) <= 12
+        assert all(isinstance(name, str) and re.fullmatch(r"[A-Za-z]+(?:[-’'][A-Za-z]+)*", name) for name in names), 'Use isolated name spellings, never sentence text'
+        assert names == sorted(names, key=str.casefold) and len({name.casefold() for name in names}) == len(names), 'Name hints must be unique and alphabetized'
+        contexts.append(', '.join(names) or None)
+    return contexts
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('root', type=Path)
@@ -315,10 +333,14 @@ def main():
     parser.add_argument('--recognizer-id', help='Exact repository and revision corresponding to --model-path.')
     parser.add_argument('--name-context', help='Isolated name or term spelling hints only; never supply the passage text.')
     parser.add_argument('--split-at', type=float, nargs='+', help='Recheck one passage in independent time windows when recognition stops early; does not edit the recording.')
+    parser.add_argument('--window-name-contexts', type=Path, help='JSON lists of at most 12 alphabetized isolated names per complete time window; no sentence text.')
     args = parser.parse_args()
     assert bool(args.model_path) == bool(args.recognizer_id), 'A custom recognizer requires both its local path and pinned identity'
     if args.split_at:
         assert args.recheck and len(args.recheck) == 1, 'Time-window rechecks require exactly one passage'
+    if args.window_name_contexts:
+        args.window_name_contexts = json.loads(args.window_name_contexts.read_text())
+        window_spelling_contexts(args, len(args.split_at or []) + 1)
     root = args.root.resolve()
     directory = root/'gospels-v1'
     source = json.loads((directory/'source.json').read_text())
@@ -381,11 +403,12 @@ def scan(args, directory, source, model):
             audio = resample_poly(wav, 16000//divisor, rate//divisor).astype(np.float32)
             boundaries = [0.] + (args.split_at or []) + [len(audio)/16000]
             assert all(a < b for a,b in zip(boundaries,boundaries[1:]))
+            contexts = window_spelling_contexts(args, len(boundaries) - 1)
             recognized_parts, word_times = [], []
-            for start,end in zip(boundaries,boundaries[1:]):
+            for start,end,context in zip(boundaries,boundaries[1:],contexts):
                 transcript = mlx_whisper.transcribe(audio[round(start*16000):round(end*16000)], path_or_hf_repo=str(model), language='en',
                     temperature=args.temperature, condition_on_previous_text=False, word_timestamps=True, verbose=None,
-                    initial_prompt=args.name_context, no_speech_threshold=None)
+                    initial_prompt=context, no_speech_threshold=None)
                 recognized_parts.append(transcript['text'].strip())
                 for segment in transcript['segments']:
                     for word in segment.get('words', []):
@@ -400,6 +423,8 @@ def scan(args, directory, source, model):
                 automatic_exact_match=not changes, human_listening_review_completed=False, normalization_version=NORMALIZATION_VERSION,
                 recognizer=args.recognizer_id,
                 recognition_temperature=args.temperature, proper_name_context=args.name_context, recognition_window_boundaries=boundaries)
+            if getattr(args, 'window_name_contexts', None) is not None:
+                result['recognition_window_spelling_hints'] = args.window_name_contexts
             write_json(audit, result)
             checked += 1
             print(json.dumps(dict(id=result['id'], changes=changes, seconds=result['seconds'],
