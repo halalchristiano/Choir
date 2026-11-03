@@ -9,6 +9,19 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_joshua_judges_spelling_and_spacing_preserve_content_changes(self):
+        for expected, recognized in [('traveled', 'travelled'), ('brier', 'briar'),
+                                     ('briers', 'briars'), ('tonight', 'to night'),
+                                     ('hometown', 'home town'), ("everyone's", "every one's")]:
+            self.assertEqual(words(expected), words(recognized))
+            times=[dict(word=w,start=float(i),end=i+.5) for i,w in enumerate(recognized.split())]
+            self.assertEqual([w[0] for w in timed_words(times)],words(expected))
+        for expected, wrong in [('traveled', 'travel'), ('briers', 'brier'),
+                                ('tonight', 'night'), ('hometown', 'town'),
+                                ("everyone's", 'everyone'), ('waters', 'water'),
+                                ('Shittim', 'Shatim'), ('Zarethan', 'Zarathun')]:
+            self.assertNotEqual(words(expected), words(wrong))
+
     def test_numbers_spelling_equivalents_preserve_wrong_names(self):
         for a,b in [('firstborn','first born'), ('stillborn','still born'),
                     ('Ammishaddai','Amishadai'), ('Zurishaddai','Zurishadai'),

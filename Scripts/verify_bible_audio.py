@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 62
+NORMALIZATION_VERSION = 63
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -73,6 +73,11 @@ def words(text):
     # retain vowel changes, extra syllables, and distinct neighboring names.
     # Maath syllable separator follows Strong G3092 mah-ath, not Maathah.
     spelling = {"ma'ath": ['maath'], 'travelling': ['traveling'],
+                # Regional spellings and ASR spacing; no source word is omitted.
+                # Cambridge /dictionary/english/travelled; Collins /dictionary/english/brier.
+                'travelled': ['traveled'], 'briar': ['brier'], 'briars': ['briers'],
+                'tonight': ['to', 'night'], 'hometown': ['home', 'town'],
+                'everyones': ['every', 'ones'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],
