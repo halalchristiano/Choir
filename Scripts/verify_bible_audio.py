@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 70
+NORMALIZATION_VERSION = 71
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -128,6 +128,12 @@ def words(text):
                 # Bible Gateway Encyclopedia of the Bible, Shenazzar.
                 'avites': ['avvites'], 'ivah': ['ivvah'],
                 'hamuel': ['hammuel'], 'shenazar': ['shenazzar'],
+                # Explicit English name evidence, not generic consonant folding.
+                # Bible Gateway Encyclopedia gives Amon and Ammon the identical
+                # pronunciation am-uhn; Zebah is Zee-buh (silent final h).
+                # NET ISBE Zuph: zuf; Strong H4441: Malchiah/Malchijah/Malkijah.
+                'ammon': ['amon'], 'zeba': ['zebah'], 'zuf': ['zuph'],
+                'malchiah': ['malchijah'], 'malkijah': ['malchijah'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],

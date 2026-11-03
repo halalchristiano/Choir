@@ -9,6 +9,23 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_sourced_english_name_homophones_keep_other_sounds_distinct(self):
+        # Amon/Ammon and Zebah/Zeba were previously held distinct pending
+        # English pronunciation evidence. Both pairs are now documented.
+        for source, transcript in [('Amon', 'Ammon'), ('Zebah', 'Zeba'),
+                                   ('Zuph', 'Zuf'), ('Malchijah', 'Malchiah'),
+                                   ('Malchijah', 'Malkijah')]:
+            self.assertEqual(words(source), words(transcript))
+            self.assertEqual(timed_words([dict(word=transcript, start=1., end=2.)]),
+                             [(words(source)[0], 1., 2.)])
+        for source, wrong in [('Amon', 'Aman'), ('Ammon', 'Ammonites'),
+                              ('Zebah', 'Ziba'), ('Zebah', 'Zeb'),
+                              ('Zuph', 'Zuth'), ('Zuph', 'Suph'),
+                              ('Malchijah', 'Malchiram'), ('Malchijah', 'Malachi'),
+                              ('Malchijah', 'Melchiah'), ('Addar', 'Adar'),
+                              ('Heman', 'Haman'), ('and', 'in')]:
+            self.assertNotEqual(words(source), words(wrong))
+
     def test_prophetic_book_compounds_keep_each_component_and_ending(self):
         pairs=[('vinedressers','vine dressers'), ('reentered','re entered'),
                ('winepress','wine press'), ('winepresses','wine presses'),
@@ -46,7 +63,7 @@ class BibleAudioTextChecks(unittest.TestCase):
                                 ('Avvites', 'Hivites'), ('Ivvah', 'Avva'),
                                 ('Ivvah', 'Eve'), ('Hammuel', 'Samuel'),
                                 ('Hammuel', 'Hamiel'), ('Shenazzar', 'Sheshbazzar'),
-                                ('Shenazzar', 'Shenazah'), ('Amon', 'Ammon'),
+                                ('Shenazzar', 'Shenazah'), ('Amon', 'Aman'),
                                 ('Addar', 'Adar'), ('Heman', 'Haman')]:
             self.assertNotEqual(words(expected), words(wrong))
 
@@ -89,7 +106,7 @@ class BibleAudioTextChecks(unittest.TestCase):
                                 ('Elteke', 'El'), ('Elteke', 'Eltekeh'),
                                 ('Lo-debar', 'Debar'), ('almug wood', 'almug'),
                                 ('Ge-harashim', 'Harashim'), ('Esh-baal', 'Ish Baal'),
-                                ('skillful', 'skillfully'), ('Amon', 'Ammon'),
+                                ('skillful', 'skillfully'), ('Amon', 'Aman'),
                                 ('Heman', 'Haman'), ('and', 'in')]:
             self.assertNotEqual(words(expected), words(wrong))
 
@@ -121,7 +138,7 @@ class BibleAudioTextChecks(unittest.TestCase):
                                 ('Tappuah', 'Tapu'), ('Tappuah', 'Tipuah'),
                                 ('Hivites', 'Hevites'), ('Makkedah', 'Macdah'),
                                 ('Taanach', 'Tanakh'), ('Kedesh', 'Kadesh'),
-                                ('Zebah', 'Zeba'), ('and', 'in')]:
+                                ('Zebah', 'Ziba'), ('and', 'in')]:
             self.assertNotEqual(words(expected), words(wrong))
 
     def test_historical_books_compound_spacing_preserves_each_part(self):
