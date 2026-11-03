@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 71
+NORMALIZATION_VERSION = 72
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -134,6 +134,12 @@ def words(text):
                 # NET ISBE Zuph: zuf; Strong H4441: Malchiah/Malchijah/Malkijah.
                 'ammon': ['amon'], 'zeba': ['zebah'], 'zuf': ['zuph'],
                 'malchiah': ['malchijah'], 'malkijah': ['malchijah'],
+                # Named, sourced English orthography only. Bible Gateway:
+                # Isshiah explicitly has KJV Ishiah; Giloh has RSV Gilo;
+                # Libnah is lib-nuh; Achbor is ak-bor. NET ISBE gives
+                # Joiarib joi-a-rib and Zattu zat-u. No generic letter removal.
+                'ishiah': ['isshiah'], 'gilo': ['giloh'], 'libna': ['libnah'],
+                'akbor': ['achbor'], 'joyarib': ['joiarib'], 'zatu': ['zattu'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],

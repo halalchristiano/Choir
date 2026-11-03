@@ -9,6 +9,24 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_named_spelling_variants_preserve_vowels_syllables_and_endings(self):
+        pairs = [('Isshiah', 'Ishiah'), ('Giloh', 'Gilo'), ('Libnah', 'Libna'),
+                 ('Achbor', 'Akbor'), ('Joiarib', 'Joyarib'), ('Zattu', 'Zatu')]
+        for source, recognized in pairs:
+            with self.subTest(source=source):
+                self.assertEqual(words(source), words(recognized))
+                self.assertEqual([w[0] for w in timed_words([
+                    dict(word=recognized, start=0., end=1.)])], words(source))
+        for source, recognized in [('Isshiah', 'Ashiah'), ('Isshiah', 'Ishi'),
+                                   ('Giloh', 'Gil'), ('Giloh', 'Gila'),
+                                   ('Libnah', 'Labna'), ('Libnah', 'Libanah'),
+                                   ('Achbor', 'Akbar'), ('Achbor', 'Abdon'),
+                                   ('Joiarib', 'Joyrib'), ('Joiarib', 'Jehoiarib'),
+                                   ('Zattu', 'Zeta'), ('Zattu', 'Zattus'),
+                                   ('Jerimoth', 'Jeremoth'), ('Hamutal', 'Hamital')]:
+            with self.subTest(source=source, recognized=recognized):
+                self.assertNotEqual(words(source), words(recognized))
+
     def test_sourced_english_name_homophones_keep_other_sounds_distinct(self):
         # Amon/Ammon and Zebah/Zeba were previously held distinct pending
         # English pronunciation evidence. Both pairs are now documented.
