@@ -9,6 +9,30 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_historical_books_compound_spacing_preserves_each_part(self):
+        for compound, spaced in [('oxgoad', 'ox goad'), ('chainwork', 'chain work'),
+                                 ('guardroom', 'guard room'), ('baldhead', 'bald head'),
+                                 ('anymore', 'any more'), ('stonecutter', 'stone cutter'),
+                                 ('stonecutters', 'stone cutters'), ('showbread', 'show bread'),
+                                 ('wingspan', 'wing span'), ('hindquarters', 'hind quarters'),
+                                 ('courtyard', 'court yard')]:
+            with self.subTest(compound=compound):
+                self.assertEqual(words(compound), words(spaced))
+                for transcript in (compound, spaced):
+                    times = [dict(word=w, start=float(i), end=i+.5)
+                             for i, w in enumerate(transcript.split())]
+                    self.assertEqual([w[0] for w in timed_words(times)], words(compound))
+                for missing in spaced.split():
+                    self.assertNotEqual(words(compound), words(missing))
+        for expected, wrong in [('stonecutters', 'stone cutter'),
+                                ('hindquarters', 'hind quarter'),
+                                ('oxgoad', 'ox god'), ('chainwork', 'chain walk'),
+                                ('guardroom', 'guard rooms'), ('baldhead', 'ball head'),
+                                ('showbread', 'shewbreadth'), ('wingspan', 'wing spans'),
+                                ('courtyard', 'court yards'), ('and', 'in'),
+                                ('Hivites', 'Hevites'), ('Acsah', 'Aksah')]:
+            self.assertNotEqual(words(expected), words(wrong))
+
     def test_joshua_judges_spelling_and_spacing_preserve_content_changes(self):
         for expected, recognized in [('traveled', 'travelled'), ('brier', 'briar'),
                                      ('briers', 'briars'), ('tonight', 'to night'),

@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 63
+NORMALIZATION_VERSION = 64
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -78,6 +78,14 @@ def words(text):
                 'travelled': ['traveled'], 'briar': ['brier'], 'briars': ['briers'],
                 'tonight': ['to', 'night'], 'hometown': ['home', 'town'],
                 'everyones': ['every', 'ones'],
+                # Ordinary compounds: preserve every letter, including plurals.
+                # A recognizer's inserted space is not a changed spoken word.
+                'oxgoad': ['ox', 'goad'], 'chainwork': ['chain', 'work'],
+                'guardroom': ['guard', 'room'], 'baldhead': ['bald', 'head'],
+                'anymore': ['any', 'more'], 'stonecutter': ['stone', 'cutter'],
+                'stonecutters': ['stone', 'cutters'], 'showbread': ['show', 'bread'],
+                'wingspan': ['wing', 'span'], 'hindquarters': ['hind', 'quarters'],
+                'courtyard': ['court', 'yard'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],
