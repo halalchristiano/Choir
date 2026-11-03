@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 77
+NORMALIZATION_VERSION = 78
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -199,6 +199,9 @@ def words(text):
                 'jams': ['jambs'],
                 # A spacing-only compound preserves both parts.
                 'bowlful': ['bowl', 'full'],
+                # Merriam-Webster beryl/barrel share ber-uhl; NET ISBE
+                # Peres/Perez both have pe-rez. Endings stay distinct.
+                'barrel': ['beryl'], 'perez': ['peres'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],

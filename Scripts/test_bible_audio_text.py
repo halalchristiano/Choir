@@ -9,6 +9,14 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_published_beryl_and_peres_homophones_keep_endings_distinct(self):
+        for source, recognized in [('beryl', 'barrel'), ('Peres', 'Perez')]:
+            self.assertEqual(words(source), words(recognized))
+            self.assertEqual([w[0] for w in timed_words([dict(word=recognized, start=0., end=1.)])], words(source))
+        for source, wrong in [('beryl', 'barrels'), ('beryl', 'beryllium'), ('Peres', 'Persia'),
+                              ('Peres', 'Peresh'), ('minas', 'minus'), ('darics', 'derricks')]:
+            self.assertNotEqual(words(source), words(wrong))
+
     def test_sourced_final_letters_and_homophones_preserve_sounds_and_endings(self):
         pairs = [('Moladah', 'Molada'), ('Hormah', 'Horma'), ('Juttah', 'Jutta'),
                  ('Balah', 'Bala'), ('Adamah', 'Adama'), ('Shahazumah', 'Shahazuma'),
