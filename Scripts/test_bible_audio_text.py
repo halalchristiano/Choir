@@ -9,6 +9,33 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_prophetic_book_compounds_keep_each_component_and_ending(self):
+        pairs=[('vinedressers','vine dressers'), ('reentered','re entered'),
+               ('winepress','wine press'), ('winepresses','wine presses'),
+               ("today's",'to days'), ('sheepdogs','sheep dogs'),
+               ('faultfinder','fault finder'), ('simplehearted','simple hearted'),
+               ('thornbush','thorn bush'), ('firepot','fire pot'),
+               ('lampstands','lamp stands'), ('cutstones','cut stones'),
+               ('underfoot','under foot'), ('mountaintops','mountain tops'),
+               ('wheelwork','wheel work'), ('wasteland','waste land'),
+               ('marketplace','market place')]
+        for compound,spaced in pairs:
+            self.assertEqual(words(compound),words(spaced))
+            for text in (compound,spaced):
+                times=[dict(word=w,start=float(i),end=i+.5) for i,w in enumerate(text.split())]
+                mapped=timed_words(times)
+                self.assertEqual([w[0] for w in mapped],words(compound))
+                self.assertEqual(mapped[0][1],0.)
+                self.assertEqual(mapped[-1][2],times[-1]['end'])
+            for missing in spaced.split():self.assertNotEqual(words(compound),words(missing))
+        for expected,wrong in [('winepresses','wine press'), ('vinedressers','vine dresser'),
+                               ('sheepdogs','sheep dog'), ('lampstands','lamp stand'),
+                               ('cutstones','cut stone'), ('mountaintops','mountain top'),
+                               ('firepot','fire pit'), ('wheelwork','wheel walk'),
+                               ('wasteland','wastelands'), ('marketplace','marked place'),
+                               ('and','in'), ('Gemariah','Jemariah')]:
+            self.assertNotEqual(words(expected),words(wrong))
+
     def test_attested_name_doubling_does_not_hide_other_name_changes(self):
         for expected, transcript in [('Avvites', 'Avites'), ('Ivvah', 'Ivah'),
                                      ('Hammuel', 'Hamuel'), ('Shenazzar', 'Shenazar')]:

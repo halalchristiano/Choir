@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 69
+NORMALIZATION_VERSION = 70
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -86,6 +86,17 @@ def words(text):
                 'stonecutters': ['stone', 'cutters'], 'showbread': ['show', 'bread'],
                 'wingspan': ['wing', 'span'], 'hindquarters': ['hind', 'quarters'],
                 'courtyard': ['court', 'yard'],
+                # Attested source compounds with spacing-only ASR differences.
+                # Keep all components and endings; no general word-joining rule.
+                'vinedressers': ['vine', 'dressers'], 'reentered': ['re', 'entered'],
+                'winepress': ['wine', 'press'], 'winepresses': ['wine', 'presses'],
+                'todays': ['to', 'days'], 'sheepdogs': ['sheep', 'dogs'],
+                'faultfinder': ['fault', 'finder'], 'simplehearted': ['simple', 'hearted'],
+                'thornbush': ['thorn', 'bush'], 'firepot': ['fire', 'pot'],
+                'lampstands': ['lamp', 'stands'], 'cutstones': ['cut', 'stones'],
+                'underfoot': ['under', 'foot'], 'mountaintops': ['mountain', 'tops'],
+                'wheelwork': ['wheel', 'work'], 'wasteland': ['waste', 'land'],
+                'marketplace': ['market', 'place'],
                 # Observed name/compound spacing preserves every source letter.
                 # Keep missing components and changed vowels distinct.
                 'bethshemesh': ['beth', 'shemesh'], 'elteke': ['el', 'teke'],
