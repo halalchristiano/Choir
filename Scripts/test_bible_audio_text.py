@@ -466,6 +466,24 @@ class BibleAudioTextChecks(unittest.TestCase):
             with self.subTest(source=source, other=other):
                 self.assertNotEqual(words(source), words(other))
 
+    def test_sourced_english_name_spelling_and_plural_compounds(self):
+        pairs = [('Mattan', 'Matan'), ('Gazzam', 'Gazam'), ('Ziha', 'Zihah'),
+                 ('Iddo', 'Ido'), ('Hasshub', 'Hashub'), ('Nazirites', 'Nazarites'),
+                 ('sidewall', 'side wall'), ('sidewalls', 'side walls')]
+        for source, spelling in pairs:
+            with self.subTest(source=source, spelling=spelling):
+                self.assertEqual(words(source), words(spelling))
+                times = [dict(word=w, start=i, end=i + .5) for i, w in enumerate(spelling.split())]
+                self.assertEqual([item[0] for item in timed_words(times)], words(source))
+        distinct = [('Mattan', 'Metan'), ('Gazzam', 'Gazum'), ('Ziha', 'Ziah'),
+                    ('Iddo', 'Iddu'), ('Hasshub', 'Hashab'), ('Nazirites', 'Nazarite'),
+                    ('sidewalls', 'side wall'), ('sidewalls', 'walls'),
+                    ('Hashabneiah', 'Hashabniah'), ('Uzzi', 'Uzi'),
+                    ('in', 'and'), ('son', 'sons'), ('host', 'hosts')]
+        for source, other in distinct:
+            with self.subTest(source=source, other=other):
+                self.assertNotEqual(words(source), words(other))
+
     def test_name_transcription_spelling_preserves_distinct_readings(self):
         for source, spelling in [('Ephah', 'Epha'), ('Suph', 'Suf'), ('Agag', 'A gag')]:
             self.assertEqual(words(source), words(spelling))

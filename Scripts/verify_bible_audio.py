@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 74
+NORMALIZATION_VERSION = 75
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -158,6 +158,16 @@ def words(text):
                 'meshulam': ['meshullam'], 'nahari': ['naharai'],
                 'hodeva': ['hodevah'], 'duma': ['dumah'], 'pashur': ['pashhur'],
                 'alameth': ['alemeth'], 'allemeth': ['alemeth'],
+                # NET ISBE: Mattan mat-an, Gazzam gaz-am, Ziha zi-ha;
+                # Bible Gateway: Iddo id-oh. Named English consonant/final-h
+                # spelling only; never remove consonants from arbitrary names.
+                # NET Hasshub explicitly identifies KJV Hashub, hash-ub.
+                'matan': ['mattan'], 'gazam': ['gazzam'], 'zihah': ['ziha'],
+                'ido': ['iddo'], 'hashub': ['hasshub'],
+                # Merriam-Webster Nazarite is a variant of Nazirite; keep plural.
+                # Sidewall is a compound; retain both words and their ending.
+                'nazarites': ['nazirites'], 'sidewall': ['side', 'wall'],
+                'sidewalls': ['side', 'walls'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],
