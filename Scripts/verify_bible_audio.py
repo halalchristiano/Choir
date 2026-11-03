@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 67
+NORMALIZATION_VERSION = 68
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -93,6 +93,12 @@ def words(text):
                 'geharashim': ['ge', 'harashim'], 'eshbaal': ['esh', 'baal'],
                 # Cambridge /dictionary/english/skilful: UK spelling of skillful.
                 'skilful': ['skillful'],
+                # Poetry-heading compounds: retain all parts, including "more".
+                'choirmaster': ['choir', 'master'],
+                'forevermore': ['for', 'ever', 'more'], 'evermore': ['ever', 'more'],
+                # Cambridge's savior, valor and honor entries document these
+                # British spellings. Preserve the plural/verb ending in honours.
+                'saviour': ['savior'], 'valour': ['valor'], 'honours': ['honors'],
                 # Documented name spellings / English consonant spelling only.
                 # biblehub.com/hebrew/5915.htm explicitly lists Aksah.
                 # NET Bible dictionary Achshaph: Akshaph; Helkath: hel-kath.

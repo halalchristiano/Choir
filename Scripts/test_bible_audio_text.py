@@ -9,6 +9,28 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_psalm_spacing_and_regional_spellings_preserve_reading_errors(self):
+        for expected, transcript in [('choirmaster', 'choir master'),
+                                     ('forevermore', 'for evermore'),
+                                     ('forevermore', 'forever more'),
+                                     ('forevermore', 'for ever more'),
+                                     ('evermore', 'ever more'), ('savior', 'saviour'),
+                                     ('valor', 'valour'), ('honors', 'honours')]:
+            self.assertEqual(words(expected), words(transcript))
+            original = [dict(word=w, start=float(i), end=i+.75)
+                        for i, w in enumerate(transcript.split())]
+            mapped = timed_words(original)
+            self.assertEqual([w[0] for w in mapped], words(expected))
+            self.assertEqual(mapped[0][1], 0.)
+            self.assertEqual(mapped[-1][2], original[-1]['end'])
+        for expected, wrong in [('choirmaster', 'master'), ('choirmaster', 'quarmaster'),
+                                ('forevermore', 'forever'), ('forevermore', 'evermore'),
+                                ('evermore', 'more'), ('savior', 'saviors'),
+                                ('honors', 'honor'), ('song', 'psalm'),
+                                ('ascents', 'assense'), ('Selah', 'Salah'),
+                                ('Selah', ''), ('bows', 'boughs'), ('and', 'in')]:
+            self.assertNotEqual(words(expected), words(wrong))
+
     def test_historical_name_spacing_keeps_complete_word_cues(self):
         examples = [('Beth-shemesh', 'Bethshemesh'), ('Elteke', 'El teke'),
                     ('Lo-debar', 'Lodebar'), ('almug wood', 'almugwood'),
