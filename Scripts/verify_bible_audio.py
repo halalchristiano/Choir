@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 76
+NORMALIZATION_VERSION = 77
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -177,6 +177,28 @@ def words(text):
                 'azur': ['azzur'],
                 # Cambridge gives one and the past tense won the same /wʌn/.
                 'won': ['one'],
+                # Named English spellings documented in NET ISBE; retain all
+                # syllables and endings. Never apply generic consonant folding.
+                'molada': ['moladah'],
+                'horma': ['hormah'],
+                'jutta': ['juttah'],
+                'bala': ['balah'],
+                'adama': ['adamah'],
+                'shahazuma': ['shahazumah'],
+                'beta': ['betah'],
+                'hashuba': ['hashubah'],
+                'toa': ['toah'],
+                'maluch': ['malluch'],
+                'maluchi': ['malluchi'],
+                'mishmanah': ['mishmannah'],
+                'zabai': ['zabbai'],
+                'micah': ['mica'],
+                'makedah': ['makkedah'],
+                'adulam': ['adullam'],
+                'hare': ['hair'],
+                'jams': ['jambs'],
+                # A spacing-only compound preserves both parts.
+                'bowlful': ['bowl', 'full'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],

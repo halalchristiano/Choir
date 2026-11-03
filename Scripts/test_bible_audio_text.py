@@ -9,6 +9,27 @@ from bible_audio_pronunciation import restore_source_spellings
 
 
 class BibleAudioTextChecks(unittest.TestCase):
+    def test_sourced_final_letters_and_homophones_preserve_sounds_and_endings(self):
+        pairs = [('Moladah', 'Molada'), ('Hormah', 'Horma'), ('Juttah', 'Jutta'),
+                 ('Balah', 'Bala'), ('Adamah', 'Adama'), ('Shahazumah', 'Shahazuma'),
+                 ('Betah', 'Beta'), ('Hashubah', 'Hashuba'), ('Toah', 'Toa'),
+                 ('Malluch', 'Maluch'), ('Malluchi', 'Maluchi'), ('Mishmannah', 'Mishmanah'),
+                 ('Zabbai', 'Zabai'), ('Mica', 'Micah'), ('Makkedah', 'Makedah'),
+                 ('Adullam', 'Adulam'), ('hair', 'hare'), ('jambs', 'jams'),
+                 ('bowlful', 'bowl full')]
+        for source, recognized in pairs:
+            self.assertEqual(words(source), words(recognized))
+            timestamps = [dict(word=w, start=float(n), end=n+.5) for n,w in enumerate(recognized.split())]
+            self.assertEqual([w[0] for w in timed_words(timestamps)], words(source))
+        for source, wrong in [('Moladah', 'Molad'), ('Hormah', 'Hormu'), ('Juttah', 'Jut'),
+                              ('Balah', 'Baal'), ('Adamah', 'Adam'), ('Shahazumah', 'Shahazimah'),
+                              ('Betah', 'Bet'), ('Hashubah', 'Hashub'), ('Toah', 'To'),
+                              ('Malluch', 'Malak'), ('Malluchi', 'Malluch'), ('Mishmannah', 'Mishma'),
+                              ('Zabbai', 'Zab'), ('Mica', 'Micaiah'), ('Makkedah', 'Makedaiah'),
+                              ('Adullam', 'Adullams'), ('hair', 'here'), ('hair', 'air'),
+                              ('jambs', 'jam'), ('bowlful', 'bowl')]:
+            self.assertNotEqual(words(source), words(wrong))
+
     def test_targeted_spacing_and_documented_homophones_keep_every_component(self):
         pairs = [('Beth-rapha', 'Bethrapha'), ('Beth-anath', 'Bethanath'),
                  ('Hazar-shual', 'Hazarshual'), ('Anab Eshtemoh', 'Anabeshtemoh'),
