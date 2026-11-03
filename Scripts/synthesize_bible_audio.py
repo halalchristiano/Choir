@@ -6,6 +6,7 @@ passages are immutable by text/model hash and retain their generation settings.
 """
 import argparse
 import hashlib
+import importlib.metadata
 import json
 import re
 import time
@@ -40,6 +41,8 @@ def main():
     p.add_argument('--batch-size', type=int, default=4)
     p.add_argument('--continuous', action='store_true',
                    help='Refill completed inference slots from a saved queue; keep the same bounded batch size.')
+    p.add_argument('--retained-cache', action='store_true',
+                   help='Reuse the verified Qwen batched cache between passage membership changes.')
     p.add_argument('--limit', type=int)
     p.add_argument('--books', nargs='+', default=['Mark', 'John', 'Matthew', 'Luke'])
     p.add_argument('--seed-offset', type=int, default=0)
@@ -56,6 +59,7 @@ def main():
                    help='Bound unused MLX buffers so long batches do not pressure system swap.')
     args = p.parse_args()
     assert args.batch_size >= 1
+    assert not args.retained_cache or args.continuous
     assert .25 <= args.minimum_audio_seconds <= 1.
     assert args.cache_limit_mb >= 0
     mx.set_cache_limit(args.cache_limit_mb * 1024 * 1024)
@@ -145,6 +149,13 @@ def main():
                 batch_size=args.batch_size,temperature=args.temperature,top_p=.9,
                 repetition_penalty=1.05,max_tokens=900,
                 jobs=[{k:j[k] for k in ['id','signature','generation_text']} for j in batch])
+            queue['retained_cache'] = args.retained_cache
+            queue['runtime'] = {package:importlib.metadata.version(package) for package in ['mlx','mlx-audio']}
+            queue['inference_scripts'] = {name:sha(Path(__file__).with_name(name)) for name in
+                ['synthesize_bible_audio.py','bible_audio_continuous.py'] +
+                (['bible_audio_cached_session.py'] if args.retained_cache else [])}
+            queue['inference_sources'] = {name:Path(__file__).with_name(name).read_text() for name in queue['inference_scripts']}
+            assert all(hashlib.sha256(code.encode()).hexdigest()==queue['inference_scripts'][name] for name,code in queue['inference_sources'].items())
             queue_path=out/f'inference-queue-{seed}.json'
             if queue_path.exists():
                 assert json.loads(queue_path.read_text())==queue, 'Saved inference queue differs'
@@ -152,7 +163,7 @@ def main():
             queue_hash=sha(queue_path)
             print(f'CONTINUOUS_QUEUE {len(batch)} passages; maximum {args.batch_size} active; receipt {queue_path}',flush=True)
             from bible_audio_continuous import generate
-            results=generate(model,batch,args.batch_size,args.temperature)
+            results=generate(model,batch,args.batch_size,args.temperature,args.retained_cache)
         else:
             print('BATCH '+','.join(j['id'] for j in batch),flush=True)
             results=model.batch_generate(texts=[j['generation_text'] for j in batch],
@@ -194,7 +205,9 @@ def main():
             if queue_path is not None:
                 metadata.update(inference_queue=str(queue_path),inference_queue_sha256=queue_hash,
                     inference_queue_index=index,inference_batch_size=args.batch_size,
-                    inference_scheduler='bounded continuous queue using the existing Qwen3 TTS batch session')
+                    inference_scheduler='bounded continuous Qwen3 TTS queue',
+                    inference_retained_cache=args.retained_cache,
+                    inference_runtime=queue['runtime'],inference_scripts=queue['inference_scripts'])
             write_json(path.with_suffix('.json'),metadata)
             completed+=1
             audio_seconds+=metadata['seconds']

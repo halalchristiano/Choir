@@ -25,13 +25,19 @@ def completed_results(session, items, sample_rate):
         raise ValueError('Inference queue ended without every requested passage')
 
 
-def generate(model, jobs, batch_size, temperature):
+def generate(model, jobs, batch_size, temperature, retained_cache=False):
     from mlx_audio.tts.continuous import TTSBatchItem, TTSBatchOptions
     configured = (model.generate_config or {}).get('top_k')
     options = TTSBatchOptions(temperature=temperature, top_p=.9,
         top_k=50 if configured is None else configured, repetition_penalty=1.05,
         max_tokens=900, lang_code='english', stream=False, max_batch_size=batch_size)
     session = model.create_tts_batch_session(options)
+    if retained_cache:
+        from mlx_audio.tts.models.qwen3_tts.continuous_batching import Qwen3TTSBatchSession
+        from bible_audio_cached_session import CachedQwen3TTSBatchSession
+        if type(session) is not Qwen3TTSBatchSession:
+            raise TypeError('Retained caches require the verified Qwen3 batch backend')
+        session = CachedQwen3TTSBatchSession(model, options)
     items = [TTSBatchItem(sequence_id=index, text=job['generation_text'], voice='choirreading')
              for index, job in enumerate(jobs)]
     yield from completed_results(session, items, model.sample_rate)
