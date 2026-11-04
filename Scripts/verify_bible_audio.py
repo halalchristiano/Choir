@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 106
+NORMALIZATION_VERSION = 107
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -83,7 +83,17 @@ _REVIEWED_ANAIAH_CONTEXTS = (
     re.compile(r'\bHanan,?\s+(?P<value>Aniah|Anaya)(?=,?\s+Hoshea\b)', re.IGNORECASE),
 )
 
+
+# Independently checked name spellings, confined to their complete source context.
+_REVIEWED_NEHEMIAH12_CONTEXTS = (
+    (re.compile(r'\bof\s+(?P<value>Edo)(?=,?\s+Zechariah\b)', re.IGNORECASE), 'Iddo'),
+    (re.compile(r'\bof\s+(?P<value>Minimin)(?=\s+and\s+of\s+Moadiah\b)', re.IGNORECASE), 'Miniamin'),
+    (re.compile(r'\bof\s+(?P<value>Jediah)(?=,?\s+Uzzi\b)', re.IGNORECASE), 'Jedaiah'),
+)
+
 def expanded_ordinal_notation(text):
+    for pattern, canonical in _REVIEWED_NEHEMIAH12_CONTEXTS:
+        text = pattern.sub(lambda match: match[0][:-len(match['value'])]+canonical, text)
     for pattern in _REVIEWED_ANAIAH_CONTEXTS:
         text = pattern.sub(lambda match: match[0][:-len(match['value'])]+'Anaiah', text)
     text = _REVIEWED_ORDINAL.sub(lambda match: match[0][:-1]+'the first', text)
@@ -104,6 +114,7 @@ def ordinal_timestamp_notation(word_times):
     spans += [(*m.span('value'), 'Hammath') for m in _REVIEWED_HAMMATH_FROM.finditer(text)]
     spans += [(*m.span('value'), 'Addar') for m in _REVIEWED_BELA_ADDAR.finditer(text)]
     spans += [(*m.span('value'), 'Ebiasaph') for m in _REVIEWED_KORE_EBIASAPH.finditer(text)]
+    spans += [(*m.span('value'), canonical) for pattern, canonical in _REVIEWED_NEHEMIAH12_CONTEXTS for m in pattern.finditer(text)]
     spans += [(*m.span('value'), 'Anaiah') for pattern in _REVIEWED_ANAIAH_CONTEXTS for m in pattern.finditer(text)]
     spans += [(*m.span('fourth'), 'the fourth') for m in _REVIEWED_NOHAH_ORDINALS.finditer(text)]
     spans += [(*m.span('fifth'), 'the fifth') for m in _REVIEWED_NOHAH_ORDINALS.finditer(text)]
