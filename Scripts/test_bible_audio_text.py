@@ -675,7 +675,7 @@ class BibleAudioTextChecks(unittest.TestCase):
 
     def test_sourced_spelling_and_homophone_v86(self):
         positive = [('Arubboth', 'Aruboth'), ('Seraiah', 'Sariah')]
-        negative = [['Arubboth', 'Aruba'], ['Arubboth', 'Arub'], ['Arubboth', 'Aruboths'], ['Arubboth', 'Araboth'], ['Seraiah', 'Sarah'], ['Seraiah', 'Sara'], ['Seraiah', 'Sarai'], ['Seraiah', 'Saraiya'], ['Seraiah', 'Isaiah'], ['Seraiah', 'Sherebiah'], ['Seraiah', 'Sharia'], ['Jeriah', 'Jariah'], ['Mezobaite', 'Mezobite'], ['Kinah', 'Kainah'], ['Baalah', 'Balah'], ['Hammath', 'Hamath'], ['Uzzi', 'Uzi'], ['horns', 'horn'], ['bows', 'boughs'], ['bleating', 'bleeding'], ['choirs', 'chorus'], ['Allon', 'Alan'], ['Joed', 'Jod']]
+        negative = [['Arubboth', 'Aruba'], ['Arubboth', 'Arub'], ['Arubboth', 'Aruboths'], ['Arubboth', 'Araboth'], ['Seraiah', 'Sarah'], ['Seraiah', 'Sara'], ['Seraiah', 'Sarai'], ['Seraiah', 'Saraiya'], ['Seraiah', 'Isaiah'], ['Seraiah', 'Sherebiah'], ['Seraiah', 'Sharia'], ['Jeriah', 'Jariah'], ['Mezobaite', 'Mezobite'], ['Kinah', 'Kainah'], ['Baalah', 'Balah'], ['Hammath', 'Hamath'], ['Uzzi', 'Uzi'], ['horns', 'horn'], ['bows', 'boughs'], ['bleating', 'bleeding'], ['choirs', 'chorus'], ['Joed', 'Jod']]
         for source, spelling in positive:
             with self.subTest(source=source, spelling=spelling):
                 self.assertEqual(words(source), words(spelling))
@@ -687,7 +687,19 @@ class BibleAudioTextChecks(unittest.TestCase):
 
     def test_acoustically_supported_epher_spelling_v87(self):
         positive = [('Epher', 'Ephher')]
-        negative = [['Epher', 'Ephah'], ['Epher', 'Hepher'], ['Epher', 'Ephraim'], ['Epher', 'Epherh'], ['Epher', 'Ephherah'], ['Epher', 'Epherim'], ['Mahlons', 'Mahluns'], ['Jeriah', 'Jariah'], ['the first', 'I'], ['Jehiel the first', 'Jehiel I'], ['Arubboth', 'Aruba'], ['Arubboth', 'Arub'], ['Arubboth', 'Aruboths'], ['Arubboth', 'Araboth'], ['Seraiah', 'Sarah'], ['Seraiah', 'Sara'], ['Seraiah', 'Sarai'], ['Seraiah', 'Saraiya'], ['Seraiah', 'Isaiah'], ['Seraiah', 'Sherebiah'], ['Seraiah', 'Sharia'], ['Jeriah', 'Jariah'], ['Mezobaite', 'Mezobite'], ['Kinah', 'Kainah'], ['Baalah', 'Balah'], ['Hammath', 'Hamath'], ['Uzzi', 'Uzi'], ['horns', 'horn'], ['bows', 'boughs'], ['bleating', 'bleeding'], ['choirs', 'chorus'], ['Allon', 'Alan'], ['Joed', 'Jod']]
+        negative = [['Epher', 'Ephah'], ['Epher', 'Hepher'], ['Epher', 'Ephraim'], ['Epher', 'Epherh'], ['Epher', 'Ephherah'], ['Epher', 'Epherim'], ['Mahlons', 'Mahluns'], ['Jeriah', 'Jariah'], ['the first', 'I'], ['Jehiel the first', 'Jehiel I'], ['Arubboth', 'Aruba'], ['Arubboth', 'Arub'], ['Arubboth', 'Aruboths'], ['Arubboth', 'Araboth'], ['Seraiah', 'Sarah'], ['Seraiah', 'Sara'], ['Seraiah', 'Sarai'], ['Seraiah', 'Saraiya'], ['Seraiah', 'Isaiah'], ['Seraiah', 'Sherebiah'], ['Seraiah', 'Sharia'], ['Jeriah', 'Jariah'], ['Mezobaite', 'Mezobite'], ['Kinah', 'Kainah'], ['Baalah', 'Balah'], ['Hammath', 'Hamath'], ['Uzzi', 'Uzi'], ['horns', 'horn'], ['bows', 'boughs'], ['bleating', 'bleeding'], ['choirs', 'chorus'], ['Joed', 'Jod']]
+        for source, spelling in positive:
+            with self.subTest(source=source, spelling=spelling):
+                self.assertEqual(words(source), words(spelling))
+                times = [dict(word=w, start=float(i), end=i+.5) for i,w in enumerate(spelling.split())]
+                self.assertEqual([item[0] for item in timed_words(times)], words(source))
+        for source, spelling in negative:
+            with self.subTest(source=source, spelling=spelling):
+                self.assertNotEqual(words(source), words(spelling))
+
+    def test_sourced_phonetic_spellings_v88(self):
+        positive = [('Allon', 'Alan'), ('Shiphi', 'Shiffi'), ('Zophai', 'Zophi'), ('Hash-baddanah', 'Hash-badana'), ('Hash-baddanah', 'Hashbadana'), ['Hash-baddanah', 'Hashbaddanah']]
+        negative = [['Epher', 'Ephah'], ['Epher', 'Hepher'], ['Epher', 'Ephraim'], ['Epher', 'Epherh'], ['Epher', 'Ephherah'], ['Epher', 'Epherim'], ['Mahlons', 'Mahluns'], ['Jeriah', 'Jariah'], ['the first', 'I'], ['Jehiel the first', 'Jehiel I'], ['Arubboth', 'Aruba'], ['Arubboth', 'Arub'], ['Arubboth', 'Aruboths'], ['Arubboth', 'Araboth'], ['Seraiah', 'Sarah'], ['Seraiah', 'Sara'], ['Seraiah', 'Sarai'], ['Seraiah', 'Saraiya'], ['Seraiah', 'Isaiah'], ['Seraiah', 'Sherebiah'], ['Seraiah', 'Sharia'], ['Jeriah', 'Jariah'], ['Mezobaite', 'Mezobite'], ['Kinah', 'Kainah'], ['Baalah', 'Balah'], ['Hammath', 'Hamath'], ['Uzzi', 'Uzi'], ['horns', 'horn'], ['bows', 'boughs'], ['bleating', 'bleeding'], ['choirs', 'chorus'], ['Joed', 'Jod'], ['Allon', 'Alone'], ['Allon', 'Elon'], ['Allon', 'Ahlon'], ['Shiphi', 'Shippi'], ['Shiphi', 'Shiphrah'], ['Shiphi', 'Shif'], ['Zophai', 'Zophah'], ['Zophai', 'Zoph'], ['Zophai', 'Zophim'], ['Hash-baddanah', 'Hashum'], ['Hash-baddanah', 'Hashbanah'], ['Hash-baddanah', 'Hash-bad'], ['an', 'and'], ['about', ''], ['host', 'hosts'], ['open', 'opened'], ['sign', 'sin'], ['lambs', 'lamb']]
         for source, spelling in positive:
             with self.subTest(source=source, spelling=spelling):
                 self.assertEqual(words(source), words(spelling))
