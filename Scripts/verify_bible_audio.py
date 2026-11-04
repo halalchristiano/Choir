@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 86
+NORMALIZATION_VERSION = 87
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -265,6 +265,9 @@ def words(text):
                 # Sariah and Seraiah have independently documented English
                 # three-syllable s-r-long-i-uh pronunciations. No shorter form.
                 'aruboth': ['arubboth'], 'sariah': ['seraiah'],
+                # Two independent unprompted phone decodes support this named
+                # doubled-h ASR spelling of Epher. No generic h deletion.
+                'ephher': ['epher'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],
