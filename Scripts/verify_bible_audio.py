@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 103
+NORMALIZATION_VERSION = 104
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -72,12 +72,16 @@ _REVIEWED_BELA_ADDAR = re.compile(r'\bsons\s+of\s+Belah?\s*[:,]?\s+(?P<value>Ada
 # Keep Roman numerals and names unchanged outside this complete context.
 _REVIEWED_NOHAH_ORDINALS = re.compile(r'\b(?i:Nohah?)\s+(?P<fourth>IV),?\s+(?i:and\s+Rapha)\s+(?P<fifth>V)(?=[,.;]?\s+(?i:the\s+sons\s+of\s+Belah?)\b)')
 
+# This documented variant is limited to the explicit Korahite genealogy.
+_REVIEWED_KORE_EBIASAPH = re.compile(r'\bKore,?\s+the\s+son\s+of\s+(?P<value>Abiasaph)(?=,?\s+the\s+son\s+of\s+Korah\b)', re.IGNORECASE)
+
 
 def expanded_ordinal_notation(text):
     text = _REVIEWED_ORDINAL.sub(lambda match: match[0][:-1]+'the first', text)
     text = _REVIEWED_GIBEAH_IN.sub(lambda match: match[0][:-3]+'in', text)
     text = _REVIEWED_HAMMATH_FROM.sub(lambda match: match[0][:-6]+'Hammath', text)
     text = _REVIEWED_BELA_ADDAR.sub(lambda match: match[0][:-4]+'Addar', text)
+    text = _REVIEWED_KORE_EBIASAPH.sub(lambda match: match[0][:-8]+'Ebiasaph', text)
     return _REVIEWED_NOHAH_ORDINALS.sub(lambda match: re.sub(r'\b(?:IV|V)\b', lambda numeral: {'IV':'the fourth', 'V':'the fifth'}[numeral[0]], match[0]), text)
 
 
@@ -90,6 +94,7 @@ def ordinal_timestamp_notation(word_times):
     spans += [(*m.span('value'), 'in') for m in _REVIEWED_GIBEAH_IN.finditer(text)]
     spans += [(*m.span('value'), 'Hammath') for m in _REVIEWED_HAMMATH_FROM.finditer(text)]
     spans += [(*m.span('value'), 'Addar') for m in _REVIEWED_BELA_ADDAR.finditer(text)]
+    spans += [(*m.span('value'), 'Ebiasaph') for m in _REVIEWED_KORE_EBIASAPH.finditer(text)]
     spans += [(*m.span('fourth'), 'the fourth') for m in _REVIEWED_NOHAH_ORDINALS.finditer(text)]
     spans += [(*m.span('fifth'), 'the fifth') for m in _REVIEWED_NOHAH_ORDINALS.finditer(text)]
     spans.sort()
@@ -111,9 +116,10 @@ def ordinal_timestamp_notation(word_times):
 
 def words(text):
     text = expanded_ordinal_notation(text)
-    # Only these two reviewed complete phonetic name forms may be joined.
+    # Only these reviewed complete phonetic name forms may be joined.
     text = re.sub(r'\bHaso[\s-]+Fereth\b', 'Hasofereth', text, flags=re.IGNORECASE)
     text = re.sub(r'\bZee[\s-]+Nan\b', 'Zeenan', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bHaggai[\s-]+ah\b', 'Haggiah', text, flags=re.IGNORECASE)
     # Numerals and their spoken English form represent the same source words.
     text = re.sub(r'\b(\d[\d,]*)(?:st|nd|rd|th)\b', lambda m: ordinal_words(int(m[1].replace(',', ''))), text, flags=re.IGNORECASE)
     text = re.sub(r'\b\d[\d,]*\b', lambda m: number_words(int(m[0].replace(',', ''))), text)
@@ -333,6 +339,7 @@ def words(text):
                 'lebana': ['lebanah'], 'halohesh': ['hallohesh'],
                 'mikri': ['michri'], 'micri': ['michri'],
                 'hasofereth': ['hassophereth'], 'zeenan': ['zenan'],
+                'shalum': ['shallum'],
                 # Sourced name transcription spellings, with acoustic evidence.
                 'labanah': ['lebanah'], 'shalbonite': ['shaal', 'bonite'],
                 'hasophereth': ['hassophereth'], 'mizobiite': ['mezobaite'],
@@ -509,8 +516,8 @@ def timed_words(word_times):
             # first start and last end, and leave raw token records untouched.
             merged[-1]['word'] += item['word']
             merged[-1]['end'] = item['end']
-        elif (merged and merged[-1]['word'].strip().casefold() in ('haso','zee')
-              and re.fullmatch(r'[-\s]*'+{'haso':'fereth','zee':'nan'}[merged[-1]['word'].strip().casefold()]+r'[.!?;:,]*', item['word'], re.IGNORECASE)
+        elif (merged and merged[-1]['word'].strip().casefold() in ('haso','zee','haggai')
+              and re.fullmatch(r'[-\s]*'+{'haso':'fereth','zee':'nan','haggai':'ah'}[merged[-1]['word'].strip().casefold()]+r'[.!?;:,]*', item['word'], re.IGNORECASE)
               and abs(item['start']-merged[-1]['end'])<=.04):
             # These exact reviewed name syllables are one contiguous token.
             # Retain the first start and final end; never edit raw word records.
