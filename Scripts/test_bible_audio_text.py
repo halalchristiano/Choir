@@ -661,5 +661,17 @@ class BibleAudioTextChecks(unittest.TestCase):
             with self.subTest(source=source, spelling=spelling):
                 self.assertNotEqual(words(source), words(spelling))
 
+    def test_sourced_spelling_and_homophone_v85(self):
+        positive = [('Tabbath', 'Tabath'), ('Halah', 'Hala'), ('Jahzerah', 'Jazerah')]
+        negative = [['Tabbath', 'Tabbaoth'], ['Tabbath', 'Tab'], ['Tabbath', 'Tabat'], ['Tabbath', 'Tabbaths'], ['Halah', 'Halak'], ['Halah', 'Hali'], ['Halah', 'Halae'], ['Halah', 'Calah'], ['Jahzerah', 'Jazer'], ['Jahzerah', 'Jahzeel'], ['Jahzerah', 'Jazra'], ['Jahzerah', 'Jazirah'], ['Mezobaite', 'Mezobite'], ['Kinah', 'Kainah'], ['Kinah', 'Kaino'], ['Baalah', 'Balah'], ['Hammath', 'Hamath'], ['Uzzi', 'Uzi'], ['horns', 'horn'], ['bows', 'boughs']]
+        for source, spelling in positive:
+            with self.subTest(source=source, spelling=spelling):
+                self.assertEqual(words(source), words(spelling))
+                times = [dict(word=w, start=float(i), end=i+.5) for i,w in enumerate(spelling.split())]
+                self.assertEqual([item[0] for item in timed_words(times)], words(source))
+        for source, spelling in negative:
+            with self.subTest(source=source, spelling=spelling):
+                self.assertNotEqual(words(source), words(spelling))
+
 if __name__ == '__main__':
     unittest.main()

@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 84
+NORMALIZATION_VERSION = 85
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -257,6 +257,10 @@ def words(text):
                 'moveable': ['movable'], 'sensors': ['censers'],
                 'adjust': ['a', 'just'], 'shamoth': ['shammoth'],
                 'adan': ['addan'], 'adon': ['addon'],
+                # NET ISBE explicitly records Tabath and Hala; English
+                # tab-ath, ha-la, and ja-ze-ra retain all their sounds.
+                # The named Jahzerah spelling keeps each of its three syllables.
+                'tabath': ['tabbath'], 'hala': ['halah'], 'jazerah': ['jahzerah'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],
