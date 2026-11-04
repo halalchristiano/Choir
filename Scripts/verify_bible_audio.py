@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 107
+NORMALIZATION_VERSION = 108
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -91,7 +91,17 @@ _REVIEWED_NEHEMIAH12_CONTEXTS = (
     (re.compile(r'\bof\s+(?P<value>Jediah)(?=,?\s+Uzzi\b)', re.IGNORECASE), 'Jedaiah'),
 )
 
+# These comparisons additionally require exact component evidence in scan and final audits.
+_REVIEWED_BOUND_NAME_CONTEXTS = (
+    (re.compile('\\b(?P<value>Shalom)(?=\\s+was\\s+the\\s+father\\s+of\\s+Jekamiah\\b)', re.IGNORECASE), 'Shallum'),
+    (re.compile('\\b(?P<value>Ibnijah)(?=,?\\s+son\\s+of\\s+Jeroham\\b)', re.IGNORECASE), 'Ibneiah'),
+    (re.compile('\\b(?P<value>Elasa)(?=\\s+was\\s+the\\s+father\\s+of\\s+Sismai\\b)', re.IGNORECASE), 'Elasah'),
+    (re.compile('\\bShimea\\s+his\\s+son,?\\s+(?:Haggiah|Haggai\\s+ah)\\s+his\\s+son,?\\s+and\\s+(?P<value>Isaiah)(?=\\s+his\\s+son\\b)', re.IGNORECASE), 'Asaiah'),
+)
+
 def expanded_ordinal_notation(text):
+    for pattern, canonical in _REVIEWED_BOUND_NAME_CONTEXTS:
+        text = pattern.sub(lambda match: match[0][:-len(match['value'])]+canonical, text)
     for pattern, canonical in _REVIEWED_NEHEMIAH12_CONTEXTS:
         text = pattern.sub(lambda match: match[0][:-len(match['value'])]+canonical, text)
     for pattern in _REVIEWED_ANAIAH_CONTEXTS:
@@ -114,6 +124,7 @@ def ordinal_timestamp_notation(word_times):
     spans += [(*m.span('value'), 'Hammath') for m in _REVIEWED_HAMMATH_FROM.finditer(text)]
     spans += [(*m.span('value'), 'Addar') for m in _REVIEWED_BELA_ADDAR.finditer(text)]
     spans += [(*m.span('value'), 'Ebiasaph') for m in _REVIEWED_KORE_EBIASAPH.finditer(text)]
+    spans += [(*m.span('value'), canonical) for pattern, canonical in _REVIEWED_BOUND_NAME_CONTEXTS for m in pattern.finditer(text)]
     spans += [(*m.span('value'), canonical) for pattern, canonical in _REVIEWED_NEHEMIAH12_CONTEXTS for m in pattern.finditer(text)]
     spans += [(*m.span('value'), 'Anaiah') for pattern in _REVIEWED_ANAIAH_CONTEXTS for m in pattern.finditer(text)]
     spans += [(*m.span('fourth'), 'the fourth') for m in _REVIEWED_NOHAH_ORDINALS.finditer(text)]
@@ -653,7 +664,9 @@ def scan(args, directory, source, model):
                     if old.get('normalization_version') != NORMALIZATION_VERSION:
                         old['earlier_normalization_changes'] = old['changes']
                         old['changes'] = differences(old['expected'], old['recognized'])
-                        old['automatic_exact_match'] = not old['changes']
+                        from bible_audio_name_evidence import verify as verify_name_evidence
+                        old['name_disambiguation_evidence'] = verify_name_evidence(path, old)
+                        old['automatic_exact_match'] = not old['changes'] and old['name_disambiguation_evidence']['passes']
                         old['words'] = len(words(old['expected']))
                         old['normalization_version'] = NORMALIZATION_VERSION
                         write_json(audit, old)
@@ -693,6 +706,9 @@ def scan(args, directory, source, model):
                 recognition_temperature=args.temperature, proper_name_context=args.name_context, recognition_window_boundaries=boundaries)
             if getattr(args, 'window_name_contexts', None) is not None:
                 result['recognition_window_spelling_hints'] = args.window_name_contexts
+            from bible_audio_name_evidence import verify as verify_name_evidence
+            result['name_disambiguation_evidence'] = verify_name_evidence(path, result)
+            result['automatic_exact_match'] = result['automatic_exact_match'] and result['name_disambiguation_evidence']['passes']
             write_json(audit, result)
             checked += 1
             print(json.dumps(dict(id=result['id'], changes=changes, seconds=result['seconds'],
