@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 92
+NORMALIZATION_VERSION = 93
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -308,6 +308,8 @@ def words(text):
                 # Two independent unprompted phone decodes support this named
                 # doubled-h ASR spelling of Epher. No generic h deletion.
                 'ephher': ['epher'],
+                # Balah's demonstrated stress-mark spelling, documented in ISBE.
+                "ba'la": ['balah'],
                 # Demonstrated mah-see-yah ASR spellings, independently checked
                 # against two recordings and the published English pronunciation.
                 'masiyah': ['mahseiah'], 'masiya': ['mahseiah'],
