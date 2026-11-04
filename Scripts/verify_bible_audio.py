@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 101
+NORMALIZATION_VERSION = 102
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -68,12 +68,17 @@ _REVIEWED_HAMMATH_FROM = re.compile(r'\bfrom\s+(?P<value>Hamath)(?=,?\s+the\s+fa
 # Adar is a documented spelling of the son of Bela. Preserve the month name.
 _REVIEWED_BELA_ADDAR = re.compile(r'\bsons\s+of\s+Belah?\s*[:,]?\s+(?P<value>Adar)(?=[,;:]?\s+Gera\b)', re.IGNORECASE)
 
+# Both ordinals are independently audible in this paired enumeration.
+# Keep Roman numerals and names unchanged outside this complete context.
+_REVIEWED_NOHAH_ORDINALS = re.compile(r'\b(?i:Nohah?)\s+(?P<fourth>IV),?\s+(?i:and\s+Rapha)\s+(?P<fifth>V)(?=[,.;]?\s+(?i:the\s+sons\s+of\s+Belah?)\b)')
+
 
 def expanded_ordinal_notation(text):
     text = _REVIEWED_ORDINAL.sub(lambda match: match[0][:-1]+'the first', text)
     text = _REVIEWED_GIBEAH_IN.sub(lambda match: match[0][:-3]+'in', text)
     text = _REVIEWED_HAMMATH_FROM.sub(lambda match: match[0][:-6]+'Hammath', text)
-    return _REVIEWED_BELA_ADDAR.sub(lambda match: match[0][:-4]+'Addar', text)
+    text = _REVIEWED_BELA_ADDAR.sub(lambda match: match[0][:-4]+'Addar', text)
+    return _REVIEWED_NOHAH_ORDINALS.sub(lambda match: re.sub(r'\b(?:IV|V)\b', lambda numeral: {'IV':'the fourth', 'V':'the fifth'}[numeral[0]], match[0]), text)
 
 
 def ordinal_timestamp_notation(word_times):
@@ -85,6 +90,8 @@ def ordinal_timestamp_notation(word_times):
     spans += [(*m.span('value'), 'in') for m in _REVIEWED_GIBEAH_IN.finditer(text)]
     spans += [(*m.span('value'), 'Hammath') for m in _REVIEWED_HAMMATH_FROM.finditer(text)]
     spans += [(*m.span('value'), 'Addar') for m in _REVIEWED_BELA_ADDAR.finditer(text)]
+    spans += [(*m.span('fourth'), 'the fourth') for m in _REVIEWED_NOHAH_ORDINALS.finditer(text)]
+    spans += [(*m.span('fifth'), 'the fifth') for m in _REVIEWED_NOHAH_ORDINALS.finditer(text)]
     spans.sort()
     if not spans:
         return word_times
