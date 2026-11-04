@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 104
+NORMALIZATION_VERSION = 105
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -340,6 +340,7 @@ def words(text):
                 'mikri': ['michri'], 'micri': ['michri'],
                 'hasofereth': ['hassophereth'], 'zeenan': ['zenan'],
                 'shalum': ['shallum'],
+                'haggaiah': ['haggiah'],
                 # Sourced name transcription spellings, with acoustic evidence.
                 'labanah': ['lebanah'], 'shalbonite': ['shaal', 'bonite'],
                 'hasophereth': ['hassophereth'], 'mizobiite': ['mezobaite'],
