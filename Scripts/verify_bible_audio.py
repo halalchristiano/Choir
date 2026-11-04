@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 85
+NORMALIZATION_VERSION = 86
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -261,6 +261,10 @@ def words(text):
                 # tab-ath, ha-la, and ja-ze-ra retain all their sounds.
                 # The named Jahzerah spelling keeps each of its three syllables.
                 'tabath': ['tabbath'], 'hala': ['halah'], 'jazerah': ['jahzerah'],
+                # Aruboth is the documented KJV spelling of Arubboth.
+                # Sariah and Seraiah have independently documented English
+                # three-syllable s-r-long-i-uh pronunciations. No shorter form.
+                'aruboth': ['arubboth'], 'sariah': ['seraiah'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],
