@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 95
+NORMALIZATION_VERSION = 96
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -308,6 +308,8 @@ def words(text):
                 # Two independent unprompted phone decodes support this named
                 # doubled-h ASR spelling of Epher. No generic h deletion.
                 'ephher': ['epher'],
+                # Lockyer documents Hadoram with initial long a.
+                'heydoram': ['hadoram'],
                 # Independently decoded three-syllable uh-zay-yah spellings.
                 # Isaiah and truncated forms remain distinct.
                 'azaiah': ['asaiah'], 'azayah': ['asaiah'],
