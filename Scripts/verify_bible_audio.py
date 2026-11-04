@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 90
+NORMALIZATION_VERSION = 92
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -57,10 +57,14 @@ def number_words(n):
 # The independent unprompted phonetic check contains /the first/. Keep the
 # pronoun I and every other context unchanged; do not infer ordinals from names.
 _REVIEWED_ORDINAL = re.compile(r'\bJehiel\s+(?P<ordinal>I)(?=,\s+Zetham\b)')
+# In and inn share /in/. Preserve inn as a noun everywhere outside this
+# reviewed place phrase; no missing preposition or changed ending is waived.
+_REVIEWED_GIBEAH_IN = re.compile(r'\bGibeah\s+(?P<value>inn)(?=,?\s+Benjamin\b)', re.IGNORECASE)
 
 
 def expanded_ordinal_notation(text):
-    return _REVIEWED_ORDINAL.sub(lambda match: match[0][:-1]+'the first', text)
+    text = _REVIEWED_ORDINAL.sub(lambda match: match[0][:-1]+'the first', text)
+    return _REVIEWED_GIBEAH_IN.sub(lambda match: match[0][:-3]+'in', text)
 
 
 def ordinal_timestamp_notation(word_times):
@@ -68,17 +72,19 @@ def ordinal_timestamp_notation(word_times):
     # the recognizer's original I token interval, just like numeric expansion.
     # There are no fabricated boundaries and no edits to raw ASR records.
     text = ' '.join(item['word'] for item in word_times)
-    spans = [m.span('ordinal') for m in _REVIEWED_ORDINAL.finditer(text)]
+    spans = [(*m.span('ordinal'), 'the first') for m in _REVIEWED_ORDINAL.finditer(text)]
+    spans += [(*m.span('value'), 'in') for m in _REVIEWED_GIBEAH_IN.finditer(text)]
+    spans.sort()
     if not spans:
         return word_times
     result = []
     offset = covered = 0
     for item in word_times:
         raw = item['word']
-        local = [(a-offset, b-offset) for a,b in spans if offset <= a and b <= offset+len(raw)]
+        local = [(a-offset, b-offset, replacement) for a,b,replacement in spans if offset <= a and b <= offset+len(raw)]
         covered += len(local)
-        for a,b in reversed(local):
-            raw = raw[:a] + 'the first' + raw[b:]
+        for a,b,replacement in reversed(local):
+            raw = raw[:a] + replacement + raw[b:]
         result.append(dict(item, word=raw))
         offset += len(item['word'])+1
     assert covered == len(spans), 'Ordinal notation crosses an unexpected timestamp token'
@@ -302,6 +308,9 @@ def words(text):
                 # Two independent unprompted phone decodes support this named
                 # doubled-h ASR spelling of Epher. No generic h deletion.
                 'ephher': ['epher'],
+                # Demonstrated mah-see-yah ASR spellings, independently checked
+                # against two recordings and the published English pronunciation.
+                'masiyah': ['mahseiah'], 'masiya': ['mahseiah'],
                 # Two complete three-syllable Jeshaiah ASR spellings, each
                 # supported by published English readings and acoustic checks.
                 'jeshayah': ['jeshaiah'], 'jishayah': ['jeshaiah'],
