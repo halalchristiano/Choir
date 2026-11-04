@@ -726,5 +726,17 @@ class BibleAudioTextChecks(unittest.TestCase):
             with self.subTest(source=source, spelling=spelling):
                 self.assertNotEqual(words(source), words(spelling))
 
+    def test_acoustically_supported_jeshaiah_spellings_v90(self):
+        positive = [('Jeshaiah', 'Jeshayah'), ('Jeshaiah', 'Jishayah')]
+        negative = [['Epher', 'Ephah'], ['Epher', 'Hepher'], ['Epher', 'Ephraim'], ['Epher', 'Epherh'], ['Epher', 'Ephherah'], ['Epher', 'Epherim'], ['Mahlons', 'Mahluns'], ['Jeriah', 'Jariah'], ['the first', 'I'], ['Jehiel the first', 'Jehiel I'], ['Arubboth', 'Aruba'], ['Arubboth', 'Arub'], ['Arubboth', 'Aruboths'], ['Arubboth', 'Araboth'], ['Seraiah', 'Sarah'], ['Seraiah', 'Sara'], ['Seraiah', 'Sarai'], ['Seraiah', 'Saraiya'], ['Seraiah', 'Isaiah'], ['Seraiah', 'Sherebiah'], ['Seraiah', 'Sharia'], ['Jeriah', 'Jariah'], ['Mezobaite', 'Mezobite'], ['Kinah', 'Kainah'], ['Baalah', 'Balah'], ['Hammath', 'Hamath'], ['Uzzi', 'Uzi'], ['horns', 'horn'], ['bows', 'boughs'], ['bleating', 'bleeding'], ['choirs', 'chorus'], ['Joed', 'Jod'], ['Allon', 'Alone'], ['Allon', 'Elon'], ['Allon', 'Ahlon'], ['Shiphi', 'Shippi'], ['Shiphi', 'Shiphrah'], ['Shiphi', 'Shif'], ['Zophai', 'Zophah'], ['Zophai', 'Zoph'], ['Zophai', 'Zophim'], ['Hash-baddanah', 'Hashum'], ['Hash-baddanah', 'Hashbanah'], ['Hash-baddanah', 'Hash-bad'], ['an', 'and'], ['about', ''], ['host', 'hosts'], ['open', 'opened'], ['sign', 'sin'], ['lambs', 'lamb'], ['the first', 'I'], ['Jehiel the first', 'Jehiel I'], ['Jehiel the first, Zetham', 'Jehiel, I, Zetham'], ['Jehiel the first, Zetham', 'Jehiel I Zetham'], ['Jehiel the first, Zetham', 'Jehiel i, Zetham'], ['Jehiel the first, Zetham', 'Jehiel II, Zetham'], ['Jehiel the first, Joel', 'Jehiel I, Joel'], ['Jehiel the first, Zetham', 'Jehiel first, Zetham'], ['Jeshaiah', 'Jeshea'], ['Jeshaiah', 'Jesheah'], ['Jeshaiah', 'Jeshiah'], ['Jeshaiah', 'Josiah'], ['Jeshaiah', 'Jeshohaiah'], ['Jeshaiah', 'Jeshua'], ['Jeshaiah', 'Isaiah'], ['Jeshaiah', 'Jishiyah']]
+        for source, spelling in positive:
+            with self.subTest(source=source, spelling=spelling):
+                self.assertEqual(words(source), words(spelling))
+                times = [dict(word=w, start=float(i), end=i+.5) for i,w in enumerate(spelling.split())]
+                self.assertEqual([item[0] for item in timed_words(times)], words(source))
+        for source, spelling in negative:
+            with self.subTest(source=source, spelling=spelling):
+                self.assertNotEqual(words(source), words(spelling))
+
 if __name__ == '__main__':
     unittest.main()

@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 89
+NORMALIZATION_VERSION = 90
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -302,6 +302,9 @@ def words(text):
                 # Two independent unprompted phone decodes support this named
                 # doubled-h ASR spelling of Epher. No generic h deletion.
                 'ephher': ['epher'],
+                # Two complete three-syllable Jeshaiah ASR spellings, each
+                # supported by published English readings and acoustic checks.
+                'jeshayah': ['jeshaiah'], 'jishayah': ['jeshaiah'],
                 # Named spellings supported by dictionary and independent
                 # acoustic evidence. Allon and Alan share documented /aelen/.
                 'alan': ['allon'], 'shiffi': ['shiphi'], 'zophi': ['zophai'],
