@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 102
+NORMALIZATION_VERSION = 103
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -111,6 +111,9 @@ def ordinal_timestamp_notation(word_times):
 
 def words(text):
     text = expanded_ordinal_notation(text)
+    # Only these two reviewed complete phonetic name forms may be joined.
+    text = re.sub(r'\bHaso[\s-]+Fereth\b', 'Hasofereth', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bZee[\s-]+Nan\b', 'Zeenan', text, flags=re.IGNORECASE)
     # Numerals and their spoken English form represent the same source words.
     text = re.sub(r'\b(\d[\d,]*)(?:st|nd|rd|th)\b', lambda m: ordinal_words(int(m[1].replace(',', ''))), text, flags=re.IGNORECASE)
     text = re.sub(r'\b\d[\d,]*\b', lambda m: number_words(int(m[0].replace(',', ''))), text)
@@ -326,6 +329,10 @@ def words(text):
                 # Two independent unprompted phone decodes support this named
                 # doubled-h ASR spelling of Epher. No generic h deletion.
                 'ephher': ['epher'],
+                # Explicit published variants and independently reviewed sound spellings.
+                'lebana': ['lebanah'], 'halohesh': ['hallohesh'],
+                'mikri': ['michri'], 'micri': ['michri'],
+                'hasofereth': ['hassophereth'], 'zeenan': ['zenan'],
                 # Sourced name transcription spellings, with acoustic evidence.
                 'labanah': ['lebanah'], 'shalbonite': ['shaal', 'bonite'],
                 'hasophereth': ['hassophereth'], 'mizobiite': ['mezobaite'],
@@ -501,6 +508,13 @@ def timed_words(word_times):
             # Join only this contiguous continuation; retain its original
             # first start and last end, and leave raw token records untouched.
             merged[-1]['word'] += item['word']
+            merged[-1]['end'] = item['end']
+        elif (merged and merged[-1]['word'].strip().casefold() in ('haso','zee')
+              and re.fullmatch(r'[-\s]*'+{'haso':'fereth','zee':'nan'}[merged[-1]['word'].strip().casefold()]+r'[.!?;:,]*', item['word'], re.IGNORECASE)
+              and abs(item['start']-merged[-1]['end'])<=.04):
+            # These exact reviewed name syllables are one contiguous token.
+            # Retain the first start and final end; never edit raw word records.
+            merged[-1]['word'] += ' '+item['word'].strip()
             merged[-1]['end'] = item['end']
         else:
             merged.append(dict(item))
