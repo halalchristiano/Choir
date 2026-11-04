@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 100
+NORMALIZATION_VERSION = 101
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -319,6 +319,9 @@ def words(text):
                 # Two independent unprompted phone decodes support this named
                 # doubled-h ASR spelling of Epher. No generic h deletion.
                 'ephher': ['epher'],
+                # Sourced name transcription spellings, with acoustic evidence.
+                'labanah': ['lebanah'], 'shalbonite': ['shaal', 'bonite'],
+                'hasophereth': ['hassophereth'], 'mizobiite': ['mezobaite'],
                 # Documented name spellings; Noah and Ibnijah remain distinct.
                 'noha': ['nohah'], 'ibneah': ['ibneiah'],
                 # Published variants of the Rechabite name, Strong H2262.
