@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 83
+NORMALIZATION_VERSION = 84
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -250,6 +250,13 @@ def words(text):
                 # NET ISBE explicitly gives Eliada and Eliadah the same
                 # English e-li'-a-da; preserve neighboring distinct names.
                 'eliadah': ['eliada'],
+                # Named spelling/homophone evidence: MW movable/moveable,
+                # censer/sensor; Cambridge weak a + just equals adjust.
+                # NET explicitly lists Shamoth; English ad-an and ad-on
+                # preserve the name vowels, syllables and final consonants.
+                'moveable': ['movable'], 'sensors': ['censers'],
+                'adjust': ['a', 'just'], 'shamoth': ['shammoth'],
+                'adan': ['addan'], 'adon': ['addon'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],
