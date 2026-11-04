@@ -613,5 +613,17 @@ class BibleAudioTextChecks(unittest.TestCase):
             with self.subTest(source=source, spelling=spelling):
                 self.assertNotEqual(words(source), words(spelling))
 
+    def test_named_ordinary_homophones_preserve_other_endings(self):
+        positive = [('kinsman', 'kinsmen'), ('watchman', 'watchmen'), ('ladies', "lady's")]
+        negative = [['kinsman', 'kinswoman'], ['kinsmen', 'men'], ['watchman', 'watch'], ['watchmen', 'watchers'], ['ladies', 'lady'], ['ladies', 'laddies'], ['horns', 'horn'], ['in', 'and'], ['coastland', 'coastlands'], ['minas', 'minus'], ['Jeuel', 'Joel'], ['and', 'anned'], ['kinsman', 'kingsman']]
+        for source, spelling in positive:
+            with self.subTest(source=source, spelling=spelling):
+                self.assertEqual(words(source), words(spelling))
+                times = [dict(word=w, start=float(i), end=i+.5) for i,w in enumerate(spelling.split())]
+                self.assertEqual([item[0] for item in timed_words(times)], words(source))
+        for source, spelling in negative:
+            with self.subTest(source=source, spelling=spelling):
+                self.assertNotEqual(words(source), words(spelling))
+
 if __name__ == '__main__':
     unittest.main()

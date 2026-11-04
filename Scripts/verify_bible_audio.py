@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 80
+NORMALIZATION_VERSION = 81
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -237,6 +237,12 @@ def words(text):
                 'telharsha': ['tel', 'harsha'], 'jehiel': ['jehi', 'el'],
                 "be'erothite": ['beerothite'], 'elasah': ['el', 'asah'],
                 'heled': ['he', 'led'],
+                # Oxford gives identical singular/plural pronunciations for
+                # kinsman/kinsmen and watchman/watchmen. Cambridge's plural
+                # and possessive rules give ladies/lady's the same final /z/.
+                # These named homophones do not waive other plural endings.
+                'kinsmen': ['kinsman'], 'watchmen': ['watchman'],
+                'ladys': ['ladies'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],
