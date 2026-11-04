@@ -637,5 +637,17 @@ class BibleAudioTextChecks(unittest.TestCase):
             with self.subTest(source=source, spelling=spelling):
                 self.assertNotEqual(words(source), words(spelling))
 
+    def test_eliada_eliadah_shared_english_pronunciation(self):
+        positive = [('Eliada', 'Eliadah')]
+        negative = [['Eliada', 'Elidad'], ['Eliada', 'Eladah'], ['Eliada', 'Eliam'], ['Hammath', 'Hamath'], ['horns', 'horn'], ['in', 'and'], ['bows', 'boughs'], ['bows', 'booze'], ['Zuph', 'Zuth'], ['Hashabneiah', 'Hashabniah']]
+        for source, spelling in positive:
+            with self.subTest(source=source, spelling=spelling):
+                self.assertEqual(words(source), words(spelling))
+                times = [dict(word=w, start=float(i), end=i+.5) for i,w in enumerate(spelling.split())]
+                self.assertEqual([item[0] for item in timed_words(times)], words(source))
+        for source, spelling in negative:
+            with self.subTest(source=source, spelling=spelling):
+                self.assertNotEqual(words(source), words(spelling))
+
 if __name__ == '__main__':
     unittest.main()

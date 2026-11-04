@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 82
+NORMALIZATION_VERSION = 83
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -247,6 +247,9 @@ def words(text):
                 # Gibeah the same gib'-e-a and Jahdo ja'-do. Bible Gateway's
                 # Aven and Cambridge's British Avon are both /eivən/.
                 'gibea': ['gibeah'], 'avon': ['aven'], 'jado': ['jahdo'],
+                # NET ISBE explicitly gives Eliada and Eliadah the same
+                # English e-li'-a-da; preserve neighboring distinct names.
+                'eliadah': ['eliada'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],
