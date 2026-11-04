@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 96
+NORMALIZATION_VERSION = 98
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -61,10 +61,15 @@ _REVIEWED_ORDINAL = re.compile(r'\bJehiel\s+(?P<ordinal>I)(?=,\s+Zetham\b)')
 # reviewed place phrase; no missing preposition or changed ending is waived.
 _REVIEWED_GIBEAH_IN = re.compile(r'\bGibeah\s+(?P<value>inn)(?=,?\s+Benjamin\b)', re.IGNORECASE)
 
+# Hamath is a documented form of this particular person, independently
+# pronounced with short a. Keep the Syrian city and isolated words distinct.
+_REVIEWED_HAMMATH_FROM = re.compile(r'\bfrom\s+(?P<value>Hamath)(?=,?\s+the\s+father\s+of\s+the\s+house\s+of\s+Rechab\b)', re.IGNORECASE)
+
 
 def expanded_ordinal_notation(text):
     text = _REVIEWED_ORDINAL.sub(lambda match: match[0][:-1]+'the first', text)
-    return _REVIEWED_GIBEAH_IN.sub(lambda match: match[0][:-3]+'in', text)
+    text = _REVIEWED_GIBEAH_IN.sub(lambda match: match[0][:-3]+'in', text)
+    return _REVIEWED_HAMMATH_FROM.sub(lambda match: match[0][:-6]+'Hammath', text)
 
 
 def ordinal_timestamp_notation(word_times):
@@ -74,6 +79,7 @@ def ordinal_timestamp_notation(word_times):
     text = ' '.join(item['word'] for item in word_times)
     spans = [(*m.span('ordinal'), 'the first') for m in _REVIEWED_ORDINAL.finditer(text)]
     spans += [(*m.span('value'), 'in') for m in _REVIEWED_GIBEAH_IN.finditer(text)]
+    spans += [(*m.span('value'), 'Hammath') for m in _REVIEWED_HAMMATH_FROM.finditer(text)]
     spans.sort()
     if not spans:
         return word_times
@@ -308,6 +314,8 @@ def words(text):
                 # Two independent unprompted phone decodes support this named
                 # doubled-h ASR spelling of Epher. No generic h deletion.
                 'ephher': ['epher'],
+                # Published variants of the Rechabite name, Strong H2262.
+                'habaziniah': ['habazziniah'], 'habazaniah': ['habazziniah'],
                 # Lockyer documents Hadoram with initial long a.
                 'heydoram': ['hadoram'],
                 # Independently decoded three-syllable uh-zay-yah spellings.
