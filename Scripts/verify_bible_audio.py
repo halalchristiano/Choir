@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 105
+NORMALIZATION_VERSION = 106
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -76,7 +76,16 @@ _REVIEWED_NOHAH_ORDINALS = re.compile(r'\b(?i:Nohah?)\s+(?P<fourth>IV),?\s+(?i:a
 _REVIEWED_KORE_EBIASAPH = re.compile(r'\bKore,?\s+the\s+son\s+of\s+(?P<value>Abiasaph)(?=,?\s+the\s+son\s+of\s+Korah\b)', re.IGNORECASE)
 
 
+
+# These acoustic spellings are confined to both exact neighboring names.
+_REVIEWED_ANAIAH_CONTEXTS = (
+    re.compile(r'\bShema,?\s+(?P<value>Aniah|Anaya)(?=,?\s+Uriah\b)', re.IGNORECASE),
+    re.compile(r'\bHanan,?\s+(?P<value>Aniah|Anaya)(?=,?\s+Hoshea\b)', re.IGNORECASE),
+)
+
 def expanded_ordinal_notation(text):
+    for pattern in _REVIEWED_ANAIAH_CONTEXTS:
+        text = pattern.sub(lambda match: match[0][:-len(match['value'])]+'Anaiah', text)
     text = _REVIEWED_ORDINAL.sub(lambda match: match[0][:-1]+'the first', text)
     text = _REVIEWED_GIBEAH_IN.sub(lambda match: match[0][:-3]+'in', text)
     text = _REVIEWED_HAMMATH_FROM.sub(lambda match: match[0][:-6]+'Hammath', text)
@@ -95,6 +104,7 @@ def ordinal_timestamp_notation(word_times):
     spans += [(*m.span('value'), 'Hammath') for m in _REVIEWED_HAMMATH_FROM.finditer(text)]
     spans += [(*m.span('value'), 'Addar') for m in _REVIEWED_BELA_ADDAR.finditer(text)]
     spans += [(*m.span('value'), 'Ebiasaph') for m in _REVIEWED_KORE_EBIASAPH.finditer(text)]
+    spans += [(*m.span('value'), 'Anaiah') for pattern in _REVIEWED_ANAIAH_CONTEXTS for m in pattern.finditer(text)]
     spans += [(*m.span('fourth'), 'the fourth') for m in _REVIEWED_NOHAH_ORDINALS.finditer(text)]
     spans += [(*m.span('fifth'), 'the fifth') for m in _REVIEWED_NOHAH_ORDINALS.finditer(text)]
     spans.sort()
