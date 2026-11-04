@@ -774,5 +774,18 @@ class BibleAudioTextChecks(unittest.TestCase):
             with self.subTest(source=source, spelling=spelling):
                 self.assertNotEqual(words(source), words(spelling))
 
+    def test_balah_split_stress_timestamp_v94(self):
+        import copy
+        for mark in ("'", '’'):
+            raw = [dict(word=' Ba', start=11.06, end=11.32), dict(word=mark+'la,', start=11.32, end=11.5)]
+            before = copy.deepcopy(raw)
+            self.assertEqual(timed_words(raw), [('balah', 11.06, 11.5)])
+            self.assertEqual(raw, before)
+        for tail in (' la,', " 'la,", "'al,", "'lah,"):
+            raw = [dict(word=' Ba', start=1., end=1.2), dict(word=tail, start=1.2, end=1.5)]
+            self.assertNotEqual([x[0] for x in timed_words(raw)], ['balah'])
+        raw = [dict(word=' Ba', start=1., end=1.2), dict(word="'la,", start=2., end=2.5)]
+        self.assertNotEqual([x[0] for x in timed_words(raw)], ['balah'])
+
 if __name__ == '__main__':
     unittest.main()

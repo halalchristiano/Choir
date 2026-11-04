@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 93
+NORMALIZATION_VERSION = 94
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -463,6 +463,14 @@ def timed_words(word_times):
         # numeric continuation tokens, retaining the complete time interval.
         if merged and re.search(r'\d$', merged[-1]['word'].strip()) and re.fullmatch(r'\s*,\d{3}(?:,\d{3})*[.!?;:,\u2019\u201d]*\s*', item['word']):
             merged[-1]['word'] += item['word'].strip()
+            merged[-1]['end'] = item['end']
+        elif (merged and merged[-1]['word'].strip().casefold() == 'ba'
+              and re.fullmatch(r"['’]la[.!?;:,]*", item['word'], re.IGNORECASE)
+              and abs(item['start'] - merged[-1]['end']) <= .04):
+            # Whisper split the documented stress mark into Ba + 'la.
+            # Join only this contiguous continuation; retain its original
+            # first start and last end, and leave raw token records untouched.
+            merged[-1]['word'] += item['word']
             merged[-1]['end'] = item['end']
         else:
             merged.append(dict(item))
