@@ -363,6 +363,28 @@ class BibleAudioTextChecks(unittest.TestCase):
         self.assertEqual(untouched, 'Tirad was born.')
         self.assertFalse(used)
 
+    def test_cue_restoration_does_not_reinterpret_an_unrelated_literal_word(self):
+        entries = [dict(source='Pul', spoken='Pool', reference='https://classic.net.bible.org/dictionary.php?word=Pul'),
+                   dict(source='and', spoken='anned', reference='https://dictionary.cambridge.org/dictionary/english/and')]
+        source = 'The artificial pool and the House of the Mighty.'
+        restored, used = restore_source_spellings('The artificial pool anned the House of the Mighty.', entries, source_text=source)
+        self.assertEqual(words(restored), words(source))
+        self.assertEqual([entry['source'] for entry in used], ['and'])
+        source = 'Pul and Sargon came.'
+        restored, used = restore_source_spellings('Pool anned Sargon came.', entries, source_text=source)
+        self.assertEqual(words(restored), words(source))
+        self.assertEqual({entry['source'] for entry in used}, {'Pul', 'and'})
+
+    def test_ambiguous_or_changed_prompt_still_fails_full_source_comparison(self):
+        entries = [dict(source='Pul', spoken='Pool', reference='https://classic.net.bible.org/dictionary.php?word=Pul')]
+        source = 'Pul stood beside the pool.'
+        restored, _ = restore_source_spellings('Pool stood beside the pool.', entries, source_text=source)
+        self.assertNotEqual(words(restored), words(source))
+        source = 'He stood beside the pond.'
+        restored, used = restore_source_spellings('He stood beside the pool.', entries, source_text=source)
+        self.assertNotEqual(words(restored), words(source))
+        self.assertFalse(used)
+
     def test_replaced_recording_cannot_reuse_an_old_digest(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)/'recording.wav'

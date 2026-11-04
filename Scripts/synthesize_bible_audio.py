@@ -94,7 +94,8 @@ def main():
                 if words(prompt) == words(chunk['text']):
                     canonical_prompt, used_pronunciations = prompt, []
                 else:
-                    canonical_prompt, used_pronunciations = restore_source_spellings(prompt, pronunciations)
+                    canonical_prompt, used_pronunciations = restore_source_spellings(
+                        prompt, pronunciations, source_text=chunk['text'])
                 assert words(canonical_prompt) == words(chunk['text']), 'A generation prompt cannot change source words or numeric quantities'
                 if prompt != chunk['text']:
                     signature = hashlib.sha256((signature+'\n'+prompt).encode()).hexdigest()
@@ -152,7 +153,7 @@ def main():
             queue['retained_cache'] = args.retained_cache
             queue['runtime'] = {package:importlib.metadata.version(package) for package in ['mlx','mlx-audio']}
             queue['inference_scripts'] = {name:sha(Path(__file__).with_name(name)) for name in
-                ['synthesize_bible_audio.py','bible_audio_continuous.py'] +
+                ['synthesize_bible_audio.py','bible_audio_continuous.py','bible_audio_pronunciation.py'] +
                 (['bible_audio_cached_session.py'] if args.retained_cache else [])}
             queue['inference_sources'] = {name:Path(__file__).with_name(name).read_text() for name in queue['inference_scripts']}
             assert all(hashlib.sha256(code.encode()).hexdigest()==queue['inference_scripts'][name] for name,code in queue['inference_sources'].items())
