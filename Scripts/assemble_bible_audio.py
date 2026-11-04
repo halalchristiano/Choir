@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import shutil
 import subprocess
 import wave
 from pathlib import Path
@@ -16,10 +17,52 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def prepare_passage(wav, sample_rate):
+    """Remove and fade only proven quiet samples; preserve speech at an edge."""
+    assert wav.ndim == 1 and np.isfinite(wav).all() and len(wav) >= sample_rate
+    def quiet(values):
+        return not len(values) or (np.max(np.abs(values)) < .006 and np.sqrt(np.mean(values ** 2)) < .001)
+    window = int(.01 * sample_rate)
+    count = len(wav) // window
+    energy = np.sqrt(np.mean(wav[:count * window].reshape(count, window) ** 2, axis=1))
+    active = np.flatnonzero(energy > .0006)
+    assert len(active), 'A passage cannot consist entirely of quiet audio'
+    start = max(0, int(active[0]) * window - int(.1 * sample_rate))
+    end = min(len(wav), (int(active[-1]) + 1) * window + int(.15 * sample_rate))
+    # A low-RMS window can contain a short audible transient. Keep the complete
+    # corresponding edge whenever the proposed removed region is not quiet.
+    if not quiet(wav[:start]): start = 0
+    if not quiet(wav[end:]): end = len(wav)
+    trimmed = wav[start:end].copy()
+    fade = min(int(.005 * sample_rate), len(trimmed) // 2)
+    leading = fade if quiet(trimmed[:fade]) else 0
+    trailing = fade if quiet(trimmed[-fade:]) else 0
+    if leading: trimmed[:leading] *= np.linspace(0, 1, leading)
+    if trailing: trimmed[-trailing:] *= np.linspace(1, 0, trailing)
+    unchanged_end = len(trimmed) - trailing
+    assert np.array_equal(trimmed[leading:unchanged_end], wav[start + leading:end - trailing])
+    assert quiet(wav[:start]) and quiet(wav[end:])
+    return trimmed, start, end, leading, trailing
+
+
+def preserve_previous_assembly(folder, receipt_path, previous):
+    """Keep superseded assembled files before rebuilding an unpublished chapter."""
+    history = folder / 'assembly-history' / sha(receipt_path)
+    history.mkdir(parents=True, exist_ok=True)
+    paths = [receipt_path, Path(previous['local_audio'])]
+    paths.append(paths[-1].with_suffix('.wav'))
+    for original in paths:
+        if not original.exists(): continue
+        target = history / original.name
+        if target.exists(): assert sha(target) == sha(original)
+        else: shutil.copy2(original, target)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('root', type=Path)
     parser.add_argument('--chapter')
+    parser.add_argument('--require-safe-edges-for-books', nargs='+', default=[])
     args = parser.parse_args()
     root = args.root.resolve()/'gospels-v1'
     source = json.loads((root/'source.json').read_text())
@@ -41,6 +84,8 @@ def main():
         if receipt_path.exists():
             previous = json.loads(receipt_path.read_text())
             unchanged = previous['catalog_entry']['textSHA256'] == chapter['text_sha256']
+            if chapter['book'] in args.require_safe_edges_for_books:
+                unchanged = unchanged and previous.get('assembly_version') == 2 and previous.get('assembly_script_sha256') == sha(Path(__file__))
             for passage in previous['passages']:
                 file = folder/'passages'/f'{passage["index"]:03d}.wav'
                 check = json.loads(file.with_suffix('.check.json').read_text())
@@ -64,17 +109,7 @@ def main():
                 with wave.open(handle) as reader:
                     assert reader.getframerate() == sample_rate
                     wav = np.frombuffer(reader.readframes(reader.getnframes()), dtype='<i2').astype(np.float32)/32768
-            window = int(.01*sample_rate)
-            count = len(wav)//window
-            energy = np.sqrt(np.mean(wav[:count*window].reshape(count, window)**2, axis=1))
-            active = np.flatnonzero(energy > .0006)
-            assert len(active)
-            start = max(0, int(active[0])*window-int(.1*sample_rate))
-            end = min(len(wav), (int(active[-1])+1)*window+int(.15*sample_rate))
-            trimmed = wav[start:end].copy()
-            fade = min(int(.005*sample_rate), len(trimmed)//2)
-            trimmed[:fade] *= np.linspace(0,1,fade)
-            trimmed[-fade:] *= np.linspace(1,0,fade)
+            trimmed, start, end, leading_fade, trailing_fade = prepare_passage(wav, sample_rate)
             timed_words = normalized_word_times(check['word_times'])
             expected = words(chunk['text'])
             assert [t[0] for t in timed_words] == expected, 'Word timestamps do not match source: '+check['id']
@@ -91,7 +126,9 @@ def main():
                 first += count
             assert first == len(expected)
             passage_receipts.append(dict(index=chunk['index'], sha256=check['sha256'],
-                start=position/sample_rate, trimmed_leading=start/sample_rate, trimmed_trailing=(len(wav)-end)/sample_rate))
+                start=position/sample_rate, trimmed_leading=start/sample_rate, trimmed_trailing=(len(wav)-end)/sample_rate,
+                leadingFadeFrames=leading_fade, trailingFadeFrames=trailing_fade,
+                removedRegionsVerifiedQuiet=True, speechSamplesPreserved=True))
             parts.append(trimmed)
             pause = np.zeros(int(.35*sample_rate),dtype=np.float32)
             parts.append(pause)
@@ -101,11 +138,13 @@ def main():
             continue
         audio = np.concatenate(parts)
         assert np.isfinite(audio).all() and np.max(np.abs(audio)) < .99
+        if receipt_path.exists():
+            preserve_previous_assembly(folder, receipt_path, json.loads(receipt_path.read_text()))
         wav_path = folder/f'{chapter["book"]} {chapter["chapter"]} - Evan.wav'
         with wav_path.open('wb') as handle:
             with wave.open(handle,'wb') as writer:
                 writer.setnchannels(1); writer.setsampwidth(2); writer.setframerate(sample_rate)
-                writer.writeframes(np.rint(audio*32767).astype('<i2').tobytes())
+                writer.writeframes(np.rint(audio*32768).astype('<i2').tobytes())
         m4a = wav_path.with_suffix('.m4a')
         subprocess.run(['/usr/bin/afconvert','-f','m4af','-d','aac@44100','-b','96000','-q','127',str(wav_path),str(m4a)],check=True)
         digest = sha(m4a)
@@ -119,11 +158,12 @@ def main():
             audioPath=f'evan-bsb-v1/{chapter["id"]}/{digest}.m4a', audioSHA256=digest,
             byteCount=m4a.stat().st_size, duration=round(len(audio)/sample_rate,6), cues=cues)
         receipt=dict(catalog_entry=entry, local_audio=str(m4a), wav_sha256=sha(wav_path), passages=passage_receipts,
+            assembly_version=2, assembly_script_sha256=sha(Path(__file__)),
             voice='Saved Choir speaker embedding with trained voice-run-02 adapter',
             adapter_sha256='96e1746c34d634a4cc2a60a90cd91697de67aa846029af2823867480037c969b',
             verification='Every normalized source word matches independent local back-transcription; verse cues use recognized word timestamps.',
             human_listening_review_completed=False,
-            processing='Quiet outer-edge trimming, 5 ms edge fades, 350 ms passage gaps; no pitch or speed change.')
+            processing='Only proven quiet outer-edge trimming/fades; preserve speech at either boundary, with 350 ms passage gaps and exact PCM16 speech samples before AAC encoding; no pitch or speed change.')
         write_json(receipt_path,receipt)
         published.append(entry)
         print(f'ASSEMBLED {chapter["id"]}: {entry["duration"]:.2f}s, {entry["byteCount"]} bytes',flush=True)
