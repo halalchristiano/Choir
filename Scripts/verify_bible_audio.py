@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 78
+NORMALIZATION_VERSION = 79
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -139,7 +139,7 @@ def words(text):
                 # Libnah is lib-nuh; Achbor is ak-bor. NET ISBE gives
                 # Joiarib joi-a-rib and Zattu zat-u. No generic letter removal.
                 'ishiah': ['isshiah'], 'gilo': ['giloh'], 'libna': ['libnah'],
-                'akbor': ['achbor'], 'joyarib': ['joiarib'], 'zatu': ['zattu'],
+                'akbor': ['achbor'], 'joyarib': ['joi', 'arib'], 'zatu': ['zattu'],
                 # Merriam-Webster: adviser/advisor are spelling variants;
                 # council/counsel have the same published pronunciation.
                 'advisors': ['advisers'], 'council': ['counsel'],
@@ -202,6 +202,24 @@ def words(text):
                 # Merriam-Webster beryl/barrel share ber-uhl; NET ISBE
                 # Peres/Perez both have pe-rez. Endings stay distinct.
                 'barrel': ['beryl'], 'perez': ['peres'],
+                # Named English spellings documented in NET ISBE and Bible
+                # Gateway. MW daric is darik, plural -s. Retain vowels, syllables,
+                # and plural endings; no general letter-folding rule.
+                'belah': ['bela'], 'cadmiel': ['kadmiel'], 'mikmash': ['michmash'],
+                'tolah': ['tola'], 'telasar': ['telassar'], 'dariks': ['darics'],
+                # NET ISBE names: Jehoaddah/Jehoadah, dan-a, han-a-thon,
+                # ash-na, a-fe-ka, ro-ga; Bible Gateway Zaccai zak-eye.
+                'jehoadah': ['jehoaddah'], 'danah': ['dannah'],
+                'hanathon': ['hannathon'], 'ashna': ['ashnah'],
+                'afekah': ['aphekah'], 'zakai': ['zaccai'], 'rogah': ['rohgah'],
+                # Observed spacing alone, preserving every source letter.
+                'bethzur': ['beth', 'zur'], 'bethgader': ['beth', 'gader'],
+                'jushabhesed': ['jushab', 'hesed'], 'irnahash': ['ir', 'nahash'],
+                'benzoheth': ['ben', 'zoheth'], 'meribbaal': ['merib', 'baal'],
+                'heman': ['he', 'man'], 'helez': ['he', 'lez'],
+                'telmelah': ['tel', 'melah'], 'elnathan': ['el', 'nathan'],
+                'binnui': ['bin', 'nui'], 'joiarib': ['joi', 'arib'],
+                'storerooms': ['store', 'rooms'], 'eltolad': ['el', 'tolad'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],

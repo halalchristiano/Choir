@@ -567,5 +567,17 @@ class BibleAudioTextChecks(unittest.TestCase):
                 self.assertNotEqual(words(source), words(other))
 
 
+    def test_more_sourced_spellings_preserve_words_and_endings(self):
+        positive = [('Bela', 'Belah'), ('Kadmiel', 'Cadmiel'), ('Michmash', 'Mikmash'), ('Tola', 'Tolah'), ('Telassar', 'Telasar'), ('darics', 'dariks'), ('Jehoaddah', 'Jehoadah'), ('Dannah', 'Danah'), ('Hannathon', 'Hanathon'), ('Ashnah', 'Ashna'), ('Aphekah', 'Afekah'), ('Zaccai', 'Zakai'), ('Rohgah', 'Rogah'), ['Beth-zur', 'Bethzur'], ['Beth-gader', 'Bethgader'], ['Jushab-hesed', 'Jushabhesed'], ['Ir-nahash', 'Irnahash'], ['Ben-zoheth', 'Benzoheth'], ['Merib-baal', 'Meribbaal'], ['Heman', 'He man'], ['Helez', 'He lez'], ['Tel-melah', 'Telmelah'], ['Elnathan', 'El Nathan'], ['Binnui', 'Bin nui'], ['Joiarib', 'Joi arib'], ['storerooms', 'store rooms'], ['Eltolad', 'El tolad'], ('Joiarib', 'Joyarib')]
+        negative = [['Bela', 'Balah'], ['Kadmiel', 'Kadmuel'], ['Michmash', 'Mishmash'], ['Tola', 'Tala'], ['Telassar', 'Telaser'], ['darics', 'derricks'], ['darics', 'daric'], ['Beth-zur', 'Zur'], ['Merib-baal', 'Merib'], ['storerooms', 'store room'], ['Joiarib', 'Joarib'], ['horns', 'horn'], ['in', 'and'], ['host', 'hosts'], ['minas', 'minus'], ['Jekamiah', 'Jechamiah'], ['Ge-harashim', 'Jeharashim'], ['Jehoaddah', 'Jehoaddan'], ['Dannah', 'Dinnah'], ['Hannathon', 'Hanath'], ['Ashnah', 'Asha'], ['Aphekah', 'Apekah'], ['Zaccai', 'Zachar'], ['Rohgah', 'Rog'], ['Eltolad', 'Tolad']]
+        for source, spelling in positive:
+            with self.subTest(source=source, spelling=spelling):
+                self.assertEqual(words(source), words(spelling))
+                times = [dict(word=w, start=float(i), end=i+.5) for i,w in enumerate(spelling.split())]
+                self.assertEqual([item[0] for item in timed_words(times)], words(source))
+        for source, other in negative:
+            with self.subTest(source=source, other=other):
+                self.assertNotEqual(words(source), words(other))
+
 if __name__ == '__main__':
     unittest.main()
