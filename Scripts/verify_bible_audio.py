@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 79
+NORMALIZATION_VERSION = 80
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -220,6 +220,23 @@ def words(text):
                 'telmelah': ['tel', 'melah'], 'elnathan': ['el', 'nathan'],
                 'binnui': ['bin', 'nui'], 'joiarib': ['joi', 'arib'],
                 'storerooms': ['store', 'rooms'], 'eltolad': ['el', 'tolad'],
+                # Specific dictionary-supported ph/f, ch/k, silent-h, and
+                # doubled-consonant spellings; vowels and endings stay distinct.
+                'hakufa': ['hakupha'], 'hasufa': ['hasupha'],
+                'rinna': ['rinnah'], 'abana': ['abanah'],
+                'malkiram': ['malchiram'], 'chesuloth': ['chesulloth'],
+                'hagiah': ['haggiah'], 'arroer': ['a', 'rower'],
+                'amaskil': ['a', 'maskil'],
+                # Observed apostrophes/spacing, retaining every source letter.
+                "be'eroth": ['beeroth'], "ba'al": ['baal'],
+                'mahalath': ['maha', 'lath'], 'coastline': ['coast', 'line'],
+                'amariah': ['am', 'ariah'], 'coastlands': ['coast', 'lands'],
+                'shaalbonite': ['shaal', 'bonite'], 'geshurites': ['geshu', 'rites'],
+                'uzhul': ['uz', 'hul'], 'ishbosheth': ['ish', 'bosheth'],
+                'remaliah': ['rem', 'aliah'], 'shimei': ['shim', 'ei'],
+                'telharsha': ['tel', 'harsha'], 'jehiel': ['jehi', 'el'],
+                "be'erothite": ['beerothite'], 'elasah': ['el', 'asah'],
+                'heled': ['he', 'led'],
                 'foreseeing': ['for', 'seeing'], 'their': ['there'],
                 # ISBE English name forms: sir-tis, re-ji-um, nik-o-las.
                 'sirtis': ['syrtis'], 'regium': ['rhegium'], 'nicholas': ['nicolas'],

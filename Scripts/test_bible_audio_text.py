@@ -601,5 +601,17 @@ class BibleAudioTextChecks(unittest.TestCase):
             with self.subTest(source=source, other=other):
                 self.assertNotEqual(words(source), words(other))
 
+    def test_last_sourced_spellings_preserve_distinct_words_and_endings(self):
+        positive = [('Hakupha', 'Hakufa'), ('Hasupha', 'Hasufa'), ('Rinnah', 'Rinna'), ('Abanah', 'Abana'), ('Malchiram', 'Malkiram'), ('Chesulloth', 'Chesuloth'), ('Haggiah', 'Hagiah'), ('Aroer', 'Arroer'), ['a maskil', 'amaskil'], ['Beeroth', "Be'eroth"], ['Mahalath', 'maha lath'], ['coastline', 'coast line'], ['Amariah', 'Am ariah'], ['coastlands', 'coast lands'], ['Baal', "Ba'al"], ['Shaalbonite', 'Shaal bonite'], ['Geshurites', 'Geshu rites'], ['Uz Hul', 'Uzhul'], ['Ish-bosheth', 'Ishbosheth'], ['Remaliah', 'Rem aliah'], ['Shimei', 'Shim ei'], ['Tel-harsha', 'Telharsha'], ['Jehiel', 'Jehi el'], ['Beerothite', "Be'erothite"], ['Elasah', 'El asah'], ['Heled', 'He led']]
+        negative = [['Hakupha', 'Hakuba'], ['Hasupha', 'Hashupha'], ['Rinnah', 'Rima'], ['Abanah', 'Amana'], ['Malchiram', 'Malchiah'], ['Chesulloth', 'Chesulon'], ['Haggiah', 'Haggai'], ['Aroer', 'Arnon'], ['a maskil', 'Amoskil'], ['in', 'and'], ['horns', 'horn'], ['minas', 'minus'], ['Jeuel', 'Joel'], ['Jekamiah', 'Jechamiah'], ['a sign', 'assigned'], ['coastlands', 'coast land'], ['Geshurites', 'Geshurite'], ['Jehiel', 'Jeiel'], ['Amariah', 'Azariah'], ['Uz Hul', 'Hul'], ['Ish-bosheth', 'Bosheth'], ['Baal', 'Baals'], ['Beeroth', 'Beerot'], ['Beerothite', 'Beeroth'], ['Elasah', 'Elisha'], ['Heled', 'Held']]
+        for source, spelling in positive:
+            with self.subTest(source=source, spelling=spelling):
+                self.assertEqual(words(source), words(spelling))
+                times = [dict(word=w, start=float(i), end=i+.5) for i,w in enumerate(spelling.split())]
+                self.assertEqual([item[0] for item in timed_words(times)], words(source))
+        for source, spelling in negative:
+            with self.subTest(source=source, spelling=spelling):
+                self.assertNotEqual(words(source), words(spelling))
+
 if __name__ == '__main__':
     unittest.main()
