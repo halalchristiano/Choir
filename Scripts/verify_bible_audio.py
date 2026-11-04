@@ -20,7 +20,7 @@ import mlx_whisper
 import numpy as np
 from scipy.signal import resample_poly
 
-NORMALIZATION_VERSION = 88
+NORMALIZATION_VERSION = 89
 # Preserve across watcher reloads. The final publication audit independently
 # hashes every file; this avoids rereading the entire book on every live scan.
 _AUDIO_DIGEST_CACHE = globals().get('_AUDIO_DIGEST_CACHE', {})
@@ -52,7 +52,41 @@ def number_words(n):
             return number_words(n//value)+' '+name+(' '+number_words(n%value) if n%value else '')
 
 
+
+# Whisper formatted the spoken ordinal in this reviewed enumeration as Roman I.
+# The independent unprompted phonetic check contains /the first/. Keep the
+# pronoun I and every other context unchanged; do not infer ordinals from names.
+_REVIEWED_ORDINAL = re.compile(r'\bJehiel\s+(?P<ordinal>I)(?=,\s+Zetham\b)')
+
+
+def expanded_ordinal_notation(text):
+    return _REVIEWED_ORDINAL.sub(lambda match: match[0][:-1]+'the first', text)
+
+
+def ordinal_timestamp_notation(word_times):
+    # Apply the same textual expansion to a copy. Both spoken words retain
+    # the recognizer's original I token interval, just like numeric expansion.
+    # There are no fabricated boundaries and no edits to raw ASR records.
+    text = ' '.join(item['word'] for item in word_times)
+    spans = [m.span('ordinal') for m in _REVIEWED_ORDINAL.finditer(text)]
+    if not spans:
+        return word_times
+    result = []
+    offset = covered = 0
+    for item in word_times:
+        raw = item['word']
+        local = [(a-offset, b-offset) for a,b in spans if offset <= a and b <= offset+len(raw)]
+        covered += len(local)
+        for a,b in reversed(local):
+            raw = raw[:a] + 'the first' + raw[b:]
+        result.append(dict(item, word=raw))
+        offset += len(item['word'])+1
+    assert covered == len(spans), 'Ordinal notation crosses an unexpected timestamp token'
+    return result
+
+
 def words(text):
+    text = expanded_ordinal_notation(text)
     # Numerals and their spoken English form represent the same source words.
     text = re.sub(r'\b(\d[\d,]*)(?:st|nd|rd|th)\b', lambda m: ordinal_words(int(m[1].replace(',', ''))), text, flags=re.IGNORECASE)
     text = re.sub(r'\b\d[\d,]*\b', lambda m: number_words(int(m[0].replace(',', ''))), text)
@@ -418,7 +452,7 @@ def timed_words(word_times):
             merged[-1]['end'] = item['end']
         else:
             merged.append(dict(item))
-    word_times = merged
+    word_times = ordinal_timestamp_notation(merged)
     flattened = [(token, item['start'], item['end']) for item in word_times for token in words(item['word'])]
     # Apply the same bounded cardinal-article rule across timestamp tokens.
     flattened = [('one', start, end) if token == 'a' and i+1 < len(flattened) and flattened[i+1][0] in ('hundred', 'thousand', 'million', 'billion') else (token, start, end) for i,(token,start,end) in enumerate(flattened)]
